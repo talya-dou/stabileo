@@ -976,6 +976,78 @@ AI generates code fast. The bottleneck is the human review process — expert st
 
 Design codes update every 3-6 years (ACI 318: 2019, AISC 360: 2022, Eurocode: rewriting 2025-2028). This is permanent maintenance — but AI makes updating faster too, since it can diff old and new code provisions and generate the changes for human review.
 
+### Difficulty map
+
+Every feature rated by implementation difficulty. Easy = well-defined formulas or standard SaaS work. Medium = substantial but straightforward engineering. Hard = novel algorithms, numerical stability concerns, or distributed systems complexity. Very Hard = long-term business challenges that compound over time.
+
+| Feature | Phase | Dev-months | Difficulty | Why |
+|---|---|---|---|---|
+| Unit system toggle | 1 | 0.5 | Easy | UI conversion layer, no algorithm work |
+| Offline PWA | 1 | 0.5 | Easy | Service Worker + IndexedDB, solver already client-side |
+| Quantity takeoff | 1 | 0.5 | Easy | Arithmetic on data already in the model |
+| Thermal loads | 4 | 0.5 | Easy | Equivalent forces from αΔT, feeds existing solver |
+| Floor vibration | 4 | 0.5 | Easy | Modal analysis exists, add damping + acceptance criteria |
+| Calculation reports | 1 | 0.5-1 | Easy | Template engine + LaTeX/PDF generation |
+| Fatigue analysis | 4 | 0.5-1 | Easy | S-N lookup + Miner's rule, well-defined algorithm |
+| Scaffolding / temp works | 4 | 0.5-1 | Easy | Simple member checks with standard load tables |
+| REST API | 2 | 0.5-1 | Easy | HTTP wrapper around existing solver |
+| Progressive collapse | 4 | 0.5-1 | Easy | Automated column removal + reanalysis (needs nonlinear solver) |
+| AI assistant (Phase 1) | 1 | 1 | Easy | LLM API calls for load gen, result review, report narration |
+| AI assistant (Phase 2) | 2 | 1 | Medium | NLP → model mutations requires parsing; auto-sizing is iterative |
+| 3D solver parity | 1 | 1-1.5 | Medium | 2D algorithms exist, extend to 12x12 matrices |
+| Load determination (per code) | 1 | 1-1.5 | Medium | Many tables/coefficients but straightforward formulas |
+| Education platform | 2 | 1-1.5 | Medium | Auto-grading logic, LMS integration (LTI protocol) |
+| Timber design (per code) | 3 | 1-1.5 | Medium | Adjustment factors are tedious but well-documented |
+| Cold-formed steel (per code) | 4 | 1-1.5 | Medium | Effective width + DSM more complex than hot-rolled |
+| Fire design | 4 | 1-1.5 | Medium | Temperature-dependent properties, ISO 834 curves |
+| Additional connections (10→20) | 3 | 1-1.5 | Medium | Pattern established from first 10, incremental |
+| Project mgmt + version control | 2 | 1-1.5 | Medium | CRUD + diffing + storage, no algorithms |
+| Soil-structure interaction | 4 | 1-1.5 | Medium | Impedance functions are formulas; p-y curves well-published |
+| Revit/Tekla live link | 2 | 1-1.5 | Medium | Revit API well-documented but plugin dev has friction |
+| Foundation design | 2 | 0.5-1 | Medium | Bearing capacity + footing design, standard formulas |
+| Masonry (per code) | 4 | 0.5-1 | Medium | Limited scope, well-defined checks |
+| Composite steel-concrete (per code) | 4 | 0.5-1 | Medium | Composite section properties + shear stud calc |
+| Steel member design (per code) | 1 | 1.5-2 | Medium | Many chapters, each is formula + table lookup |
+| Concrete member design (per code) | 1 | 1.5-2 | Medium | Reinforcement layout, crack width, P-M diagrams |
+| Steel connections (first 10) | 2 | 1.5-2 | Medium | Each type is self-contained, many failure modes |
+| Rust/WASM solver | 2 | 1.5-2 | Medium | Rust solver exists, needs WASM compilation + sparse solvers |
+| Enterprise features | 2 | 1.5-2 | Medium | SSO/SAML, admin UI — standard SaaS infrastructure |
+| Bridge design | 4 | 1.5-2 | Medium | AASHTO well-documented, distribution factors are formulaic |
+| Seismic retrofit | 4 | 1.5-2 | Medium | FRP/jacketing formula-based; base isolation needs nonlinear solver |
+| Detailing (partial) | 4 | 1.5-2 | Medium | Rebar schedules are data transform; connection sheets need 2D drawing |
+| Incumbent importers (per format) | 2 | 0.5-1 | Medium | Text parsing, must handle every edge case in the format |
+| Second design code | 3 | 3-4 | Medium | Pattern exists from first code, still substantial formula work |
+| Geotechnical (slope + deep fdn) | 4 | 2-3 | Medium | Method of slices is iterative; pile design has many soil models |
+| Global code expansion (per pair) | 5 | 1-2 | Medium | Formula translation, each code has unique provisions |
+| Real-time collaboration (CRDTs) | 2 | 1.5-2 | Hard | CRDT + Svelte reactivity integration, referential integrity, presence |
+| Prestressed concrete (per code) | 3 | 1.5-2 | Hard | Staged analysis, loss calculations, hyperstatic effects |
+| Nonlinear time history | 4 | 1.5-2 | Hard | Direct integration, numerical stability, ground motion selection |
+| Nonlinear materials (fiber) | 4 | 1-1.5 | Hard | Fiber discretization, constitutive models, Newton-Raphson convergence |
+| Cable/tension structures | 4 | 1 | Hard | Large-displacement geometric nonlinearity, form-finding |
+| Staged construction | 4 | 1-1.5 | Hard | Creep/shrinkage/relaxation across stages, changing geometry |
+| Performance-based design | 4 | 1.5-2 | Hard | Fragility functions, loss estimation, requires nonlinear TH |
+| Plates and shells | 4 | 2-3 | Hard | New element formulations (DKT+CST), mesh generation |
+
+**Summary:**
+
+| Difficulty | Features | Dev-months | Notes |
+|---|---|---|---|
+| Easy | 11 | ~7-10 | Formula translation, standard web engineering, LLM wrappers |
+| Medium | 24 | ~30-45 | Bulk of the roadmap — substantial but predictable work |
+| Hard | 8 | ~12-17 | Numerical methods, distributed systems, convergence problems |
+
+All Easy and Medium items are in Phases 1-3 (the first sellable product through second market). The Hard items cluster in Phase 4 — by then, revenue funds the team and the hardest problems can be tackled with experienced hires.
+
+**The hardest things are not technical — they are business:**
+
+| Challenge | Difficulty | Why |
+|---|---|---|
+| Getting engineers to trust new software | Very Hard | Engineers are personally liable. Takes years of published benchmarks, marquee clients, and conference presence |
+| Maintaining 8+ design codes long-term | Very Hard | Codes update every 3-6 years. Each update requires re-implementation and re-validation. Permanent cost |
+| Enterprise sales cycles | Hard | Large firms take 6-12 months to evaluate. Need revenue before they commit |
+| Competing on trust with 30-year incumbents | Hard | CSI/Dlubal have decades of verification history. We start from zero |
+| Design code edge cases (last 10%) | Hard | Each code chapter has dozens of sub-cases. The last 10% takes as long as the first 90% |
+
 ### What we don't build
 
 **Construction drawings (Revit/Tekla territory):** generating plans, sections, and shop drawings requires a full CAD/BIM engine with drafting tools, dimensioning, annotation, sheet management, and print layout. This is a separate product category worth billions of dollars and decades of development. We integrate with these tools via IFC round-trip and live link plugins — we do not replace them. The boundary is clear: Dedaliano does engineering calculations, Revit/Tekla does construction documents.
