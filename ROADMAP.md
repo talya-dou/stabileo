@@ -101,7 +101,20 @@ These features are trivial to add in a browser-based, AI-native architecture. Th
 | **Education** | $50-100/student/yr | University site license with auto-grading and LMS integration |
 | **API** | Pay-per-solve | HTTP solver endpoint for developers and integrations |
 
+| **Enterprise** | Custom | SSO/SAML, admin dashboard, usage reporting, audit trail, priority support, SLA |
+
 **Revenue model**: free tier drives adoption; $99/month All-in-One is the target conversion. At $1,188/year vs $5,000-15,000/year for incumbents, the price objection disappears. Revenue scales with users, not with per-seat licenses.
+
+**Freemium conversion mechanics:**
+- Free tier: up to 50 elements, 3 load cases, 1 load combination, no code checks, no reports, no server compute. Enough to evaluate the tool and teach students, not enough to run a real project
+- Pro paywall triggers: model exceeds 50 elements, user requests code checks, user generates a report, user needs imperial units. These are natural boundaries — the engineer hits them when they need Dedaliano for real work
+- No time limits or trial periods. The free tier is permanent. This removes the "I'll try it later" objection and keeps the tool installed/bookmarked
+
+**Churn prevention:**
+- Firm-specific report templates: once a firm configures their header, logo, disclaimer text, and preferred detail level, they won't recreate this elsewhere
+- Saved calculation library: every project's models, results, and reports are stored and searchable. Years of project history becomes a switching cost
+- Team knowledge: standard connection details, preferred sections, office design standards embedded in the tool
+- The more a firm invests in Dedaliano-specific workflows, the harder it is to leave. This is the same lock-in strategy that keeps firms on ETABS for decades — but earned through value, not licensing
 
 ### Trust and credibility strategy
 
@@ -163,6 +176,24 @@ Engineers are conservative. They will not switch from SAP2000/ETABS unless they 
 - Publish benchmark comparison papers in ASCE Journal of Structural Engineering, Engineering Structures, etc.
 - Academic credibility translates directly to practitioner trust
 - "Peer-reviewed verification" is the gold standard in engineering
+
+### Professional liability and disclaimers
+
+Engineers are personally liable for their designs. Their professional liability (E&O) insurance covers the tools they use — but only if they can demonstrate due diligence. This is a real sales blocker.
+
+**Disclaimer framework:**
+- Clear terms of service: "Dedaliano is a tool. The engineer of record is responsible for verifying all results. The software does not replace professional engineering judgment"
+- This is identical to what ETABS, SAP2000, and every other structural tool states — but it must be explicit and prominent
+
+**Supporting engineer confidence:**
+- Every design check displays the code clause, formula, and intermediate values used. The engineer can verify any result by hand
+- Verification documents (see Trust section above) demonstrate that the software produces correct results for known problems
+- Open source code means any engineer or firm can audit the implementation
+
+**Insurance compatibility:**
+- Engage with major E&O insurance providers (Victor, Beazley, Hiscox) to get Dedaliano listed as acceptable analysis software
+- Publish a "Software Verification Statement" that firms can attach to their insurance applications — a formal document listing all benchmark tests passed, the verification methodology, and the review process
+- This is not a technical problem — it's a business development problem that must be solved before large firms will adopt
 
 ---
 
@@ -322,7 +353,21 @@ All internal calculations remain in SI (m, kN, kN·m, MPa). Display layer conver
 
 Estimated effort: 0.5 dev-months.
 
-### 1.8 AI assistant (Phase 1 features)
+### 1.8 Offline mode (PWA)
+
+Structural engineers work on construction sites, in remote locations, and in countries with unreliable internet. "What if I lose internet?" is a common objection to browser-based tools.
+
+The solver already runs entirely client-side — no server needed for analysis. Adding a Service Worker and PWA manifest makes Dedaliano installable and fully functional offline:
+- Cache all application assets (HTML, JS, CSS, WASM) for offline use
+- Models saved to IndexedDB (upgrade from localStorage for larger storage)
+- Sync to server when connectivity returns (integrates with CRDT collaboration in Phase 2)
+- "Install" button adds Dedaliano to home screen / desktop like a native app
+
+This removes the single biggest objection to browser-based tools. Engineers can run full analysis offline on a laptop at a construction site.
+
+Estimated effort: 0.5 dev-months.
+
+### 1.9 AI assistant (Phase 1 features)
 
 Ship the first AI-native features alongside Phase 1 to differentiate from day one:
 
@@ -340,7 +385,7 @@ Estimated effort: 1 dev-month.
 
 **Business goal:** close the design loop with connections. Enable server-side computation and collaboration. Open the API and education markets.
 
-**Total: 7-10 dev-months.**
+**Total: 12-18 dev-months.**
 
 ### 2.1 Steel connection design
 
@@ -483,7 +528,62 @@ Estimated effort: 1-1.5 dev-months.
 
 Estimated effort: 1 dev-month.
 
-### 2.8 Revit/Tekla live link plugin
+### 2.8 Project management and version control
+
+Engineers manage dozens of active projects. Currently Dedaliano has single-model autosave to localStorage. This must become a real project management layer.
+
+**Project dashboard:**
+- Project list with search, status (active, archived, submitted), owner, last modified
+- Folder/tag organization
+- Per-project settings (design code, unit system, report template)
+
+**Model version control and audit trail:**
+- Every save creates a versioned snapshot with timestamp and author
+- Named versions: "submitted for permit", "revision 2 per plan check comments", "final for construction"
+- Diff view between versions: highlight changed nodes, elements, loads, sections
+- Full history: who changed what, when, and why
+- This is a regulatory requirement — when a building department asks "show me the calculation submitted on March 15," the engineer must produce that exact version
+- Server-side storage (integrates with Go server from 2.3) with client-side cache for offline access
+
+**Audit trail for professional liability:**
+- Immutable log of all design decisions: who approved which design check, when loads were finalized, when the report was generated
+- Exportable as PDF for insurance and legal records
+- This protects the engineer — and makes firms more comfortable adopting new software
+
+Estimated effort: 1-1.5 dev-months.
+
+### 2.9 Enterprise features
+
+Large firms (AECOM, WSP, Thornton Tomasetti, 500+ engineers) buy through procurement departments. They have requirements that individual engineers don't:
+
+- **SSO/SAML**: integrate with firm's identity provider (Azure AD, Okta, Google Workspace). No separate passwords
+- **Admin dashboard**: firm administrator manages users, assigns licenses, monitors usage
+- **Usage reporting**: how many analyses run, by whom, compute hours consumed. Required for cost allocation
+- **Role-based access**: project lead can edit, junior engineer can view/run analysis, reviewer can comment. Matches firm hierarchy
+- **Data residency**: option to host project data in specific regions (EU firms may require EU data storage for GDPR)
+- **Priority support and SLA**: guaranteed response times, dedicated support contact
+
+Enterprise deals are high-value: a 200-person firm at $99/month/seat = $237,600/year. Worth the investment.
+
+Estimated effort: 1.5-2 dev-months.
+
+### 2.10 Incumbent model importers
+
+Engineers have hundreds of existing models in incumbent formats. If they can't bring their existing work to Dedaliano, the switching cost is too high. Import converters remove this barrier.
+
+**Priority formats:**
+- **ETABS (.e2k text format)**: most common high-rise analysis tool. .e2k is a text-based format that is well-documented and parseable. Import geometry, sections, materials, loads, load combinations
+- **SAP2000 (.$2k text format)**: same company as ETABS, similar text format. Covers general structures
+- **STAAD.Pro (.std text format)**: dominant in India and parts of Asia. Text-based input file
+- **RFEM (XML-based)**: Dlubal exports to XML. Increasingly popular in Europe
+
+These are read-only importers — we don't need to write back to incumbent formats. The goal is one-click migration: open your ETABS model in Dedaliano, verify results match, and never go back.
+
+**Migration verification workflow:** after import, run analysis in both tools and compare results automatically. Generate a comparison report showing that Dedaliano matches the incumbent within acceptable tolerance. This is also a powerful sales tool — "your existing model gives the same results in Dedaliano."
+
+Estimated effort: 0.5-1 dev-months per format (text-based formats are straightforward to parse).
+
+### 2.11 Revit/Tekla live link plugin
 
 Bidirectional sync between Dedaliano and BIM tools:
 - Import analytical model from Revit/Tekla into Dedaliano
@@ -559,7 +659,7 @@ Estimated effort: 1-1.5 dev-months.
 
 **Business goal:** cover every common structural material and analysis type. Revenue from Phases 1-3 funds the team. After this phase, Dedaliano handles ~80-85% of everything a structural engineer does (the remaining ~15-20% is construction drawings — Revit/Tekla territory).
 
-**Total: 18-26 dev-months.**
+**Total: 22-32 dev-months.**
 
 ### 4.1 Cold-formed steel
 
@@ -649,13 +749,71 @@ Deep foundations: single piles (axial capacity from SPT/CPT), pile groups (group
 
 Estimated effort: 1-1.5 dev-months for slope stability, 1-1.5 for deep foundations.
 
-### 4.10 Fatigue analysis
+### 4.10 Progressive collapse analysis
+
+Required by GSA (US General Services Administration) for federal buildings and DoD (UFC 4-023-03) for military facilities. Increasingly required by local jurisdictions for important buildings.
+
+**Methodology:**
+- Alternate path method: remove one column (or wall segment) at a time, check if the remaining structure can redistribute loads without collapse
+- Nonlinear dynamic analysis of the sudden column removal scenario (requires nonlinear time history from 4.5)
+- Tie force method: verify that structural connections can develop catenary action
+- Enhanced local resistance: verify that key elements can resist abnormal loads
+
+Relatively simple to implement once the nonlinear solver exists — the main work is the automated column removal loop and the acceptance criteria checks per GSA/DoD guidelines.
+
+Estimated effort: 0.5-1 dev-months.
+
+### 4.11 Soil-structure interaction
+
+Beyond simple Winkler springs at the base. For seismic design of important structures, the foundation flexibility affects the entire building's response.
+
+**Scope:**
+- Impedance functions: frequency-dependent stiffness and damping for surface and embedded foundations (Gazetas formulas)
+- Foundation springs: translational and rotational springs at each support computed from soil properties and footing geometry
+- P-y springs for laterally loaded piles: nonlinear springs that capture soil resistance as a function of lateral displacement. Different curves for sand (Reese), clay (Matlock), and layered soils
+- Kinematic interaction: how the foundation filters ground motion before it reaches the superstructure
+- ASCE 7 Chapter 19 / Eurocode 8 provisions for SSI effects
+
+This bridges the structural and geotechnical modules (4.9) — the pile design from geotechnical analysis feeds directly into the foundation springs for the structural model.
+
+Estimated effort: 1-1.5 dev-months.
+
+### 4.12 Thermal loads
+
+Temperature effects on long buildings, bridges, parking garages, and industrial structures. Missing from the load determination section but required for many structure types.
+
+**Scope:**
+- Uniform temperature change (ΔT): expansion/contraction of all members. Convert to equivalent nodal forces via thermal strain ε = αΔT
+- Temperature gradient: different temperature on top and bottom of a member (e.g., bridge deck heated by sun on top, shaded below). Creates bending
+- Temperature load cases per ASCE 7 or Eurocode 1-5 (thermal actions)
+- Expansion joint spacing recommendations based on building length and climate
+
+Technically straightforward — thermal loads produce equivalent forces that feed into the existing solver. The work is in the UI (temperature input per member/group) and the code-based temperature ranges.
+
+Estimated effort: 0.5 dev-months.
+
+### 4.13 Performance-based seismic design
+
+FEMA P-58 / ASCE 41 performance-based engineering. This is where the industry is heading — especially for tall buildings in high-seismic regions (Los Angeles, San Francisco, Seattle, Tokyo, Istanbul).
+
+**Scope:**
+- Performance objectives: Immediate Occupancy (IO), Life Safety (LS), Collapse Prevention (CP) at different hazard levels
+- Demand parameters from nonlinear time history analysis (4.5): peak inter-story drifts, peak floor accelerations, residual drifts, peak beam/column rotations
+- Fragility functions: probability of damage to structural and nonstructural components as a function of demand parameters
+- Loss estimation: expected repair cost, downtime, and casualties for a given earthquake scenario. Output: "this building has a 10% probability of $2M in earthquake damage over 50 years"
+- Acceptance criteria per ASCE 41: component-level checks (plastic hinge rotations vs acceptance limits for IO/LS/CP)
+
+This is the most advanced analysis capability in the roadmap. It requires nonlinear time history analysis, fiber analysis for columns, and a library of fragility curves. But it's also the highest-value capability — performance-based design projects for tall buildings command premium fees.
+
+Estimated effort: 1.5-2 dev-months (builds on 4.5 nonlinear analysis).
+
+### 4.14 Fatigue analysis
 
 For bridges, crane girders, offshore structures, wind turbine towers. S-N curves, Miner's rule cumulative damage, stress range counting (rainflow method). AISC 360 Appendix 3, Eurocode 3-1-9.
 
 Estimated effort: 0.5-1 dev-months.
 
-### 4.11 Floor vibration and serviceability
+### 4.15 Floor vibration and serviceability
 
 Footfall analysis, vibration from equipment or pedestrian traffic. Required for hospitals, labs, offices with sensitive equipment. SCI P354 (UK), AISC Design Guide 11 (US).
 
@@ -663,7 +821,7 @@ Natural frequency calculation (already in modal analysis), damping estimation, r
 
 Estimated effort: 0.5 dev-months.
 
-### 4.12 Scaffolding and temporary works
+### 4.16 Scaffolding and temporary works
 
 Formwork, shoring, scaffolding design. Required on every construction site. Usually done poorly or with rules of thumb. High liability. No good browser tool.
 
@@ -671,7 +829,7 @@ Covers: falsework design for concrete pours, scaffold load capacity, bracing req
 
 Estimated effort: 0.5-1 dev-months.
 
-### 4.13 Detailing (partial)
+### 4.17 Detailing (partial)
 
 Full construction drawings are out of scope (CAD engine). Two feasible slices:
 
@@ -787,18 +945,18 @@ All estimates assume AI-generated code with human review on every PR and commit 
 
 | Category | Dev-months |
 |---|---|
-| Phase 1: one-code design tool + AI assistant | 7-10 |
-| Phase 2: connections + server + collaboration + AI | 7-10 |
+| Phase 1: one-code design tool + AI assistant + offline | 7-10 |
+| Phase 2: connections + server + collaboration + enterprise + migration | 12-18 |
 | Phase 3: second code + timber + prestressed | 8-11 |
-| Phase 4: full platform (all materials + advanced analysis) | 18-26 |
+| Phase 4: full platform (all materials + advanced analysis + SSI + PBSD) | 22-32 |
 | Phase 5: global code expansion (4-5 additional code families) | 8-14 |
-| **Total** | **48-71** |
+| **Total** | **57-85** |
 
 | Team size | Time to Phase 4 complete | Time to Phase 5 complete |
 |---|---|---|
-| 3 developers + reviewers | 14-19 months | 17-24 months |
-| 5 developers + reviewers | 8-11 months | 10-14 months |
-| 10 developers + reviewers | 5-6 months | 6-8 months |
+| 3 developers + reviewers | 17-24 months | 20-28 months |
+| 5 developers + reviewers | 10-14 months | 12-17 months |
+| 10 developers + reviewers | 5-7 months | 6-9 months |
 
 Phase 1 alone (sellable product) with 3 developers: **2-3 months**.
 
