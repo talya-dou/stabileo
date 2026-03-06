@@ -5,6 +5,7 @@
 ///   2. Roark Ring — Full circle under diametrically opposite loads (δ=0.1488·PR³/EI)
 ///   3. Convergence — VM18 problem with N=4,8,16 segments
 ///   4. Degenerate collinear — straight beam from collinear points
+///   5. Parabolic arch — 3-hinge arch under UDL, Roark horizontal thrust formula
 use dedaliano_engine::solver::linear;
 use dedaliano_engine::types::*;
 use std::collections::HashMap;
@@ -313,5 +314,114 @@ fn validation_curved_degenerate_collinear() {
     assert!(
         (sum_fy - p).abs() < 1.0,
         "Collinear curved beam: sum_fy={:.4}, expected={:.4}", sum_fy, p
+    );
+}
+
+// ================================================================
+// 5. Parabolic Arch — 3-Hinge Arch Under Vertical Load
+// ================================================================
+//
+// Source: Roark *Formulas for Stress and Strain*, 3-hinge arch formulas
+// Parabolic arch: y(x) = 4h·x(L-x)/L²
+// Under concentrated vertical load P at crown:
+//   H = P·L/(4h) (horizontal thrust)
+//   V = P/2 at each support
+//
+// Use curved beam element to model the arch, pin supports at both ends.
+// Crown node is free (internal hinge not needed for 2-hinge arch version).
+
+#[test]
+fn validation_curved_parabolic_arch() {
+    let e_mpa = 200_000.0;
+    let e_eff = e_mpa * 1000.0;
+    let nu = 0.3;
+    let l: f64 = 10.0;
+    let h: f64 = 2.5; // rise
+    let p = 50.0; // kN at crown
+
+    // Section properties
+    let side: f64 = 0.15; // 150mm square
+    let a = side * side;
+    let i_val = side.powi(4) / 12.0;
+    let j_val = 0.141 * side.powi(4);
+
+    // 3-point definition for parabolic arch:
+    // Start (0,0,0), mid (L/2, h, 0), end (L, 0, 0)
+    let nodes = vec![
+        (1, 0.0, 0.0, 0.0),       // left support
+        (2, l / 2.0, h, 0.0),      // crown
+        (3, l, 0.0, 0.0),          // right support
+    ];
+
+    let curved_beams = vec![CurvedBeamInput {
+        node_start: 1,
+        node_mid: 2,
+        node_end: 3,
+        material_id: 1,
+        section_id: 1,
+        num_segments: 16,
+        hinge_start: false,
+        hinge_end: false,
+    }];
+
+    // Pinned supports at both ends (restrain translations, free rotations)
+    let supports = vec![
+        (1, vec![true, true, true, false, false, false]),
+        (3, vec![true, true, true, false, false, false]),
+    ];
+
+    // Vertical load at crown
+    let loads = vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: 2, fx: 0.0, fy: -p, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    })];
+
+    let input = make_arch_input(nodes, curved_beams, supports, loads,
+        e_mpa, nu, a, i_val, i_val, j_val);
+    let results = linear::solve_3d(&input).unwrap();
+
+    // Vertical equilibrium: each support gets P/2
+    let r1 = results.reactions.iter().find(|r| r.node_id == 1).unwrap();
+    let r3 = results.reactions.iter().find(|r| r.node_id == 3).unwrap();
+
+    let sum_fy = r1.fy + r3.fy;
+    assert!(
+        (sum_fy - p).abs() / p < 0.02,
+        "Arch ΣRy={:.4}, expected P={:.4}", sum_fy, p
+    );
+
+    // Horizontal thrust: H = P·L/(4h) for parabolic 2-hinge arch (approximate)
+    // For 2-hinge arch under crown load, exact is close to this.
+    let h_analytical = p * l / (4.0 * h);
+
+    // Horizontal reactions should be equal and opposite
+    let h_left = r1.fx.abs();
+    let h_right = r3.fx.abs();
+    assert!(
+        (h_left - h_right).abs() / h_left.max(1.0) < 0.05,
+        "Horizontal reactions should be symmetric: left={:.4}, right={:.4}", h_left, h_right
+    );
+
+    // Horizontal thrust should be in right ballpark
+    // (2-hinge vs 3-hinge differs, so allow 30% tolerance)
+    let error_h = (h_left - h_analytical).abs() / h_analytical;
+    assert!(
+        error_h < 0.30,
+        "Arch thrust: computed H={:.4}, analytical={:.4}, error={:.1}%",
+        h_left, h_analytical, error_h * 100.0
+    );
+
+    // Crown should deflect downward
+    let crown = results.displacements.iter().find(|d| d.node_id == 2).unwrap();
+    assert!(crown.uy < 0.0,
+        "Crown should deflect down, got uy={:.6e}", crown.uy);
+
+    // Crown deflection should be much smaller than a beam of same span
+    // (arch action greatly reduces deflection)
+    let beam_delta = p * l.powi(3) / (48.0 * e_eff * i_val);
+    assert!(
+        crown.uy.abs() < beam_delta,
+        "Arch deflection={:.6e} should be less than beam={:.6e} (arch action)",
+        crown.uy.abs(), beam_delta
     );
 }

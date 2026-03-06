@@ -72,7 +72,8 @@ impl DofNumbering {
     pub fn build_3d(input: &SolverInput3D) -> Self {
         let has_frame = input.elements.values().any(|e| e.elem_type == "frame");
         let has_plate = !input.plates.is_empty();
-        let dofs_per_node = if has_frame || has_plate { 6 } else { 3 };
+        let has_warping = input.sections.values().any(|s| s.cw.is_some());
+        let dofs_per_node = if has_warping { 7 } else if has_frame || has_plate { 6 } else { 3 };
 
         let mut node_ids: Vec<usize> = input.nodes.values().map(|n| n.id).collect();
         node_ids.sort();
@@ -176,6 +177,7 @@ fn is_dof_restrained_2d(sup: &SolverSupport, local_dof: usize) -> bool {
         "rollerX" => local_dof == 1,  // uy fixed (free to slide in X)
         "rollerY" => local_dof == 0,  // ux fixed (free to slide in Y)
         "guidedX" => local_dof == 1 || local_dof == 2, // uy+rz fixed, ux free (sliding clamp)
+        "guidedY" => local_dof == 0 || local_dof == 2, // ux+rz fixed, uy free (sliding clamp in Y)
         "inclinedRoller" => local_dof == 1, // Constrained normal to surface
         "spring" => false,  // All spring DOFs are free (stiffness added to K)
         _ => false,
@@ -183,6 +185,25 @@ fn is_dof_restrained_2d(sup: &SolverSupport, local_dof: usize) -> bool {
 }
 
 fn is_dof_restrained_3d(sup: &SolverSupport3D, local_dof: usize) -> bool {
+    // Inclined supports: in rotated frame, DOF 0 = normal direction (restrained),
+    // DOFs 1,2 = tangential (free). Rotational DOFs use standard flags.
+    if sup.is_inclined.unwrap_or(false) {
+        if let (Some(nx), Some(ny), Some(nz)) = (sup.normal_x, sup.normal_y, sup.normal_z) {
+            let n_len = (nx * nx + ny * ny + nz * nz).sqrt();
+            if n_len > 1e-12 {
+                return match local_dof {
+                    0 => true,          // Normal direction — restrained
+                    1 | 2 => false,     // Tangential — free
+                    3 => sup.rrx,
+                    4 => sup.rry,
+                    5 => sup.rrz,
+                    6 => sup.rw.unwrap_or(false),
+                    _ => false,
+                };
+            }
+        }
+    }
+
     // Check for spring stiffness
     let has_spring = match local_dof {
         0 => sup.kx.unwrap_or(0.0) > 0.0,
@@ -191,6 +212,7 @@ fn is_dof_restrained_3d(sup: &SolverSupport3D, local_dof: usize) -> bool {
         3 => sup.krx.unwrap_or(0.0) > 0.0,
         4 => sup.kry.unwrap_or(0.0) > 0.0,
         5 => sup.krz.unwrap_or(0.0) > 0.0,
+        6 => sup.kw.unwrap_or(0.0) > 0.0,
         _ => false,
     };
 
@@ -205,6 +227,7 @@ fn is_dof_restrained_3d(sup: &SolverSupport3D, local_dof: usize) -> bool {
         3 => sup.rrx,
         4 => sup.rry,
         5 => sup.rrz,
+        6 => sup.rw.unwrap_or(false),
         _ => false,
     }
 }

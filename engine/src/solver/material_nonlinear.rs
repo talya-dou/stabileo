@@ -370,7 +370,7 @@ fn assemble_tangent_stiffness(
         let mut rot_restrained: std::collections::HashSet<usize> =
             std::collections::HashSet::new();
         for sup in solver.supports.values() {
-            if sup.support_type == "fixed" || sup.support_type == "guidedX" {
+            if sup.support_type == "fixed" || sup.support_type == "guidedX" || sup.support_type == "guidedY" {
                 rot_restrained.insert(sup.node_id);
             }
             if sup.support_type == "spring" && sup.kz.unwrap_or(0.0) > 0.0 {

@@ -4,12 +4,107 @@ use crate::linalg::*;
 use crate::linalg::sparse::CscMatrix;
 use super::dof::DofNumbering;
 
+/// Maps 12-DOF element indices to 14-DOF positions, skipping warping DOFs 6 and 13.
+const DOF_MAP_12_TO_14: [usize; 12] = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+
 /// Assembly result: global stiffness matrix and force vector.
 pub struct AssemblyResult {
     pub k: Vec<f64>,       // n_total × n_total stiffness matrix
     pub f: Vec<f64>,       // n_total force vector
     pub max_diag_k: f64,   // Maximum diagonal element (for artificial stiffness)
     pub artificial_dofs: Vec<usize>, // DOFs with artificial stiffness added
+    pub inclined_transforms: Vec<InclinedTransformData>, // Data for reversing inclined support rotations
+}
+
+/// Data needed to reverse the inclined support rotation after solving.
+pub struct InclinedTransformData {
+    pub node_id: usize,
+    pub dofs: [usize; 3],        // Global DOF indices for ux, uy, uz
+    pub r: [[f64; 3]; 3],        // Rotation matrix (rows = local axes)
+}
+
+/// Build rotation matrix that maps global to local frame where ê₁ = normal.
+fn inclined_rotation_matrix(nx: f64, ny: f64, nz: f64) -> [[f64; 3]; 3] {
+    let n_len = (nx * nx + ny * ny + nz * nz).sqrt();
+    let e1 = [nx / n_len, ny / n_len, nz / n_len];
+    // Choose reference vector not parallel to e1
+    let ref_v = if e1[0].abs() < 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    // e3 = e1 × ref, then normalize
+    let mut e3 = [
+        e1[1] * ref_v[2] - e1[2] * ref_v[1],
+        e1[2] * ref_v[0] - e1[0] * ref_v[2],
+        e1[0] * ref_v[1] - e1[1] * ref_v[0],
+    ];
+    let e3_len = (e3[0] * e3[0] + e3[1] * e3[1] + e3[2] * e3[2]).sqrt();
+    e3[0] /= e3_len; e3[1] /= e3_len; e3[2] /= e3_len;
+    // e2 = e3 × e1
+    let e2 = [
+        e3[1] * e1[2] - e3[2] * e1[1],
+        e3[2] * e1[0] - e3[0] * e1[2],
+        e3[0] * e1[1] - e3[1] * e1[0],
+    ];
+    [e1, e2, e3] // rows of R
+}
+
+/// Apply inclined support rotation to K and F at the given translational DOFs.
+/// Rotates rows/columns of K and entries of F using R.
+fn apply_inclined_transform(k: &mut [f64], f: &mut [f64], n: usize,
+                            dofs: &[usize; 3], r: &[[f64; 3]; 3]) {
+    // Rotate columns: for each row i, K[i, dofs] = K[i, dofs_orig] * R^T
+    for i in 0..n {
+        let mut vals = [0.0; 3];
+        for a in 0..3 {
+            vals[a] = k[i * n + dofs[a]];
+        }
+        for a in 0..3 {
+            let mut sum = 0.0;
+            for b in 0..3 {
+                sum += vals[b] * r[a][b]; // R^T[b][a] = R[a][b]
+            }
+            k[i * n + dofs[a]] = sum;
+        }
+    }
+    // Rotate rows: for each col j, K[dofs, j] = R * K[dofs_orig, j]
+    for j in 0..n {
+        let mut vals = [0.0; 3];
+        for a in 0..3 {
+            vals[a] = k[dofs[a] * n + j];
+        }
+        for a in 0..3 {
+            let mut sum = 0.0;
+            for b in 0..3 {
+                sum += r[a][b] * vals[b];
+            }
+            k[dofs[a] * n + j] = sum;
+        }
+    }
+    // Rotate force: F[dofs] = R * F[dofs_orig]
+    let mut fv = [0.0; 3];
+    for a in 0..3 {
+        fv[a] = f[dofs[a]];
+    }
+    for a in 0..3 {
+        let mut sum = 0.0;
+        for b in 0..3 {
+            sum += r[a][b] * fv[b];
+        }
+        f[dofs[a]] = sum;
+    }
+}
+
+/// Reverse inclined rotation on displacement vector: u_global = R^T * u_rotated
+pub fn reverse_inclined_transform(u: &mut [f64], dofs: &[usize; 3], r: &[[f64; 3]; 3]) {
+    let mut vals = [0.0; 3];
+    for a in 0..3 {
+        vals[a] = u[dofs[a]];
+    }
+    for a in 0..3 {
+        let mut sum = 0.0;
+        for b in 0..3 {
+            sum += r[b][a] * vals[b]; // R^T[a][b] = R[b][a]
+        }
+        u[dofs[a]] = sum;
+    }
 }
 
 /// Assemble global stiffness matrix and force vector for 2D.
@@ -142,7 +237,7 @@ pub fn assemble_2d(input: &SolverInput, dof_num: &DofNumbering) -> AssemblyResul
         // Nodes with rotational restraint from supports
         let mut rot_restrained: std::collections::HashSet<usize> = std::collections::HashSet::new();
         for sup in input.supports.values() {
-            if sup.support_type == "fixed" || sup.support_type == "guidedX" {
+            if sup.support_type == "fixed" || sup.support_type == "guidedX" || sup.support_type == "guidedY" {
                 rot_restrained.insert(sup.node_id);
             }
             if sup.support_type == "spring" {
@@ -170,6 +265,7 @@ pub fn assemble_2d(input: &SolverInput, dof_num: &DofNumbering) -> AssemblyResul
         f: f_global,
         max_diag_k: max_diag,
         artificial_dofs,
+        inclined_transforms: Vec::new(),
     }
 }
 
@@ -295,22 +391,64 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
                 left_hand,
             );
 
-            let k_local = frame_local_stiffness_3d(
-                e, sec.a, sec.iy, sec.iz, sec.j, l, g,
-                elem.hinge_start, elem.hinge_end,
-            );
-            let t = frame_transform_3d(&ex, &ey, &ez);
-            let k_glob = transform_stiffness(&k_local, &t, 12);
+            let has_cw = sec.cw.map_or(false, |cw| cw > 0.0);
 
-            let ndof = elem_dofs.len();
-            for i in 0..ndof {
-                for j in 0..ndof {
-                    k_global[elem_dofs[i] * n + elem_dofs[j]] += k_glob[i * ndof + j];
+            if has_cw && dof_num.dofs_per_node >= 7 {
+                // Warping element: 14×14 stiffness
+                let k_local = frame_local_stiffness_3d_warping(
+                    e, sec.a, sec.iy, sec.iz, sec.j, sec.cw.unwrap(), l, g,
+                    elem.hinge_start, elem.hinge_end,
+                );
+                let t = frame_transform_3d_warping(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 14);
+
+                let ndof = elem_dofs.len();
+                for i in 0..ndof {
+                    for j in 0..ndof {
+                        k_global[elem_dofs[i] * n + elem_dofs[j]] += k_glob[i * ndof + j];
+                    }
                 }
-            }
 
-            // Assemble 3D element loads
-            assemble_element_loads_3d(input, elem, &t, l, &elem_dofs, &mut f_global);
+                // Assemble element loads with 14-DOF transform
+                assemble_element_loads_3d_warping(input, elem, &t, l, &elem_dofs, &mut f_global);
+            } else if dof_num.dofs_per_node >= 7 {
+                // Non-warping element in a warping model: 12×12 math mapped via DOF_MAP_12_TO_14
+                let k_local = frame_local_stiffness_3d(
+                    e, sec.a, sec.iy, sec.iz, sec.j, l, g,
+                    elem.hinge_start, elem.hinge_end,
+                );
+                let t = frame_transform_3d(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 12);
+
+                for i in 0..12 {
+                    for j in 0..12 {
+                        let gi = elem_dofs[DOF_MAP_12_TO_14[i]];
+                        let gj = elem_dofs[DOF_MAP_12_TO_14[j]];
+                        k_global[gi * n + gj] += k_glob[i * 12 + j];
+                    }
+                }
+
+                // Assemble element loads with 12-DOF transform, mapped to 14-DOF space
+                assemble_element_loads_3d_mapped(input, elem, &t, l, &elem_dofs, &mut f_global);
+            } else {
+                // Standard 6-DOF-per-node path
+                let k_local = frame_local_stiffness_3d(
+                    e, sec.a, sec.iy, sec.iz, sec.j, l, g,
+                    elem.hinge_start, elem.hinge_end,
+                );
+                let t = frame_transform_3d(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 12);
+
+                let ndof = elem_dofs.len();
+                for i in 0..ndof {
+                    for j in 0..ndof {
+                        k_global[elem_dofs[i] * n + elem_dofs[j]] += k_glob[i * ndof + j];
+                    }
+                }
+
+                // Assemble 3D element loads
+                assemble_element_loads_3d(input, elem, &t, l, &elem_dofs, &mut f_global);
+            }
         }
     }
 
@@ -396,6 +534,16 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
                 }
             }
         }
+        // Warping spring (DOF 6)
+        if dof_num.dofs_per_node >= 7 {
+            if let Some(kw) = sup.kw {
+                if kw > 0.0 {
+                    if let Some(&d) = dof_num.map.get(&(sup.node_id, 6)) {
+                        k_global[d * n + d] += kw;
+                    }
+                }
+            }
+        }
     }
 
     let mut max_diag = 0.0f64;
@@ -403,11 +551,53 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         max_diag = max_diag.max(k_global[i * n + i].abs());
     }
 
+    // Add artificial stiffness at warping DOFs for nodes with no warping stiffness.
+    // This prevents a singular matrix when some elements lack warping.
+    let mut artificial_dofs_3d = Vec::new();
+    if dof_num.dofs_per_node >= 7 {
+        let artificial_k = if max_diag > 0.0 { max_diag * 1e-10 } else { 1e-6 };
+        for &node_id in &dof_num.node_order {
+            if let Some(&d) = dof_num.map.get(&(node_id, 6)) {
+                if d < dof_num.n_free && k_global[d * n + d].abs() < 1e-20 {
+                    k_global[d * n + d] += artificial_k;
+                    artificial_dofs_3d.push(d);
+                }
+            }
+        }
+    }
+
+    // Apply inclined support transformations
+    let mut inclined_transforms = Vec::new();
+    for sup in input.supports.values() {
+        if sup.is_inclined.unwrap_or(false) {
+            if let (Some(nx), Some(ny), Some(nz)) = (sup.normal_x, sup.normal_y, sup.normal_z) {
+                let n_len = (nx * nx + ny * ny + nz * nz).sqrt();
+                if n_len > 1e-12 {
+                    let r = inclined_rotation_matrix(nx, ny, nz);
+                    if let (Some(&d0), Some(&d1), Some(&d2)) = (
+                        dof_num.map.get(&(sup.node_id, 0)),
+                        dof_num.map.get(&(sup.node_id, 1)),
+                        dof_num.map.get(&(sup.node_id, 2)),
+                    ) {
+                        let dofs = [d0, d1, d2];
+                        apply_inclined_transform(&mut k_global, &mut f_global, n, &dofs, &r);
+                        inclined_transforms.push(InclinedTransformData {
+                            node_id: sup.node_id,
+                            dofs,
+                            r,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     AssemblyResult {
         k: k_global,
         f: f_global,
         max_diag_k: max_diag,
-        artificial_dofs: Vec::new(),
+        artificial_dofs: artificial_dofs_3d,
+        inclined_transforms,
     }
 }
 
@@ -447,6 +637,80 @@ fn assemble_element_loads_3d(
                 let fef_global = transform_force(&fef, t, 12);
                 for (i, &dof) in elem_dofs.iter().enumerate() {
                     f_global[dof] += fef_global[i];
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Assemble 3D element loads for warping elements (14-DOF transform).
+fn assemble_element_loads_3d_warping(
+    input: &SolverInput3D,
+    elem: &SolverElement3D,
+    t14: &[f64],
+    l: f64,
+    elem_dofs: &[usize],
+    f_global: &mut [f64],
+) {
+    for load in &input.loads {
+        match load {
+            SolverLoad3D::Distributed(dl) if dl.element_id == elem.id => {
+                let fef12 = fef_distributed_3d(dl.q_yi, dl.q_yj, dl.q_zi, dl.q_zj, l);
+                let fef14 = expand_fef_12_to_14(&fef12);
+                let fef_global = transform_force(&fef14, t14, 14);
+                for (i, &dof) in elem_dofs.iter().enumerate() {
+                    f_global[dof] += fef_global[i];
+                }
+            }
+            SolverLoad3D::PointOnElement(pl) if pl.element_id == elem.id => {
+                let fef_y = fef_point_load_2d(pl.py, 0.0, 0.0, pl.a, l);
+                let mut fef12 = [0.0; 12];
+                fef12[1] = fef_y[1]; fef12[5] = fef_y[2];
+                fef12[7] = fef_y[4]; fef12[11] = fef_y[5];
+                let fef_z = fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
+                fef12[2] = fef_z[1]; fef12[4] = -fef_z[2];
+                fef12[8] = fef_z[4]; fef12[10] = -fef_z[5];
+                let fef14 = expand_fef_12_to_14(&fef12);
+                let fef_global = transform_force(&fef14, t14, 14);
+                for (i, &dof) in elem_dofs.iter().enumerate() {
+                    f_global[dof] += fef_global[i];
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Assemble 3D element loads for non-warping elements in a warping model (12-DOF mapped to 14).
+fn assemble_element_loads_3d_mapped(
+    input: &SolverInput3D,
+    elem: &SolverElement3D,
+    t12: &[f64],
+    l: f64,
+    elem_dofs: &[usize],
+    f_global: &mut [f64],
+) {
+    for load in &input.loads {
+        match load {
+            SolverLoad3D::Distributed(dl) if dl.element_id == elem.id => {
+                let fef = fef_distributed_3d(dl.q_yi, dl.q_yj, dl.q_zi, dl.q_zj, l);
+                let fef_global = transform_force(&fef, t12, 12);
+                for i in 0..12 {
+                    f_global[elem_dofs[DOF_MAP_12_TO_14[i]]] += fef_global[i];
+                }
+            }
+            SolverLoad3D::PointOnElement(pl) if pl.element_id == elem.id => {
+                let fef_y = fef_point_load_2d(pl.py, 0.0, 0.0, pl.a, l);
+                let mut fef = [0.0; 12];
+                fef[1] = fef_y[1]; fef[5] = fef_y[2];
+                fef[7] = fef_y[4]; fef[11] = fef_y[5];
+                let fef_z = fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
+                fef[2] = fef_z[1]; fef[4] = -fef_z[2];
+                fef[8] = fef_z[4]; fef[10] = -fef_z[5];
+                let fef_global = transform_force(&fef, t12, 12);
+                for i in 0..12 {
+                    f_global[elem_dofs[DOF_MAP_12_TO_14[i]]] += fef_global[i];
                 }
             }
             _ => {}
@@ -588,7 +852,7 @@ pub fn assemble_sparse_2d(input: &SolverInput, dof_num: &DofNumbering) -> Sparse
         }
         let mut rot_restrained: std::collections::HashSet<usize> = std::collections::HashSet::new();
         for sup in input.supports.values() {
-            if sup.support_type == "fixed" || sup.support_type == "guidedX" { rot_restrained.insert(sup.node_id); }
+            if sup.support_type == "fixed" || sup.support_type == "guidedX" || sup.support_type == "guidedY" { rot_restrained.insert(sup.node_id); }
             if sup.support_type == "spring" && sup.kz.unwrap_or(0.0) > 0.0 { rot_restrained.insert(sup.node_id); }
         }
         for (&node_id, &hinges) in &node_hinge_count {
@@ -663,26 +927,69 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
                 node_i.x, node_i.y, node_i.z, node_j.x, node_j.y, node_j.z,
                 elem.local_yx, elem.local_yy, elem.local_yz, elem.roll_angle, left_hand,
             );
-            let k_local = frame_local_stiffness_3d(e, sec.a, sec.iy, sec.iz, sec.j, l, g, elem.hinge_start, elem.hinge_end);
-            let t = frame_transform_3d(&ex, &ey, &ez);
-            let k_glob = transform_stiffness(&k_local, &t, 12);
             let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
-            let ndof = elem_dofs.len();
+            let has_cw = sec.cw.map_or(false, |cw| cw > 0.0);
 
-            for i in 0..ndof {
-                if elem_dofs[i] >= nf { continue; }
-                for j in 0..ndof {
-                    if elem_dofs[j] >= nf { continue; }
-                    let gi = elem_dofs[i];
-                    let gj = elem_dofs[j];
-                    if gi >= gj {
-                        trip_rows.push(gi); trip_cols.push(gj); trip_vals.push(k_glob[i * ndof + j]);
+            if has_cw && dof_num.dofs_per_node >= 7 {
+                let k_local = frame_local_stiffness_3d_warping(
+                    e, sec.a, sec.iy, sec.iz, sec.j, sec.cw.unwrap(), l, g,
+                    elem.hinge_start, elem.hinge_end,
+                );
+                let t = frame_transform_3d_warping(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 14);
+                let ndof = elem_dofs.len();
+
+                for i in 0..ndof {
+                    if elem_dofs[i] >= nf { continue; }
+                    for j in 0..ndof {
+                        if elem_dofs[j] >= nf { continue; }
+                        let gi = elem_dofs[i];
+                        let gj = elem_dofs[j];
+                        if gi >= gj {
+                            trip_rows.push(gi); trip_cols.push(gj); trip_vals.push(k_glob[i * ndof + j]);
+                        }
                     }
+                    diag_vals[elem_dofs[i]] += k_glob[i * ndof + i];
                 }
-                diag_vals[elem_dofs[i]] += k_glob[i * ndof + i];
-            }
+                assemble_element_loads_3d_warping(input, elem, &t, l, &elem_dofs, &mut f_global);
+            } else if dof_num.dofs_per_node >= 7 {
+                let k_local = frame_local_stiffness_3d(e, sec.a, sec.iy, sec.iz, sec.j, l, g, elem.hinge_start, elem.hinge_end);
+                let t = frame_transform_3d(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 12);
 
-            assemble_element_loads_3d(input, elem, &t, l, &elem_dofs, &mut f_global);
+                for i in 0..12 {
+                    let gi = elem_dofs[DOF_MAP_12_TO_14[i]];
+                    if gi >= nf { continue; }
+                    for j in 0..12 {
+                        let gj = elem_dofs[DOF_MAP_12_TO_14[j]];
+                        if gj >= nf { continue; }
+                        if gi >= gj {
+                            trip_rows.push(gi); trip_cols.push(gj); trip_vals.push(k_glob[i * 12 + j]);
+                        }
+                    }
+                    diag_vals[gi] += k_glob[i * 12 + i];
+                }
+                assemble_element_loads_3d_mapped(input, elem, &t, l, &elem_dofs, &mut f_global);
+            } else {
+                let k_local = frame_local_stiffness_3d(e, sec.a, sec.iy, sec.iz, sec.j, l, g, elem.hinge_start, elem.hinge_end);
+                let t = frame_transform_3d(&ex, &ey, &ez);
+                let k_glob = transform_stiffness(&k_local, &t, 12);
+                let ndof = elem_dofs.len();
+
+                for i in 0..ndof {
+                    if elem_dofs[i] >= nf { continue; }
+                    for j in 0..ndof {
+                        if elem_dofs[j] >= nf { continue; }
+                        let gi = elem_dofs[i];
+                        let gj = elem_dofs[j];
+                        if gi >= gj {
+                            trip_rows.push(gi); trip_cols.push(gj); trip_vals.push(k_glob[i * ndof + j]);
+                        }
+                    }
+                    diag_vals[elem_dofs[i]] += k_glob[i * ndof + i];
+                }
+                assemble_element_loads_3d(input, elem, &t, l, &elem_dofs, &mut f_global);
+            }
         }
     }
 
@@ -693,6 +1000,14 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
             for (i, &f) in forces.iter().enumerate() {
                 if i < dof_num.dofs_per_node {
                     if let Some(&d) = dof_num.map.get(&(nl.node_id, i)) { f_global[d] += f; }
+                }
+            }
+            // Bimoment load (warping DOF 6)
+            if let Some(bw) = nl.bw {
+                if bw.abs() > 1e-15 {
+                    if let Some(&d) = dof_num.map.get(&(nl.node_id, 6)) {
+                        f_global[d] += bw;
+                    }
                 }
             }
         }
@@ -713,10 +1028,37 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
                 }
             }
         }
+        // Warping spring (DOF 6)
+        if dof_num.dofs_per_node >= 7 {
+            if let Some(kw) = sup.kw {
+                if kw > 0.0 {
+                    if let Some(&d) = dof_num.map.get(&(sup.node_id, 6)) {
+                        if d < nf {
+                            trip_rows.push(d); trip_cols.push(d); trip_vals.push(kw);
+                            diag_vals[d] += kw;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     for d in &diag_vals[..nf] { max_diag = max_diag.max(d.abs()); }
 
+    // Artificial stiffness at floating warping DOFs in sparse path
+    let mut artificial_dofs_3d = Vec::new();
+    if dof_num.dofs_per_node >= 7 {
+        let artificial_k = if max_diag > 0.0 { max_diag * 1e-10 } else { 1e-6 };
+        for &node_id in &dof_num.node_order {
+            if let Some(&d) = dof_num.map.get(&(node_id, 6)) {
+                if d < nf && diag_vals[d].abs() < 1e-20 {
+                    trip_rows.push(d); trip_cols.push(d); trip_vals.push(artificial_k);
+                    artificial_dofs_3d.push(d);
+                }
+            }
+        }
+    }
+
     let k_ff = CscMatrix::from_triplets(nf, &trip_rows, &trip_cols, &trip_vals);
-    SparseAssemblyResult { k_ff, f: f_global, max_diag_k: max_diag, artificial_dofs: Vec::new() }
+    SparseAssemblyResult { k_ff, f: f_global, max_diag_k: max_diag, artificial_dofs: artificial_dofs_3d }
 }

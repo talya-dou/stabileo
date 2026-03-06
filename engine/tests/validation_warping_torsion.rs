@@ -113,7 +113,6 @@ fn make_warping_beam(
 // ================================================================
 
 #[test]
-#[ignore = "warping DOF (7th DOF) not yet fully wired in assembly"]
 fn validation_warping_cantilever_end_torque() {
     // Cantilever I-beam, L=3m, torque T=1 kN-m at free end.
     // With warping restrained at fixed end:
@@ -174,7 +173,6 @@ fn validation_warping_cantilever_end_torque() {
 // ================================================================
 
 #[test]
-#[ignore = "warping DOF (7th DOF) not yet fully wired in assembly"]
 fn validation_warping_z_section_torsion() {
     // Z-sections have high warping constant and coupling between bending and torsion.
     // A pure torque should produce bimoment at the fixed end when warping is restrained.
@@ -212,7 +210,6 @@ fn validation_warping_z_section_torsion() {
 // ================================================================
 
 #[test]
-#[ignore = "warping DOF (7th DOF) not yet fully wired in assembly"]
 fn validation_warping_mixed_model() {
     // A two-span beam where span 1 has warping (Cw set) and span 2 does not.
     // The solver should handle the transition without crashing.

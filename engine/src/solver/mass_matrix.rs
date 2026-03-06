@@ -138,6 +138,9 @@ pub fn assemble_mass_matrix_3d(
     let mut m_global = vec![0.0; n * n];
     let left_hand = input.left_hand.unwrap_or(false);
 
+    /// Maps 12-DOF element indices to 14-DOF positions, skipping warping DOFs 6 and 13.
+    const DOF_MAP_12_TO_14: [usize; 12] = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+
     for elem in input.elements.values() {
         let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
         let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
@@ -174,14 +177,30 @@ pub fn assemble_mass_matrix_3d(
                 elem.local_yx, elem.local_yy, elem.local_yz,
                 elem.roll_angle, left_hand,
             );
-            let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
-            let m_glob = transform_stiffness(&m_local, &t, 12);
 
-            let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
-            let ndof = elem_dofs.len();
-            for i in 0..ndof {
-                for j in 0..ndof {
-                    m_global[elem_dofs[i] * n + elem_dofs[j]] += m_glob[i * ndof + j];
+            if dof_num.dofs_per_node >= 7 {
+                // Warping model: embed 12×12 mass into 14-DOF space (zero warping inertia)
+                let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
+                let m_glob = transform_stiffness(&m_local, &t, 12);
+                let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
+
+                for i in 0..12 {
+                    for j in 0..12 {
+                        let gi = elem_dofs[DOF_MAP_12_TO_14[i]];
+                        let gj = elem_dofs[DOF_MAP_12_TO_14[j]];
+                        m_global[gi * n + gj] += m_glob[i * 12 + j];
+                    }
+                }
+            } else {
+                let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
+                let m_glob = transform_stiffness(&m_local, &t, 12);
+
+                let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
+                let ndof = elem_dofs.len();
+                for i in 0..ndof {
+                    for j in 0..ndof {
+                        m_global[elem_dofs[i] * n + elem_dofs[j]] += m_glob[i * ndof + j];
+                    }
                 }
             }
         }

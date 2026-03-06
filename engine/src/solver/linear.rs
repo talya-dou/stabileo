@@ -1,7 +1,11 @@
 use crate::types::*;
 use crate::linalg::*;
+use crate::element;
 use super::dof::DofNumbering;
 use super::assembly::*;
+
+/// Maps 12-DOF element indices to 14-DOF positions, skipping warping DOFs 6 and 13.
+const DOF_MAP_12_TO_14: [usize; 12] = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
 
 
 /// Free DOFs threshold: use sparse solver when n_free >= this.
@@ -214,8 +218,15 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
         reactions_vec[i] = k_rf_uf[i] + k_rr_ur[i] - f_r[i];
     }
 
+    // Reverse inclined support rotations on displacements
+    for it in &asm.inclined_transforms {
+        reverse_inclined_transform(&mut u_full, &it.dofs, &it.r);
+    }
+
     let displacements = build_displacements_3d(&dof_num, &u_full);
-    let mut reactions = build_reactions_3d(input, &dof_num, &reactions_vec, &f_r, nf, &u_full);
+    let mut reactions = build_reactions_3d_inclined(
+        input, &dof_num, &reactions_vec, &f_r, nf, &u_full, &asm.inclined_transforms,
+    );
     reactions.sort_by_key(|r| r.node_id);
     let mut element_forces = compute_internal_forces_3d(input, &dof_num, &u_full);
     element_forces.sort_by_key(|ef| ef.element_id);
@@ -248,11 +259,16 @@ pub(crate) fn build_displacements_3d(dof_num: &DofNumbering, u: &[f64]) -> Vec<D
         let vals: Vec<f64> = (0..6).map(|i| {
             dof_num.global_dof(node_id, i).map(|d| u[d]).unwrap_or(0.0)
         }).collect();
+        let warping = if dof_num.dofs_per_node >= 7 {
+            dof_num.global_dof(node_id, 6).map(|d| u[d])
+        } else {
+            None
+        };
         Displacement3D {
             node_id,
             ux: vals[0], uy: vals[1], uz: vals[2],
             rx: vals[3], ry: vals[4], rz: vals[5],
-            warping: None,
+            warping,
         }
     }).collect()
 }
@@ -375,13 +391,58 @@ pub(crate) fn build_reactions_3d(
             }
         }
 
+        // Bimoment reaction at warping DOF 6
+        let bimoment = if dof_num.dofs_per_node >= 7 {
+            if let Some(&d) = dof_num.map.get(&(sup.node_id, 6)) {
+                if d >= nf {
+                    Some(reactions_vec[d - nf])
+                } else if is_spring {
+                    let u = dof_num.global_dof(sup.node_id, 6).map(|d| u_full[d]).unwrap_or(0.0);
+                    let kw = sup.kw.unwrap_or(0.0);
+                    Some(-kw * u)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         reactions.push(Reaction3D {
             node_id: sup.node_id,
             fx: vals[0], fy: vals[1], fz: vals[2],
             mx: vals[3], my: vals[4], mz: vals[5],
-            bimoment: None,
+            bimoment,
         });
     }
+    reactions
+}
+
+/// Build 3D reactions with inclined support back-transformation.
+fn build_reactions_3d_inclined(
+    input: &SolverInput3D,
+    dof_num: &DofNumbering,
+    reactions_vec: &[f64],
+    f_r: &[f64],
+    nf: usize,
+    u_full: &[f64],
+    inclined_transforms: &[InclinedTransformData],
+) -> Vec<Reaction3D> {
+    let mut reactions = build_reactions_3d(input, dof_num, reactions_vec, f_r, nf, u_full);
+
+    // Back-transform inclined support reactions from rotated to global frame
+    for it in inclined_transforms {
+        if let Some(r) = reactions.iter_mut().find(|r| r.node_id == it.node_id) {
+            let rotated = [r.fx, r.fy, r.fz];
+            // r_global = R^T * r_rotated
+            r.fx = it.r[0][0] * rotated[0] + it.r[1][0] * rotated[1] + it.r[2][0] * rotated[2];
+            r.fy = it.r[0][1] * rotated[0] + it.r[1][1] * rotated[1] + it.r[2][1] * rotated[2];
+            r.fz = it.r[0][2] * rotated[0] + it.r[1][2] * rotated[1] + it.r[2][2] * rotated[2];
+        }
+    }
+
     reactions
 }
 
@@ -592,29 +653,85 @@ pub(crate) fn compute_internal_forces_3d(
         }
 
         let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
-        let u_global: Vec<f64> = elem_dofs.iter().map(|&d| u[d]).collect();
+        let has_cw = sec.cw.map_or(false, |cw| cw > 0.0);
 
-        let (ex, ey, ez) = crate::element::compute_local_axes_3d(
+        let (ex, ey, ez) = element::compute_local_axes_3d(
             node_i.x, node_i.y, node_i.z,
             node_j.x, node_j.y, node_j.z,
             elem.local_yx, elem.local_yy, elem.local_yz,
             elem.roll_angle,
             left_hand,
         );
-        let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
-        let u_local = transform_displacement(&u_global, &t, 12);
 
-        let k_local = crate::element::frame_local_stiffness_3d(
-            e, sec.a, sec.iy, sec.iz, sec.j, l, g,
-            elem.hinge_start, elem.hinge_end,
-        );
-
-        let mut f_local = vec![0.0; 12];
-        for i in 0..12 {
-            for j in 0..12 {
-                f_local[i] += k_local[i * 12 + j] * u_local[j];
+        // Determine element size and compute f_local
+        let (f_local, ndof_elem) = if has_cw && dof_num.dofs_per_node >= 7 {
+            // Warping element: 14×14
+            let u_global: Vec<f64> = elem_dofs.iter().map(|&d| u[d]).collect();
+            let t = element::frame_transform_3d_warping(&ex, &ey, &ez);
+            let u_local = transform_displacement(&u_global, &t, 14);
+            let k_local = element::frame_local_stiffness_3d_warping(
+                e, sec.a, sec.iy, sec.iz, sec.j, sec.cw.unwrap(), l, g,
+                elem.hinge_start, elem.hinge_end,
+            );
+            let mut fl = vec![0.0; 14];
+            for i in 0..14 {
+                for j in 0..14 {
+                    fl[i] += k_local[i * 14 + j] * u_local[j];
+                }
             }
-        }
+            (fl, 14)
+        } else if dof_num.dofs_per_node >= 7 {
+            // Non-warping element in warping model: extract 12 DOFs via map
+            let u12: Vec<f64> = DOF_MAP_12_TO_14.iter().map(|&idx| {
+                let d = elem_dofs[idx];
+                u[d]
+            }).collect();
+            let t = element::frame_transform_3d(&ex, &ey, &ez);
+            let u_local = transform_displacement(&u12, &t, 12);
+            let k_local = element::frame_local_stiffness_3d(
+                e, sec.a, sec.iy, sec.iz, sec.j, l, g,
+                elem.hinge_start, elem.hinge_end,
+            );
+            let mut fl = vec![0.0; 12];
+            for i in 0..12 {
+                for j in 0..12 {
+                    fl[i] += k_local[i * 12 + j] * u_local[j];
+                }
+            }
+            (fl, 12)
+        } else {
+            // Standard 12-DOF
+            let u_global: Vec<f64> = elem_dofs.iter().map(|&d| u[d]).collect();
+            let t = element::frame_transform_3d(&ex, &ey, &ez);
+            let u_local = transform_displacement(&u_global, &t, 12);
+            let k_local = element::frame_local_stiffness_3d(
+                e, sec.a, sec.iy, sec.iz, sec.j, l, g,
+                elem.hinge_start, elem.hinge_end,
+            );
+            let mut fl = vec![0.0; 12];
+            for i in 0..12 {
+                for j in 0..12 {
+                    fl[i] += k_local[i * 12 + j] * u_local[j];
+                }
+            }
+            (fl, 12)
+        };
+
+        let mut f_local = f_local;
+
+        // Map indices for force extraction (warping uses different layout)
+        // 14-DOF: [u1,v1,w1,θx1,θy1,θz1,φ'1, u2,v2,w2,θx2,θy2,θz2,φ'2]
+        // 12-DOF: [u1,v1,w1,θx1,θy1,θz1, u2,v2,w2,θx2,θy2,θz2]
+        let (i_n, i_vy, i_vz, i_mx, i_my, i_mz) = if ndof_elem == 14 {
+            (0, 1, 2, 3, 4, 5)
+        } else {
+            (0, 1, 2, 3, 4, 5)
+        };
+        let (j_n, j_vy, j_vz, j_mx, j_my, j_mz) = if ndof_elem == 14 {
+            (7, 8, 9, 10, 11, 12)
+        } else {
+            (6, 7, 8, 9, 10, 11)
+        };
 
         // Subtract FEF from element loads (f = K*u - FEF)
         let (mut q_yi_total, mut q_yj_total) = (0.0, 0.0);
@@ -627,11 +744,18 @@ pub(crate) fn compute_internal_forces_3d(
         for load in &input.loads {
             match load {
                 SolverLoad3D::Distributed(dl) if dl.element_id == elem.id => {
-                    let fef = crate::element::fef_distributed_3d(
+                    let fef12 = element::fef_distributed_3d(
                         dl.q_yi, dl.q_yj, dl.q_zi, dl.q_zj, l,
                     );
-                    for i in 0..12 {
-                        f_local[i] -= fef[i];
+                    if ndof_elem == 14 {
+                        let fef14 = element::expand_fef_12_to_14(&fef12);
+                        for i in 0..14 {
+                            f_local[i] -= fef14[i];
+                        }
+                    } else {
+                        for i in 0..12 {
+                            f_local[i] -= fef12[i];
+                        }
                     }
                     let a = dl.a.unwrap_or(0.0);
                     let b = dl.b.unwrap_or(l);
@@ -646,17 +770,27 @@ pub(crate) fn compute_internal_forces_3d(
                     dist_loads_z.push(DistributedLoadInfo { q_i: dl.q_zi, q_j: dl.q_zj, a, b });
                 }
                 SolverLoad3D::PointOnElement(pl) if pl.element_id == elem.id => {
-                    let fef_y = crate::element::fef_point_load_2d(pl.py, 0.0, 0.0, pl.a, l);
-                    f_local[1] -= fef_y[1];
-                    f_local[5] -= fef_y[2];
-                    f_local[7] -= fef_y[4];
-                    f_local[11] -= fef_y[5];
-
-                    let fef_z = crate::element::fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
-                    f_local[2] -= fef_z[1];
-                    f_local[4] += fef_z[2];
-                    f_local[8] -= fef_z[4];
-                    f_local[10] += fef_z[5];
+                    let fef_y = element::fef_point_load_2d(pl.py, 0.0, 0.0, pl.a, l);
+                    if ndof_elem == 14 {
+                        let mut fef12 = [0.0; 12];
+                        fef12[1] = fef_y[1]; fef12[5] = fef_y[2];
+                        fef12[7] = fef_y[4]; fef12[11] = fef_y[5];
+                        let fef_z = element::fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
+                        fef12[2] = fef_z[1]; fef12[4] = -fef_z[2];
+                        fef12[8] = fef_z[4]; fef12[10] = -fef_z[5];
+                        let fef14 = element::expand_fef_12_to_14(&fef12);
+                        for i in 0..14 { f_local[i] -= fef14[i]; }
+                    } else {
+                        f_local[1] -= fef_y[1];
+                        f_local[5] -= fef_y[2];
+                        f_local[7] -= fef_y[4];
+                        f_local[11] -= fef_y[5];
+                        let fef_z = element::fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
+                        f_local[2] -= fef_z[1];
+                        f_local[4] += fef_z[2];
+                        f_local[8] -= fef_z[4];
+                        f_local[10] += fef_z[5];
+                    }
 
                     pt_loads_y.push(PointLoadInfo3D { a: pl.a, p: pl.py });
                     pt_loads_z.push(PointLoadInfo3D { a: pl.a, p: pl.pz });
@@ -665,21 +799,24 @@ pub(crate) fn compute_internal_forces_3d(
             }
         }
 
+        let bimoment_start = if ndof_elem == 14 { Some(-f_local[6]) } else { None };
+        let bimoment_end = if ndof_elem == 14 { Some(f_local[13]) } else { None };
+
         forces.push(ElementForces3D {
             element_id: elem.id,
             length: l,
-            n_start: -f_local[0],
-            n_end: f_local[6],
-            vy_start: f_local[1],
-            vy_end: -f_local[7],
-            vz_start: f_local[2],
-            vz_end: -f_local[8],
-            mx_start: f_local[3],
-            mx_end: -f_local[9],
-            my_start: f_local[4],
-            my_end: -f_local[10],
-            mz_start: f_local[5],
-            mz_end: -f_local[11],
+            n_start: -f_local[i_n],
+            n_end: f_local[j_n],
+            vy_start: f_local[i_vy],
+            vy_end: -f_local[j_vy],
+            vz_start: f_local[i_vz],
+            vz_end: -f_local[j_vz],
+            mx_start: f_local[i_mx],
+            mx_end: -f_local[j_mx],
+            my_start: f_local[i_my],
+            my_end: -f_local[j_my],
+            mz_start: f_local[i_mz],
+            mz_end: -f_local[j_mz],
             hinge_start: elem.hinge_start,
             hinge_end: elem.hinge_end,
             q_yi: q_yi_total,
@@ -689,7 +826,10 @@ pub(crate) fn compute_internal_forces_3d(
             q_zi: q_zi_total,
             q_zj: q_zj_total,
             distributed_loads_z: dist_loads_z,
-            point_loads_z: pt_loads_z, bimoment_start: None, bimoment_end: None });
+            point_loads_z: pt_loads_z,
+            bimoment_start,
+            bimoment_end,
+        });
     }
 
     forces
