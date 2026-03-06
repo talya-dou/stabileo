@@ -398,11 +398,9 @@ pub(crate) fn compute_internal_forces_2d(
                 distributed_loads: Vec::new(),
                 hinge_start: false,
                 hinge_end: false,
-                thermal_n_fef: 0.0,
-                thermal_mz_fef: 0.0,
             });
         } else {
-            // Frame: transform displacements to local, compute k*u + FEF
+            // Frame: transform displacements to local, compute k*u - FEF
             let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
             let u_global: Vec<f64> = elem_dofs.iter().map(|&d| u[d]).collect();
 
@@ -421,11 +419,10 @@ pub(crate) fn compute_internal_forces_2d(
                 }
             }
 
-            // Add fixed-end forces from element loads (f = K*u + FEF)
+            // Subtract fixed-end forces from element loads (f = K*u - FEF)
             let (mut total_qi, mut total_qj) = (0.0, 0.0);
             let mut point_loads_info = Vec::new();
             let mut dist_loads_info = Vec::new();
-            let (mut thermal_n_fef, mut thermal_mz_fef) = (0.0, 0.0);
 
             for load in &input.loads {
                 match load {
@@ -443,7 +440,7 @@ pub(crate) fn compute_internal_forces_2d(
                         crate::element::adjust_fef_for_hinges(&mut fef, l, elem.hinge_start, elem.hinge_end);
 
                         for i in 0..6 {
-                            f_local[i] += fef[i];
+                            f_local[i] -= fef[i];
                         }
 
                         if is_full {
@@ -463,7 +460,7 @@ pub(crate) fn compute_internal_forces_2d(
                         let mut fef = crate::element::fef_point_load_2d(pl.p, px, mz, pl.a, l);
                         crate::element::adjust_fef_for_hinges(&mut fef, l, elem.hinge_start, elem.hinge_end);
                         for i in 0..6 {
-                            f_local[i] += fef[i];
+                            f_local[i] -= fef[i];
                         }
                         point_loads_info.push(PointLoadInfo {
                             a: pl.a,
@@ -479,12 +476,9 @@ pub(crate) fn compute_internal_forces_2d(
                             e, sec.a, sec.iz, l,
                             tl.dt_uniform, tl.dt_gradient, alpha, h,
                         );
-                        // Store raw thermal FEF at node I before hinge adjustment
-                        thermal_n_fef += fef[0];
-                        thermal_mz_fef += fef[2];
                         crate::element::adjust_fef_for_hinges(&mut fef, l, elem.hinge_start, elem.hinge_end);
                         for i in 0..6 {
-                            f_local[i] += fef[i];
+                            f_local[i] -= fef[i];
                         }
                     }
                     _ => {}
@@ -507,8 +501,6 @@ pub(crate) fn compute_internal_forces_2d(
                 distributed_loads: dist_loads_info,
                 hinge_start: elem.hinge_start,
                 hinge_end: elem.hinge_end,
-                thermal_n_fef,
-                thermal_mz_fef,
             });
         }
     }
@@ -605,7 +597,7 @@ fn compute_internal_forces_3d(
                         dl.q_yi, dl.q_yj, dl.q_zi, dl.q_zj, l,
                     );
                     for i in 0..12 {
-                        f_local[i] += fef[i];
+                        f_local[i] -= fef[i];
                     }
                     let a = dl.a.unwrap_or(0.0);
                     let b = dl.b.unwrap_or(l);
@@ -621,16 +613,16 @@ fn compute_internal_forces_3d(
                 }
                 SolverLoad3D::PointOnElement(pl) if pl.element_id == elem.id => {
                     let fef_y = crate::element::fef_point_load_2d(pl.py, 0.0, 0.0, pl.a, l);
-                    f_local[1] += fef_y[1];
-                    f_local[5] += fef_y[2];
-                    f_local[7] += fef_y[4];
-                    f_local[11] += fef_y[5];
+                    f_local[1] -= fef_y[1];
+                    f_local[5] -= fef_y[2];
+                    f_local[7] -= fef_y[4];
+                    f_local[11] -= fef_y[5];
 
                     let fef_z = crate::element::fef_point_load_2d(pl.pz, 0.0, 0.0, pl.a, l);
-                    f_local[2] += fef_z[1];
-                    f_local[4] += -fef_z[2];
-                    f_local[8] += fef_z[4];
-                    f_local[10] += -fef_z[5];
+                    f_local[2] -= fef_z[1];
+                    f_local[4] += fef_z[2];
+                    f_local[8] -= fef_z[4];
+                    f_local[10] += fef_z[5];
 
                     pt_loads_y.push(PointLoadInfo3D { a: pl.a, p: pl.py });
                     pt_loads_z.push(PointLoadInfo3D { a: pl.a, p: pl.pz });

@@ -107,6 +107,37 @@ pub fn solve_plastic_2d(input: &PlasticInput) -> Result<PlasticResult, String> {
                     }
                 }
             }
+
+            // Check maximum interior moment (critical for single-element spans
+            // where the max moment is interior, e.g. SS beam with midspan load)
+            {
+                let n_samples = 20;
+                let mut max_interior_m = 0.0f64;
+                for i in 1..n_samples {
+                    let t = i as f64 / n_samples as f64;
+                    let m = crate::postprocess::diagrams::compute_diagram_value_at("moment", t, ef);
+                    if m.abs() > max_interior_m.abs() {
+                        max_interior_m = m;
+                    }
+                }
+                let end_max = ef.m_start.abs().max(ef.m_end.abs());
+                if max_interior_m.abs() > end_max + 1e-10 {
+                    let m_acc = accumulated_moments
+                        .get(&(ef.element_id, "span".to_string()))
+                        .copied()
+                        .unwrap_or(0.0);
+                    let delta = (mp - m_acc.abs()) / max_interior_m.abs();
+                    if delta > 1e-10 && delta < min_delta_lambda {
+                        min_delta_lambda = delta;
+                        new_hinges.clear();
+                        let end_name = if !elem.hinge_start { "start" } else { "end" };
+                        new_hinges.push((ef.element_id, end_name.to_string(), max_interior_m));
+                    } else if delta > 1e-10 && (delta - min_delta_lambda).abs() < 1e-10 {
+                        let end_name = if !elem.hinge_start { "start" } else { "end" };
+                        new_hinges.push((ef.element_id, end_name.to_string(), max_interior_m));
+                    }
+                }
+            }
         }
 
         if min_delta_lambda >= f64::INFINITY || min_delta_lambda <= 0.0 {
@@ -119,6 +150,19 @@ pub fn solve_plastic_2d(input: &PlasticInput) -> Result<PlasticResult, String> {
         for ef in &results.element_forces {
             *accumulated_moments.entry((ef.element_id, "start".to_string())).or_insert(0.0) += min_delta_lambda * ef.m_start;
             *accumulated_moments.entry((ef.element_id, "end".to_string())).or_insert(0.0) += min_delta_lambda * ef.m_end;
+
+            // Accumulate max interior moment
+            let mut max_interior_m = 0.0f64;
+            for i in 1..20 {
+                let t = i as f64 / 20.0;
+                let m = crate::postprocess::diagrams::compute_diagram_value_at("moment", t, ef);
+                if m.abs() > max_interior_m.abs() {
+                    max_interior_m = m;
+                }
+            }
+            if max_interior_m.abs() > 1e-10 {
+                *accumulated_moments.entry((ef.element_id, "span".to_string())).or_insert(0.0) += min_delta_lambda * max_interior_m;
+            }
         }
 
         // Scale results by delta_lambda
@@ -220,8 +264,6 @@ fn scale_results(results: &AnalysisResults, factor: f64) -> AnalysisResults {
             distributed_loads: ef.distributed_loads.clone(),
             hinge_start: ef.hinge_start,
             hinge_end: ef.hinge_end,
-            thermal_n_fef: ef.thermal_n_fef * factor,
-            thermal_mz_fef: ef.thermal_mz_fef * factor,
         }).collect(),
     }
 }
