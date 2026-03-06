@@ -1,0 +1,105 @@
+{
+  "displacements": [
+    {
+      "nodeId": 1,
+      "ux": 0,
+      "uy": 0,
+      "uz": 0,
+      "rx": 0,
+      "ry": 0,
+      "rz": 0
+    },
+    {
+      "nodeId": 2,
+      "ux": 0,
+      "uy": -0.0005833333333333332,
+      "uz": 0,
+      "rx": 0.00104,
+      "ry": 0,
+      "rz": -0.00012499999999999998
+    },
+    {
+      "nodeId": 3,
+      "ux": 0,
+      "uy": 0,
+      "uz": 0,
+      "rx": 0.00104,
+      "ry": 0,
+      "rz": 0.0004999999999999999
+    }
+  ],
+  "reactions": [
+    {
+      "nodeId": 1,
+      "fx": 0,
+      "fy": 13.749999999999996,
+      "fz": 0,
+      "mx": -8,
+      "my": 0,
+      "mz": 14.999999999999996
+    },
+    {
+      "nodeId": 3,
+      "fx": 0,
+      "fy": 6.25,
+      "fz": 0,
+      "mx": 0,
+      "my": 0,
+      "mz": 0
+    }
+  ],
+  "elementForces": [
+    {
+      "elementId": 1,
+      "length": 2,
+      "nStart": 0,
+      "nEnd": 0,
+      "vyStart": 0,
+      "vyEnd": 0,
+      "vzStart": -13.749999999999996,
+      "vzEnd": -13.749999999999996,
+      "mxStart": -8,
+      "mxEnd": -8,
+      "myStart": 14.999999999999996,
+      "myEnd": -12.499999999999996,
+      "mzStart": 0,
+      "mzEnd": 0,
+      "hingeStart": false,
+      "hingeEnd": false,
+      "qYI": 0,
+      "qYJ": 0,
+      "distributedLoadsY": [],
+      "pointLoadsY": [],
+      "qZI": 0,
+      "qZJ": 0,
+      "distributedLoadsZ": [],
+      "pointLoadsZ": []
+    },
+    {
+      "elementId": 2,
+      "length": 2,
+      "nStart": 0,
+      "nEnd": 0,
+      "vyStart": 0,
+      "vyEnd": 0,
+      "vzStart": 6.25,
+      "vzEnd": 6.25,
+      "mxStart": 0,
+      "mxEnd": 0,
+      "myStart": -12.499999999999998,
+      "myEnd": 0,
+      "mzStart": 0,
+      "mzEnd": 0,
+      "hingeStart": false,
+      "hingeEnd": false,
+      "qYI": 0,
+      "qYJ": 0,
+      "distributedLoadsY": [],
+      "pointLoadsY": [],
+      "qZI": 0,
+      "qZJ": 0,
+      "distributedLoadsZ": [],
+      "pointLoadsZ": []
+    }
+  ]
+}

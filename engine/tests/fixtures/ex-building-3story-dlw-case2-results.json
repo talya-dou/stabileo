@@ -1,0 +1,233 @@
+{
+  "displacements": [
+    {
+      "nodeId": 1,
+      "ux": 0,
+      "uy": 0,
+      "rz": 0
+    },
+    {
+      "nodeId": 2,
+      "ux": 0,
+      "uy": 0,
+      "rz": 0
+    },
+    {
+      "nodeId": 3,
+      "ux": -0.0000011752461373095301,
+      "uy": -0.000037142857142857143,
+      "rz": -0.00010865997469007754
+    },
+    {
+      "nodeId": 4,
+      "ux": 0.0000011752461373102666,
+      "uy": -0.000037142857142857164,
+      "rz": 0.00010865997469007738
+    },
+    {
+      "nodeId": 5,
+      "ux": 2.306137788354593e-7,
+      "uy": -0.000059999999999999995,
+      "rz": -0.00008938482148989561
+    },
+    {
+      "nodeId": 6,
+      "ux": -2.3061377883396608e-7,
+      "uy": -0.000060000000000000015,
+      "rz": 0.00008938482148989549
+    },
+    {
+      "nodeId": 7,
+      "ux": 0.00000240625919679704,
+      "uy": -0.00006857142857142857,
+      "rz": -0.000091849648561435
+    },
+    {
+      "nodeId": 8,
+      "ux": -0.0000024062591967952254,
+      "uy": -0.00006857142857142858,
+      "rz": 0.00009184964856143499
+    }
+  ],
+  "reactions": [
+    {
+      "nodeId": 1,
+      "rx": 2.0097369026913037,
+      "ry": 39,
+      "mz": -2.3518941939616025
+    },
+    {
+      "nodeId": 2,
+      "rx": -2.0097369026913032,
+      "ry": 39.00000000000002,
+      "mz": 2.3518941939616127
+    }
+  ],
+  "elementForces": [
+    {
+      "elementId": 1,
+      "nStart": -39,
+      "nEnd": -39,
+      "vStart": -2.009736902691301,
+      "vEnd": -2.009736902691301,
+      "mStart": -2.3518941939616025,
+      "mEnd": 4.682184965457951,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 2,
+      "nStart": -39.00000000000002,
+      "nEnd": -39.00000000000002,
+      "vStart": 2.009736902691306,
+      "vEnd": 2.009736902691306,
+      "mStart": 2.3518941939616127,
+      "mEnd": -4.6821849654579575,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 3,
+      "nStart": -23.999999999999993,
+      "nEnd": -23.999999999999993,
+      "vStart": -3.6257003414924123,
+      "vEnd": -3.6257003414924123,
+      "mStart": -6.551660311783959,
+      "mEnd": 6.138290883439486,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 4,
+      "nStart": -23.999999999999993,
+      "nEnd": -23.999999999999993,
+      "vStart": 3.625700341492415,
+      "vEnd": 3.625700341492415,
+      "mStart": 6.551660311783964,
+      "mEnd": -6.13829088343949,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 5,
+      "nStart": -9.000000000000007,
+      "nEnd": -9.000000000000007,
+      "vStart": -3.3086063955946825,
+      "vEnd": -3.3086063955946825,
+      "mStart": -5.763631203720731,
+      "mEnd": 5.816491180860659,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 6,
+      "nStart": -9,
+      "nEnd": -9,
+      "vStart": 3.308606395594684,
+      "vEnd": 3.308606395594684,
+      "mStart": 5.763631203720731,
+      "mEnd": -5.816491180860662,
+      "length": 3.5,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 7,
+      "nStart": 1.6159634388011106,
+      "nEnd": 1.6159634388011106,
+      "vStart": 14.999999999999998,
+      "vEnd": -15.000000000000002,
+      "mStart": 11.233845277241908,
+      "mEnd": 11.233845277241922,
+      "length": 6,
+      "qI": -5,
+      "qJ": -5,
+      "pointLoads": [],
+      "distributedLoads": [
+        {
+          "qI": -5,
+          "qJ": -5,
+          "a": 0,
+          "b": 6
+        }
+      ],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 8,
+      "nStart": -0.31709394589773,
+      "nEnd": -0.31709394589773,
+      "vStart": 14.999999999999998,
+      "vEnd": -15.000000000000002,
+      "mStart": 11.901922087160214,
+      "mEnd": 11.901922087160226,
+      "length": 6,
+      "qI": -5,
+      "qJ": -5,
+      "pointLoads": [],
+      "distributedLoads": [
+        {
+          "qI": -5,
+          "qJ": -5,
+          "a": 0,
+          "b": 6
+        }
+      ],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 9,
+      "nStart": -3.3086063955946834,
+      "nEnd": -3.3086063955946834,
+      "vStart": 9,
+      "vEnd": -9,
+      "mStart": 5.8164911808606625,
+      "mEnd": 5.8164911808606625,
+      "length": 6,
+      "qI": -3,
+      "qJ": -3,
+      "pointLoads": [],
+      "distributedLoads": [
+        {
+          "qI": -3,
+          "qJ": -3,
+          "a": 0,
+          "b": 6
+        }
+      ],
+      "hingeStart": false,
+      "hingeEnd": false
+    }
+  ]
+}

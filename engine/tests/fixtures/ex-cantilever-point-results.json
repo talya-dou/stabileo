@@ -1,0 +1,42 @@
+{
+  "displacements": [
+    {
+      "nodeId": 1,
+      "ux": 0,
+      "uy": 0,
+      "rz": 0
+    },
+    {
+      "nodeId": 2,
+      "ux": 0,
+      "uy": -0.006749999999999991,
+      "rz": -0.003374999999999995
+    }
+  ],
+  "reactions": [
+    {
+      "nodeId": 1,
+      "rx": 0,
+      "ry": 14.999999999999993,
+      "mz": 44.999999999999936
+    }
+  ],
+  "elementForces": [
+    {
+      "elementId": 1,
+      "nStart": 0,
+      "nEnd": 0,
+      "vStart": 14.999999999999993,
+      "vEnd": 14.999999999999993,
+      "mStart": 44.999999999999936,
+      "mEnd": 0,
+      "length": 3,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    }
+  ]
+}

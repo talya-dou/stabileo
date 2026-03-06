@@ -5,7 +5,7 @@
  * Run: cd web && npx vitest run generate-fixtures
  */
 
-import { describe, it } from 'vitest';
+import { describe, it, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { solve } from '../solver-js';
@@ -14,6 +14,17 @@ import type { SolverInput, SolverLoad, AnalysisResults } from '../types';
 import type { SolverInput3D } from '../types-3d';
 import { combineResults, computeEnvelope } from './combinations-legacy';
 import { makeRandomModel2D } from './diff-fuzz-helpers';
+import { createMockAPI } from './example-api-mock';
+import { buildSolverInput2D, buildSolverInput3D } from '../solver-service';
+import type { LoadCase, LoadCombination } from '../../../lib/store/model.svelte';
+
+// Mock uiStore so truss examples don't hit Svelte runtime
+vi.mock('../../../lib/store/index', () => ({
+  uiStore: { analysisMode: '2d' },
+}));
+
+import { load2DExample } from '../../../lib/store/model-examples-2d';
+import { load3DExample } from '../../../lib/store/model-examples-3d';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -249,4 +260,190 @@ describe('Generate fixtures for Rust parity testing', () => {
       }
     });
   }
+});
+
+// ─── Example model fixtures ─────────────────────────────────────────
+// Uses the real example loaders + buildSolverInput2D/3D to produce
+// fixtures through the same code path the app takes.
+
+/** Solve per load case for multi-case 2D models. */
+function solvePerCase2D(
+  api: ReturnType<typeof createMockAPI>,
+  loadCases: LoadCase[],
+) {
+  const modelData = api.getModelData();
+  const perCase = new Map<number, AnalysisResults>();
+  for (const lc of loadCases) {
+    const caseModel = {
+      ...modelData,
+      loads: modelData.loads.filter(l => (l.data as any).caseId === lc.id || ((l.data as any).caseId === undefined && lc.id === 1)),
+    };
+    const input = buildSolverInput2D(caseModel);
+    if (!input) continue;
+    perCase.set(lc.id, solve(input));
+  }
+  return perCase;
+}
+
+/** Solve per load case for multi-case 3D models. */
+function solvePerCase3D(
+  api: ReturnType<typeof createMockAPI>,
+  loadCases: LoadCase[],
+) {
+  const modelData = api.getModelData();
+  const perCase = new Map<number, { input: SolverInput3D; results: ReturnType<typeof solve3D> }>();
+  for (const lc of loadCases) {
+    const caseModel = {
+      ...modelData,
+      loads: modelData.loads.filter(l => (l.data as any).caseId === lc.id || ((l.data as any).caseId === undefined && lc.id === 1)),
+    };
+    const input = buildSolverInput3D(caseModel);
+    if (!input) continue;
+    perCase.set(lc.id, { input, results: solve3D(input) });
+  }
+  return perCase;
+}
+
+/** Write multi-case fixtures: per-case input+results, combos, envelope. */
+function writeMultiCase2D(
+  prefix: string,
+  api: ReturnType<typeof createMockAPI>,
+) {
+  const { loadCases, combinations } = api.model;
+  const modelData = api.getModelData();
+
+  // Solve per case
+  const perCase = solvePerCase2D(api, loadCases);
+  const caseNames = new Map<number, string>();
+
+  for (const lc of loadCases) {
+    const caseName = `${prefix}-case${lc.id}`;
+    caseNames.set(lc.id, caseName);
+    const caseModel = {
+      ...modelData,
+      loads: modelData.loads.filter(l => (l.data as any).caseId === lc.id || ((l.data as any).caseId === undefined && lc.id === 1)),
+    };
+    const input = buildSolverInput2D(caseModel);
+    if (!input || !perCase.has(lc.id)) continue;
+    writeFixture(`${caseName}-input`, serializeInput(input));
+    writeFixture(`${caseName}-results`, perCase.get(lc.id));
+  }
+
+  // Combos
+  const comboResults: AnalysisResults[] = [];
+  for (const combo of combinations) {
+    const result = combineResults(combo.factors, perCase);
+    if (!result) continue;
+    comboResults.push(result);
+    const comboName = `${prefix}-combo${combo.id}`;
+    writeFixture(comboName, {
+      factors: combo.factors,
+      results: result,
+    });
+  }
+
+  // Envelope
+  if (comboResults.length > 0) {
+    const envelope = computeEnvelope(comboResults);
+    if (envelope) writeFixture(`${prefix}-envelope`, envelope);
+  }
+
+  // Write metadata for Rust tests to know which cases/combos exist
+  writeFixture(`${prefix}-meta`, {
+    loadCases: loadCases.map(lc => ({ id: lc.id, name: caseNames.get(lc.id) })),
+    combinations: combinations.map(c => ({ id: c.id, name: c.name, factors: c.factors })),
+  });
+}
+
+describe('Generate example model fixtures', () => {
+  fs.mkdirSync(FIXTURES_DIR, { recursive: true });
+
+  // ─── 2D single-case examples ──────────────────────────────────
+
+  const singleCase2D = [
+    'simply-supported', 'cantilever', 'portal-frame', 'continuous-beam',
+    'two-story-frame', 'spring-support', 'point-loads', 'thermal',
+    'settlement', 'cantilever-point', 'gerber-beam', 'multi-section-frame',
+    'three-hinge-arch', 'color-map-demo', 'bridge-moving-load', 'bridge-highway',
+    // Trusses (uiStore mocked to '2d' so they work)
+    'truss', 'warren-truss', 'howe-truss',
+  ];
+
+  for (const name of singleCase2D) {
+    it(`generates ex-${name} fixture`, () => {
+      const api = createMockAPI();
+      const found = load2DExample(name, api);
+      if (!found) throw new Error(`Example '${name}' not found`);
+      const modelData = api.getModelData();
+      const input = buildSolverInput2D(modelData);
+      if (!input) throw new Error(`buildSolverInput2D returned null for '${name}'`);
+      const results = solve(input);
+      writeFixture(`ex-${name}-input`, serializeInput(input));
+      writeFixture(`ex-${name}-results`, results);
+    });
+  }
+
+  // ─── 2D multi-case examples ───────────────────────────────────
+
+  const multiCase2D = ['frame-cirsoc-dl', 'building-3story-dlw', 'frame-seismic'];
+
+  for (const name of multiCase2D) {
+    it(`generates ex-${name} multi-case fixtures`, () => {
+      const api = createMockAPI();
+      const found = load2DExample(name, api);
+      if (!found) throw new Error(`Example '${name}' not found`);
+      writeMultiCase2D(`ex-${name}`, api);
+    });
+  }
+
+  // ─── 3D single-case examples ──────────────────────────────────
+
+  const singleCase3D = [
+    '3d-portal-frame', '3d-space-truss', '3d-cantilever-load',
+    '3d-grid-slab', '3d-tower', '3d-torsion-beam', '3d-nave-industrial',
+  ];
+
+  for (const name of singleCase3D) {
+    it(`generates ex-${name} fixture`, () => {
+      const api = createMockAPI();
+      const found = load3DExample(name, api);
+      if (!found) throw new Error(`Example '${name}' not found`);
+      const modelData = api.getModelData();
+      const input = buildSolverInput3D(modelData);
+      if (!input) throw new Error(`buildSolverInput3D returned null for '${name}'`);
+      const results = solve3D(input);
+      writeFixture(`ex-${name}-input`, serializeInput3D(input));
+      writeFixture(`ex-${name}-results`, results);
+    });
+  }
+
+  // ─── 3D multi-case example (3d-building) ──────────────────────
+
+  it('generates ex-3d-building multi-case fixtures', () => {
+    const api = createMockAPI();
+    const found = load3DExample('3d-building', api);
+    if (!found) throw new Error("Example '3d-building' not found");
+
+    const { loadCases, combinations } = api.model;
+    const modelData = api.getModelData();
+
+    // Solve per case
+    const perCase3D = solvePerCase3D(api, loadCases);
+    const caseNames = new Map<number, string>();
+
+    for (const lc of loadCases) {
+      const caseName = `ex-3d-building-case${lc.id}`;
+      caseNames.set(lc.id, caseName);
+      const entry = perCase3D.get(lc.id);
+      if (!entry) continue;
+      writeFixture(`${caseName}-input`, serializeInput3D(entry.input));
+      writeFixture(`${caseName}-results`, entry.results);
+    }
+
+    // Write metadata
+    writeFixture('ex-3d-building-meta', {
+      loadCases: loadCases.map(lc => ({ id: lc.id, name: caseNames.get(lc.id) })),
+      combinations: combinations.map(c => ({ id: c.id, name: c.name, factors: c.factors })),
+    });
+  });
 });

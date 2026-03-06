@@ -1,0 +1,107 @@
+{
+  "factors": [
+    {
+      "caseId": 1,
+      "factor": 0.9
+    }
+  ],
+  "results": {
+    "displacements": [
+      {
+        "nodeId": 1,
+        "ux": 0,
+        "uy": 0,
+        "rz": 0
+      },
+      {
+        "nodeId": 2,
+        "ux": 0.000003983286289944047,
+        "uy": -0.000032,
+        "rz": -0.0005265396319441154
+      },
+      {
+        "nodeId": 3,
+        "ux": -0.000003983286289942947,
+        "uy": -0.000032,
+        "rz": 0.0005265396319441153
+      },
+      {
+        "nodeId": 4,
+        "ux": 0,
+        "uy": 0,
+        "rz": 0
+      }
+    ],
+    "reactions": [
+      {
+        "nodeId": 1,
+        "rx": 3.983286289943497,
+        "ry": 21.6,
+        "mz": -5.300965693169907
+      },
+      {
+        "nodeId": 4,
+        "rx": -3.983286289943497,
+        "ry": 21.6,
+        "mz": 5.300965693169912
+      }
+    ],
+    "elementForces": [
+      {
+        "elementId": 1,
+        "nStart": -21.6,
+        "nEnd": -21.6,
+        "vStart": -3.983286289943496,
+        "vEnd": -3.983286289943496,
+        "mStart": -5.300965693169907,
+        "mEnd": 10.632179466604077,
+        "length": 4,
+        "qI": 0,
+        "qJ": 0,
+        "pointLoads": [],
+        "distributedLoads": [],
+        "hingeStart": false,
+        "hingeEnd": false
+      },
+      {
+        "elementId": 2,
+        "nStart": -3.9832862899434973,
+        "nEnd": -3.9832862899434973,
+        "vStart": 21.6,
+        "vEnd": -21.6,
+        "mStart": 10.63217946660407,
+        "mEnd": 10.63217946660408,
+        "length": 6,
+        "qI": -7.2,
+        "qJ": -7.2,
+        "pointLoads": [],
+        "distributedLoads": [
+          {
+            "qI": -7.2,
+            "qJ": -7.2,
+            "a": 0,
+            "b": 6
+          }
+        ],
+        "hingeStart": false,
+        "hingeEnd": false
+      },
+      {
+        "elementId": 3,
+        "nStart": -21.6,
+        "nEnd": -21.6,
+        "vStart": 3.983286289943498,
+        "vEnd": 3.983286289943498,
+        "mStart": 5.300965693169912,
+        "mEnd": -10.63217946660408,
+        "length": 4,
+        "qI": 0,
+        "qJ": 0,
+        "pointLoads": [],
+        "distributedLoads": [],
+        "hingeStart": false,
+        "hingeEnd": false
+      }
+    ]
+  }
+}

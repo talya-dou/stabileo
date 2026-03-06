@@ -1,0 +1,74 @@
+{
+  "loadCases": [
+    {
+      "id": 1,
+      "name": "ex-building-3story-dlw-case1"
+    },
+    {
+      "id": 2,
+      "name": "ex-building-3story-dlw-case2"
+    },
+    {
+      "id": 3,
+      "name": "ex-building-3story-dlw-case3"
+    }
+  ],
+  "combinations": [
+    {
+      "id": 1,
+      "name": "1.4D",
+      "factors": [
+        {
+          "caseId": 1,
+          "factor": 1.4
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "1.2D + 1.6L",
+      "factors": [
+        {
+          "caseId": 1,
+          "factor": 1.2
+        },
+        {
+          "caseId": 2,
+          "factor": 1.6
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "1.2D + L + 1.6W",
+      "factors": [
+        {
+          "caseId": 1,
+          "factor": 1.2
+        },
+        {
+          "caseId": 2,
+          "factor": 1
+        },
+        {
+          "caseId": 3,
+          "factor": 1.6
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "0.9D + 1.6W",
+      "factors": [
+        {
+          "caseId": 1,
+          "factor": 0.9
+        },
+        {
+          "caseId": 3,
+          "factor": 1.6
+        }
+      ]
+    }
+  ]
+}

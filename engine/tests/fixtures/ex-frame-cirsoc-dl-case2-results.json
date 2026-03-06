@@ -1,0 +1,99 @@
+{
+  "displacements": [
+    {
+      "nodeId": 1,
+      "ux": 0,
+      "uy": 0,
+      "rz": 0
+    },
+    {
+      "nodeId": 2,
+      "ux": 0.000002766171034683301,
+      "uy": -0.000022222222222222223,
+      "rz": -0.0003656525221834135
+    },
+    {
+      "nodeId": 3,
+      "ux": -0.000002766171034682666,
+      "uy": -0.000022222222222222217,
+      "rz": 0.00036565252218341343
+    },
+    {
+      "nodeId": 4,
+      "ux": 0,
+      "uy": 0,
+      "rz": 0
+    }
+  ],
+  "reactions": [
+    {
+      "nodeId": 1,
+      "rx": 2.766171034682984,
+      "ry": 15,
+      "mz": -3.6812261758124354
+    },
+    {
+      "nodeId": 4,
+      "rx": -2.766171034682984,
+      "ry": 14.999999999999996,
+      "mz": 3.68122617581244
+    }
+  ],
+  "elementForces": [
+    {
+      "elementId": 1,
+      "nStart": -15,
+      "nEnd": -15,
+      "vStart": -2.766171034682983,
+      "vEnd": -2.766171034682983,
+      "mStart": -3.6812261758124354,
+      "mEnd": 7.383457962919497,
+      "length": 4,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 2,
+      "nStart": -2.7661710346829835,
+      "nEnd": -2.7661710346829835,
+      "vStart": 15,
+      "vEnd": -15,
+      "mStart": 7.383457962919495,
+      "mEnd": 7.383457962919498,
+      "length": 6,
+      "qI": -5,
+      "qJ": -5,
+      "pointLoads": [],
+      "distributedLoads": [
+        {
+          "qI": -5,
+          "qJ": -5,
+          "a": 0,
+          "b": 6
+        }
+      ],
+      "hingeStart": false,
+      "hingeEnd": false
+    },
+    {
+      "elementId": 3,
+      "nStart": -14.999999999999996,
+      "nEnd": -14.999999999999996,
+      "vStart": 2.766171034682985,
+      "vEnd": 2.766171034682985,
+      "mStart": 3.68122617581244,
+      "mEnd": -7.3834579629195005,
+      "length": 4,
+      "qI": 0,
+      "qJ": 0,
+      "pointLoads": [],
+      "distributedLoads": [],
+      "hingeStart": false,
+      "hingeEnd": false
+    }
+  ]
+}
