@@ -182,6 +182,162 @@ pub fn assert_close(actual: f64, expected: f64, rel_tol: f64, label: &str) {
     );
 }
 
+/// Build a multi-element beam along X with given supports and loads.
+#[allow(dead_code)]
+pub fn make_beam(
+    n_elements: usize,
+    length: f64,
+    e: f64,
+    a: f64,
+    iz: f64,
+    start_support: &str,
+    end_support: Option<&str>,
+    loads: Vec<SolverLoad>,
+) -> SolverInput {
+    let n_nodes = n_elements + 1;
+    let elem_len = length / n_elements as f64;
+    let nodes: Vec<_> = (0..n_nodes)
+        .map(|i| (i + 1, i as f64 * elem_len, 0.0))
+        .collect();
+    let elems: Vec<_> = (0..n_elements)
+        .map(|i| (i + 1, "frame", i + 1, i + 2, 1, 1, false, false))
+        .collect();
+    let mut sups = vec![(1, 1, start_support)];
+    if let Some(es) = end_support {
+        sups.push((2, n_nodes, es));
+    }
+    make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads)
+}
+
+/// Build a continuous (multi-span) beam along X.
+/// Supports: pinned at start, rollerX at every span boundary.
+#[allow(dead_code)]
+pub fn make_continuous_beam(
+    spans: &[f64],
+    n_per_span: usize,
+    e: f64,
+    a: f64,
+    iz: f64,
+    loads: Vec<SolverLoad>,
+) -> SolverInput {
+    let n_spans = spans.len();
+    let total_elements = n_per_span * n_spans;
+
+    let mut nodes = Vec::new();
+    let mut node_id = 1_usize;
+    let mut x = 0.0;
+    nodes.push((node_id, 0.0, 0.0));
+    node_id += 1;
+    for &span_len in spans {
+        let elem_len = span_len / n_per_span as f64;
+        for j in 1..=n_per_span {
+            nodes.push((node_id, x + j as f64 * elem_len, 0.0));
+            node_id += 1;
+        }
+        x += span_len;
+    }
+
+    let elems: Vec<_> = (0..total_elements)
+        .map(|i| (i + 1, "frame", i + 1, i + 2, 1, 1, false, false))
+        .collect();
+
+    let mut sups = Vec::new();
+    let mut sup_id = 1;
+    sups.push((sup_id, 1, "pinned"));
+    sup_id += 1;
+    for span_idx in 0..n_spans {
+        let end_node = 1 + n_per_span * (span_idx + 1);
+        sups.push((sup_id, end_node, "rollerX"));
+        sup_id += 1;
+    }
+
+    make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads)
+}
+
+/// Build a 3D SolverInput3D from compact descriptions.
+#[allow(dead_code)]
+pub fn make_3d_input(
+    nodes: Vec<(usize, f64, f64, f64)>,
+    mats: Vec<(usize, f64, f64)>,                         // (id, E_MPa, nu)
+    secs: Vec<(usize, f64, f64, f64, f64)>,                // (id, A, Iy, Iz, J)
+    elems: Vec<(usize, &str, usize, usize, usize, usize)>, // (id, type, ni, nj, mat, sec)
+    sups: Vec<(usize, Vec<bool>)>,                         // (node_id, [rx,ry,rz,rrx,rry,rrz])
+    loads: Vec<SolverLoad3D>,
+) -> SolverInput3D {
+    let mut nodes_map = HashMap::new();
+    for (id, x, y, z) in nodes {
+        nodes_map.insert(id.to_string(), SolverNode3D { id, x, y, z });
+    }
+    let mut mats_map = HashMap::new();
+    for (id, e, nu) in mats {
+        mats_map.insert(id.to_string(), SolverMaterial { id, e, nu });
+    }
+    let mut secs_map = HashMap::new();
+    for (id, a, iy, iz, j) in secs {
+        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j });
+    }
+    let mut elems_map = HashMap::new();
+    for (id, t, ni, nj, mi, si) in elems {
+        elems_map.insert(id.to_string(), SolverElement3D {
+            id, elem_type: t.to_string(), node_i: ni, node_j: nj,
+            material_id: mi, section_id: si,
+            hinge_start: false, hinge_end: false,
+            local_yx: None, local_yy: None, local_yz: None, roll_angle: None,
+        });
+    }
+    let mut sups_map = HashMap::new();
+    for (i, (nid, dofs)) in sups.iter().enumerate() {
+        sups_map.insert((i + 1).to_string(), SolverSupport3D {
+            node_id: *nid,
+            rx: dofs[0], ry: dofs[1], rz: dofs[2],
+            rrx: dofs[3], rry: dofs[4], rrz: dofs[5],
+            kx: None, ky: None, kz: None,
+            krx: None, kry: None, krz: None,
+            dx: None, dy: None, dz: None,
+            drx: None, dry: None, drz: None,
+            normal_x: None, normal_y: None, normal_z: None,
+            is_inclined: None,
+        });
+    }
+    SolverInput3D {
+        nodes: nodes_map, materials: mats_map, sections: secs_map,
+        elements: elems_map, supports: sups_map, loads, left_hand: None,
+    }
+}
+
+/// Build a 3D beam along X-axis with given supports and loads.
+#[allow(dead_code)]
+pub fn make_3d_beam(
+    n_elements: usize,
+    length: f64,
+    e: f64,
+    nu: f64,
+    a: f64,
+    iy: f64,
+    iz: f64,
+    j: f64,
+    start_dofs: Vec<bool>,
+    end_dofs: Option<Vec<bool>>,
+    loads: Vec<SolverLoad3D>,
+) -> SolverInput3D {
+    let n_nodes = n_elements + 1;
+    let elem_len = length / n_elements as f64;
+    let nodes: Vec<_> = (0..n_nodes)
+        .map(|i| (i + 1, i as f64 * elem_len, 0.0, 0.0))
+        .collect();
+    let elems: Vec<_> = (0..n_elements)
+        .map(|i| (i + 1, "frame", i + 1, i + 2, 1, 1))
+        .collect();
+    let mut sups = vec![(1, start_dofs)];
+    if let Some(ed) = end_dofs {
+        sups.push((n_nodes, ed));
+    }
+    make_3d_input(
+        nodes, vec![(1, e, nu)], vec![(1, a, iy, iz, j)],
+        elems, sups, loads,
+    )
+}
+
 /// Check global equilibrium: sum of reactions ≈ sum of applied loads.
 #[allow(dead_code)]
 pub fn check_equilibrium(results: &AnalysisResults, loads: &[SolverLoad]) {
