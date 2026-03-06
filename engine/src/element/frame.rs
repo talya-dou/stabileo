@@ -264,6 +264,63 @@ pub fn frame_local_stiffness_3d(
     k
 }
 
+/// 3D frame local stiffness matrix with warping DOF (14×14).
+/// DOFs: [u1, v1, w1, θx1, θy1, θz1, φ'1, u2, v2, w2, θx2, θy2, θz2, φ'2]
+/// cw: warping constant (m⁶), phi' = rate of twist (warping DOF)
+pub fn frame_local_stiffness_3d_warping(
+    e: f64, a: f64, iy: f64, iz: f64, j: f64, cw: f64, l: f64, g: f64,
+    hinge_start: bool, hinge_end: bool,
+) -> Vec<f64> {
+    let n = 14;
+    let mut k = vec![0.0; n * n];
+
+    // Start with standard 12x12 embedded in 14x14
+    let k12 = frame_local_stiffness_3d(e, a, iy, iz, j, l, g, hinge_start, hinge_end);
+
+    // Map 12x12 DOFs to 14x14: 0-5 → 0-5, 6-11 → 7-12
+    let map12to14 = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+    for i in 0..12 {
+        for jj in 0..12 {
+            k[map12to14[i] * n + map12to14[jj]] = k12[i * 12 + jj];
+        }
+    }
+
+    // Add warping torsion coupling (DOFs 3,6 for node I and 10,13 for node J)
+    // Warping stiffness submatrix using Hermitian cubic interpolation:
+    //   Torsion DOFs: theta_x at DOFs 3 (node I) and 10 (node J)
+    //   Warping DOFs: phi' at DOFs 6 (node I) and 13 (node J)
+    let l2 = l * l;
+    let l3 = l2 * l;
+    let ecw = e * cw;
+    let gj = g * j;
+
+    // Replace torsion block with coupled torsion-warping block
+    // 4x4 submatrix at DOFs [3, 6, 10, 13]
+    let idx = [3, 6, 10, 13];
+
+    // Clear existing torsion terms (DOFs 3, 10)
+    k[3 * n + 3] = 0.0;
+    k[3 * n + 10] = 0.0;
+    k[10 * n + 3] = 0.0;
+    k[10 * n + 10] = 0.0;
+
+    // Torsion-warping 4x4: [θx1, φ'1, θx2, φ'2]
+    let tw = [
+        gj / l + 12.0 * ecw / l3,    6.0 * ecw / l2,     -gj / l - 12.0 * ecw / l3,    6.0 * ecw / l2,
+        6.0 * ecw / l2,               4.0 * ecw / l,      -6.0 * ecw / l2,               2.0 * ecw / l,
+        -gj / l - 12.0 * ecw / l3,   -6.0 * ecw / l2,     gj / l + 12.0 * ecw / l3,    -6.0 * ecw / l2,
+        6.0 * ecw / l2,               2.0 * ecw / l,      -6.0 * ecw / l2,               4.0 * ecw / l,
+    ];
+
+    for i in 0..4 {
+        for jj in 0..4 {
+            k[idx[i] * n + idx[jj]] = tw[i * 4 + jj];
+        }
+    }
+
+    k
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

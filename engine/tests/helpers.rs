@@ -274,7 +274,7 @@ pub fn make_3d_input(
     }
     let mut secs_map = HashMap::new();
     for (id, a, iy, iz, j) in secs {
-        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j });
+        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j, cw: None });
     }
     let mut elems_map = HashMap::new();
     for (id, t, ni, nj, mi, si) in elems {
@@ -296,13 +296,12 @@ pub fn make_3d_input(
             dx: None, dy: None, dz: None,
             drx: None, dry: None, drz: None,
             normal_x: None, normal_y: None, normal_z: None,
-            is_inclined: None,
-        });
+            is_inclined: None, rw: None, kw: None,
+            });
     }
     SolverInput3D {
         nodes: nodes_map, materials: mats_map, sections: secs_map,
-        elements: elems_map, supports: sups_map, loads, left_hand: None,
-    }
+        elements: elems_map, supports: sups_map, loads, left_hand: None, plates: HashMap::new(), curved_beams: vec![],    }
 }
 
 /// Build a 3D beam along X-axis with given supports and loads.

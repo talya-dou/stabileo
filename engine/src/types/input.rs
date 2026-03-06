@@ -152,6 +152,8 @@ pub struct SolverSection3D {
     pub iy: f64,
     pub iz: f64,
     pub j: f64,
+    #[serde(default)]
+    pub cw: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +213,10 @@ pub struct SolverSupport3D {
     #[serde(default)]
     pub drz: Option<f64>,
     #[serde(default)]
+    pub rw: Option<bool>,
+    #[serde(default)]
+    pub kw: Option<f64>,
+    #[serde(default)]
     pub normal_x: Option<f64>,
     #[serde(default)]
     pub normal_y: Option<f64>,
@@ -230,6 +236,8 @@ pub struct SolverNodalLoad3D {
     pub mx: f64,
     pub my: f64,
     pub mz: f64,
+    #[serde(default)]
+    pub bw: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -279,6 +287,8 @@ pub enum SolverLoad3D {
     PointOnElement(SolverPointLoad3D),
     #[serde(rename = "thermal")]
     Thermal(SolverThermalLoad3D),
+    #[serde(rename = "pressure")]
+    Pressure(SolverPressureLoad),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -292,7 +302,47 @@ pub struct SolverInput3D {
     pub loads: Vec<SolverLoad3D>,
     #[serde(default)]
     pub left_hand: Option<bool>,
+    #[serde(default)]
+    pub plates: HashMap<String, SolverPlateElement>,
+    #[serde(default)]
+    pub curved_beams: Vec<CurvedBeamInput>,
 }
+
+// ==================== Plate / Curved Beam Input Types ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverPlateElement {
+    pub id: usize,
+    pub nodes: [usize; 3],
+    pub material_id: usize,
+    pub thickness: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverPressureLoad {
+    pub element_id: usize,
+    pub pressure: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurvedBeamInput {
+    pub node_start: usize,
+    pub node_mid: usize,
+    pub node_end: usize,
+    pub material_id: usize,
+    pub section_id: usize,
+    #[serde(default = "default_num_segments")]
+    pub num_segments: usize,
+    #[serde(default)]
+    pub hinge_start: bool,
+    #[serde(default)]
+    pub hinge_end: bool,
+}
+
+fn default_num_segments() -> usize { 10 }
 
 // ==================== Advanced Analysis Input Types ====================
 
@@ -476,4 +526,80 @@ pub struct LoadTrain {
 pub struct Axle {
     pub offset: f64,
     pub weight: f64,
+}
+
+// ==================== Nonlinear Material Analysis ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NonlinearMaterialInput {
+    pub solver: SolverInput,
+    pub material_models: HashMap<String, MaterialModel>,
+    pub section_capacities: HashMap<String, SectionCapacity>,
+    #[serde(default = "default_max_iter")]
+    pub max_iter: usize,
+    #[serde(default = "default_tolerance")]
+    pub tolerance: f64,
+    #[serde(default = "default_n_increments")]
+    pub n_increments: usize,
+}
+
+fn default_max_iter() -> usize { 50 }
+fn default_tolerance() -> f64 { 1e-6 }
+fn default_n_increments() -> usize { 10 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaterialModel {
+    pub model_type: String,
+    pub fy: f64,
+    #[serde(default)]
+    pub alpha: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SectionCapacity {
+    pub np: f64,
+    pub mp: f64,
+    #[serde(default)]
+    pub zp: Option<f64>,
+}
+
+// ==================== Time History Analysis ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeHistoryInput {
+    pub solver: SolverInput,
+    pub densities: HashMap<String, f64>,
+    pub time_step: f64,
+    pub n_steps: usize,
+    #[serde(default = "default_method")]
+    pub method: String,
+    #[serde(default = "default_newmark_beta")]
+    pub beta: f64,
+    #[serde(default = "default_newmark_gamma")]
+    pub gamma: f64,
+    #[serde(default)]
+    pub alpha: Option<f64>,
+    #[serde(default)]
+    pub damping_xi: Option<f64>,
+    #[serde(default)]
+    pub ground_accel: Option<Vec<f64>>,
+    #[serde(default)]
+    pub ground_direction: Option<String>,
+    #[serde(default)]
+    pub force_history: Option<Vec<TimeForceRecord>>,
+}
+
+fn default_method() -> String { "newmark".to_string() }
+fn default_newmark_beta() -> f64 { 0.25 }
+fn default_newmark_gamma() -> f64 { 0.5 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeForceRecord {
+    pub time: f64,
+    pub loads: Vec<SolverNodalLoad>,
 }

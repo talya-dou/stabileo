@@ -87,8 +87,7 @@ fn make_3d_column_input(
             fz: 0.0,
             mx: 0.0,
             my: 0.0,
-            mz: 0.0,
-        })]
+            mz: 0.0, bw: None })]
     } else {
         vec![]
     };
@@ -114,7 +113,7 @@ fn make_3d_input(
     }
     let mut secs_map = HashMap::new();
     for (id, a, iy, iz, j) in secs {
-        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j });
+        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j, cw: None });
     }
     let mut elems_map = HashMap::new();
     for (id, t, ni, nj, mi, si) in elems {
@@ -134,13 +133,12 @@ fn make_3d_input(
             node_id: nid, rx, ry, rz, rrx, rry, rrz,
             kx: None, ky: None, kz: None, krx: None, kry: None, krz: None,
             dx: None, dy: None, dz: None, drx: None, dry: None, drz: None,
-            normal_x: None, normal_y: None, normal_z: None, is_inclined: None,
-        });
+            normal_x: None, normal_y: None, normal_z: None, is_inclined: None, rw: None, kw: None,
+            });
     }
     SolverInput3D {
         nodes: nodes_map, materials: mats_map, sections: secs_map,
-        elements: elems_map, supports: sups_map, loads, left_hand: None,
-    }
+        elements: elems_map, supports: sups_map, loads, left_hand: None, plates: HashMap::new(), curved_beams: vec![],    }
 }
 
 // ═══════════════════════════════════════════════════════════════

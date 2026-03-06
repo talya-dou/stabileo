@@ -291,8 +291,7 @@ fn validation_vm12_3d_cantilever_biaxial() {
         vec![true, true, true, true, true, true], // fixed
         None,
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: 0.0, fy: fy, fz: fz, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: 0.0, fy: fy, fz: fz, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -335,8 +334,7 @@ fn validation_vm1_equilibrium() {
     ];
     let sups = vec![(1, 1, "pinned"), (2, 2, "pinned"), (3, 3, "pinned")];
     let loads = vec![SolverLoad::Nodal(SolverNodalLoad {
-        node_id: 4, fx: 0.0, fy: -p, mz: 0.0,
-    })];
+        node_id: 4, fx: 0.0, fy: -p, mz: 0.0 })];
 
     let input = make_input(
         nodes, vec![(1, E, 0.3)],

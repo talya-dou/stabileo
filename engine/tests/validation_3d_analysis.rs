@@ -39,8 +39,7 @@ fn validation_3d_cantilever_biaxial_bending() {
         vec![true, true, true, true, true, true],
         None,
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: 0.0, fy: fy, fz: fz, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: 0.0, fy: fy, fz: fz, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -69,8 +68,7 @@ fn validation_3d_cantilever_pure_torsion() {
         vec![true, true, true, true, true, true],
         None,
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: 0.0, fy: 0.0, fz: 0.0, mx: torque, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: 0.0, fy: 0.0, fz: 0.0, mx: torque, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -125,8 +123,7 @@ fn validation_3d_space_truss_tetrahedron() {
             (3, vec![true, true, true, false, false, false]),
         ],
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 4, fx: 0.0, fy: 0.0, fz: -p, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: 4, fx: 0.0, fy: 0.0, fz: -p, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -176,8 +173,7 @@ fn validation_3d_portal_out_of_plane() {
             (4, vec![true, true, true, true, true, true]),
         ],
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 2, fx: 0.0, fy: 0.0, fz: fz, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: 2, fx: 0.0, fy: 0.0, fz: fz, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -222,8 +218,7 @@ fn validation_3d_ss_beam_parity_with_2d() {
         vec![true, true, true, true, false, false],  // pinned: fix ux,uy,uz,rrx; free rry,rrz
         Some(vec![false, true, true, true, false, false]), // rollerX: fix uy,uz,rrx; free ux,rry,rrz
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n / 2 + 1, fx: 0.0, fy: fy, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n / 2 + 1, fx: 0.0, fy: fy, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
     let res_3d = linear::solve_3d(&input_3d).unwrap();
 
@@ -258,8 +253,7 @@ fn validation_3d_cantilever_weak_axis_no_coupling() {
         vec![true, true, true, true, true, true],
         None,
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: 0.0, fy: 0.0, fz: fz, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: 0.0, fy: 0.0, fz: fz, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -289,8 +283,7 @@ fn validation_3d_fixed_fixed_axial() {
         vec![true, true, true, true, true, true], // fixed
         Some(vec![false, true, true, true, true, true]), // fixed except ux free
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: fx, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: fx, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let results = linear::solve_3d(&input).unwrap();
@@ -380,8 +373,7 @@ fn validation_3d_buckling_parity() {
             (n + 1, vec![false, true, true, true, false, false]), // rollerX: free ux
         ],
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx: p, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
+            node_id: n + 1, fx: p, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
     );
 
     let buck = buckling::solve_buckling_3d(&input, 2).unwrap();
@@ -425,7 +417,7 @@ fn validation_3d_equilibrium_all_dof() {
         vec![true, true, true, true, true, true],
         None,
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: n + 1, fx, fy, fz, mx, my, mz,
+            node_id: n + 1, fx, fy, fz, mx, my, mz, bw: None,
         })],
     );
 

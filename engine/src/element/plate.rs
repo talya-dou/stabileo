@@ -1,0 +1,773 @@
+/// DKT+CST triangular plate/shell element.
+///
+/// Combines:
+/// - CST (Constant Strain Triangle) for in-plane membrane behavior (6 DOFs)
+/// - DKT (Discrete Kirchhoff Triangle) for out-of-plane bending (9 DOFs)
+/// - Artificial drilling stiffness (3 DOFs)
+///
+/// Total: 18 DOFs per element (6 per node).
+/// Node DOF ordering: [ux, uy, uz, rx, ry, rz] per node.
+
+// ---------------------------------------------------------------------------
+// Public result struct
+// ---------------------------------------------------------------------------
+
+/// Stress results at the element centroid.
+#[derive(Debug, Clone)]
+pub(crate) struct PlateStressLocal {
+    /// Membrane stress σ_xx (kN/m²).
+    pub sigma_xx: f64,
+    /// Membrane stress σ_yy (kN/m²).
+    pub sigma_yy: f64,
+    /// Membrane shear stress τ_xy (kN/m²).
+    pub tau_xy: f64,
+    /// Bending moment m_x (kN·m/m).
+    pub mx: f64,
+    /// Bending moment m_y (kN·m/m).
+    pub my: f64,
+    /// Twisting moment m_xy (kN·m/m).
+    pub mxy: f64,
+    /// Maximum principal stress (kN/m²).
+    pub sigma_1: f64,
+    /// Minimum principal stress (kN/m²).
+    pub sigma_2: f64,
+    /// Von Mises equivalent stress (kN/m²).
+    pub von_mises: f64,
+}
+
+// ---------------------------------------------------------------------------
+// Local coordinate helpers
+// ---------------------------------------------------------------------------
+
+fn cross(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn norm3(v: &[f64; 3]) -> f64 {
+    (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt()
+}
+
+fn sub3(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot3(a: &[f64; 3], b: &[f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Compute local orthonormal axes from the three triangle vertices.
+/// Returns (ex, ey, ez) where:
+///   ex = direction from node 0 to node 1
+///   ez = outward normal (edge01 × edge02, normalised)
+///   ey = ez × ex
+fn local_axes(coords: &[[f64; 3]; 3]) -> ([f64; 3], [f64; 3], [f64; 3]) {
+    let v01 = sub3(&coords[1], &coords[0]);
+    let v02 = sub3(&coords[2], &coords[0]);
+
+    let len01 = norm3(&v01);
+    let ex = [v01[0] / len01, v01[1] / len01, v01[2] / len01];
+
+    let n = cross(&v01, &v02);
+    let n_len = norm3(&n);
+    let ez = [n[0] / n_len, n[1] / n_len, n[2] / n_len];
+
+    let ey = cross(&ez, &ex);
+
+    (ex, ey, ez)
+}
+
+/// Project 3D coordinates onto the local 2D plane defined by (ex, ey) with
+/// origin at node 0.  Returns [(x1,y1), (x2,y2), (x3,y3)].
+fn project_to_2d(
+    coords: &[[f64; 3]; 3],
+    ex: &[f64; 3],
+    ey: &[f64; 3],
+) -> [(f64, f64); 3] {
+    let o = coords[0];
+    let mut pts = [(0.0, 0.0); 3];
+    for i in 0..3 {
+        let d = sub3(&coords[i], &o);
+        pts[i] = (dot3(&d, ex), dot3(&d, ey));
+    }
+    pts
+}
+
+/// Twice the signed area of the triangle in local 2D.
+fn twice_area(p: &[(f64, f64); 3]) -> f64 {
+    (p[1].0 - p[0].0) * (p[2].1 - p[0].1) - (p[2].0 - p[0].0) * (p[1].1 - p[0].1)
+}
+
+// ---------------------------------------------------------------------------
+// CST membrane stiffness (6×6)
+// ---------------------------------------------------------------------------
+
+/// CST B-matrix (3×6) for a triangle with local 2D coordinates `p`.
+/// Returns (B, area) where B is row-major 3×6.
+fn cst_b_matrix(p: &[(f64, f64); 3]) -> ([f64; 18], f64) {
+    let two_a = twice_area(p);
+    let area = two_a.abs() / 2.0;
+
+    // Shape function derivatives:
+    //   dN_i/dx = (y_j - y_k) / (2A)
+    //   dN_i/dy = (x_k - x_j) / (2A)
+    // where (i,j,k) are cyclic: (0,1,2), (1,2,0), (2,0,1).
+    let dnx = [
+        (p[1].1 - p[2].1) / two_a,
+        (p[2].1 - p[0].1) / two_a,
+        (p[0].1 - p[1].1) / two_a,
+    ];
+    let dny = [
+        (p[2].0 - p[1].0) / two_a,
+        (p[0].0 - p[2].0) / two_a,
+        (p[1].0 - p[0].0) / two_a,
+    ];
+
+    // B = [ dN1/dx   0      dN2/dx   0      dN3/dx   0    ]
+    //     [ 0        dN1/dy  0       dN2/dy  0       dN3/dy]
+    //     [ dN1/dy   dN1/dx  dN2/dy  dN2/dx  dN3/dy  dN3/dx]
+    let mut b = [0.0; 18];
+    for i in 0..3 {
+        b[0 * 6 + 2 * i] = dnx[i];
+        b[1 * 6 + 2 * i + 1] = dny[i];
+        b[2 * 6 + 2 * i] = dny[i];
+        b[2 * 6 + 2 * i + 1] = dnx[i];
+    }
+    (b, area)
+}
+
+/// CST membrane stiffness K_m = A * Bt * D * B   (6×6, row-major).
+fn cst_stiffness(p: &[(f64, f64); 3], e: f64, nu: f64, t: f64) -> [f64; 36] {
+    let (b, area) = cst_b_matrix(p);
+
+    // D_membrane (3×3, plane stress)
+    let coeff = e * t / (1.0 - nu * nu);
+    let d = [
+        coeff,        coeff * nu,   0.0,
+        coeff * nu,   coeff,        0.0,
+        0.0,          0.0,          coeff * (1.0 - nu) / 2.0,
+    ];
+
+    // DB = D * B  (3×6)
+    let mut db = [0.0; 18];
+    for i in 0..3 {
+        for j in 0..6 {
+            let mut s = 0.0;
+            for k in 0..3 {
+                s += d[i * 3 + k] * b[k * 6 + j];
+            }
+            db[i * 6 + j] = s;
+        }
+    }
+
+    // K = A * Bt * DB  (6×6)
+    let mut km = [0.0; 36];
+    for i in 0..6 {
+        for j in 0..6 {
+            let mut s = 0.0;
+            for k in 0..3 {
+                s += b[k * 6 + i] * db[k * 6 + j];
+            }
+            km[i * 6 + j] = area * s;
+        }
+    }
+    km
+}
+
+// ---------------------------------------------------------------------------
+// DKT bending stiffness (9×9)
+// ---------------------------------------------------------------------------
+
+/// Geometric quantities for DKT element edges.
+struct DktGeom {
+    /// Edge lengths squared: l_ij^2 for edges 4-5 (01), 5-6 (12), 6-4 (20)
+    lij_sq: [f64; 3],
+    /// x_ij = x_j - x_i for each edge
+    xij: [f64; 3],
+    /// y_ij = y_j - y_i for each edge
+    yij: [f64; 3],
+    /// Area of the triangle.
+    area: f64,
+}
+
+fn dkt_geometry(p: &[(f64, f64); 3]) -> DktGeom {
+    // Edges: k=0 → (0,1), k=1 → (1,2), k=2 → (2,0)
+    let idx = [(0, 1), (1, 2), (2, 0)];
+    let mut xij = [0.0; 3];
+    let mut yij = [0.0; 3];
+    let mut lij_sq = [0.0; 3];
+    for k in 0..3 {
+        let (i, j) = idx[k];
+        xij[k] = p[j].0 - p[i].0;
+        yij[k] = p[j].1 - p[i].1;
+        lij_sq[k] = xij[k] * xij[k] + yij[k] * yij[k];
+    }
+    let two_a = twice_area(p);
+    let area = two_a.abs() / 2.0;
+    DktGeom { lij_sq, xij, yij, area }
+}
+
+/// Evaluate the DKT B-matrix (3×9) at natural coordinates (xi, eta).
+///
+/// The DOF ordering per node is (w, theta_x, theta_y).
+///
+/// Uses the formulation from Batoz, Bathe & Ho (1980).
+fn dkt_b_matrix(
+    p: &[(f64, f64); 3],
+    g: &DktGeom,
+    xi: f64,
+    eta: f64,
+) -> [f64; 27] {
+    let _zeta = 1.0 - xi - eta;
+
+    // Pre-compute edge parameters a_k, b_k, c_k, d_k, e_k  (k = 4,5,6 in
+    // Batoz notation; here indexed 0,1,2 for edges 01, 12, 20).
+    let mut ak = [0.0; 3];
+    let mut bk = [0.0; 3];
+    let mut ck = [0.0; 3];
+    let mut dk = [0.0; 3];
+    let mut ek = [0.0; 3];
+    for k in 0..3 {
+        let xk = g.xij[k];
+        let yk = g.yij[k];
+        let l2 = g.lij_sq[k];
+        ak[k] = -xk * yk / l2;
+        bk[k] = (xk * xk - yk * yk) / (2.0 * l2);  // Note: some refs use full formula
+        ck[k] = -yk / l2;
+        dk[k] = xk / l2;
+        ek[k] = -(xk * xk) / l2;
+    }
+
+    // P_k, q_k, r_k, t_k  — additional intermediaries.
+    let mut pk = [0.0; 3];
+    let mut qk = [0.0; 3];
+    let mut rk = [0.0; 3];
+    let mut tk = [0.0; 3];
+    for k in 0..3 {
+        let xk = g.xij[k];
+        let yk = g.yij[k];
+        let l2 = g.lij_sq[k];
+        pk[k] = -6.0 * xk * yk / l2;
+        tk[k] = -6.0 * yk * yk / l2;
+        qk[k] = 3.0 * xk * xk / l2;
+        rk[k] = 3.0 * yk * yk / l2;
+    }
+
+    // Hx and Hy shape function derivatives w.r.t. xi and eta.
+    // There are 9 functions each (3 per node), derivatives w.r.t. xi and eta.
+    // Notation: Hx_k,xi means dHx_k/d(xi).
+
+    // For node 1 (index 0), edge k=0 is (0→1) [Batoz edge 4], edge k=2 is (2→0) [Batoz edge 6].
+    // For node 2 (index 1), edge k=0 is (0→1), edge k=1 is (1→2) [Batoz edge 5].
+    // For node 3 (index 2), edge k=1 is (1→2), edge k=2 is (2→0).
+
+    // dHx/d_xi  (9 components, one per DOF)
+    let hx_xi = [
+        // Node 1: w1
+        pk[0] * (1.0 - 2.0 * xi) + (pk[2] - pk[0]) * eta,
+        // Node 1: theta_x1
+        qk[0] * (1.0 - 2.0 * xi) - (qk[0] - qk[2]) * eta,
+        // Node 1: theta_y1
+        -4.0 + 6.0 * (xi + eta) + rk[0] * (1.0 - 2.0 * xi) - eta * (rk[0] - rk[2]),
+        // Node 2: w2
+        -pk[0] * (1.0 - 2.0 * xi) + (pk[1] + pk[0]) * eta,
+        // Node 2: theta_x2
+        qk[0] * (1.0 - 2.0 * xi) - (qk[0] + qk[1]) * eta,
+        // Node 2: theta_y2
+        -2.0 + 6.0 * xi + rk[0] * (1.0 - 2.0 * xi) + eta * (rk[1] - rk[0]),
+        // Node 3: w3
+        -(pk[2] + pk[1]) * eta,
+        // Node 3: theta_x3
+        (qk[2] + qk[1]) * eta,
+        // Node 3: theta_y3
+        -eta * (rk[1] + rk[2]),
+    ];
+
+    // dHx/d_eta  (9 components)
+    let hx_eta = [
+        // Node 1: w1
+        (pk[2] - pk[0]) * xi + pk[2] * (1.0 - 2.0 * eta),
+        // Node 1: theta_x1
+        -(qk[0] - qk[2]) * xi + qk[2] * (1.0 - 2.0 * eta),
+        // Node 1: theta_y1
+        -4.0 + 6.0 * (xi + eta) - xi * (rk[0] - rk[2]) + rk[2] * (1.0 - 2.0 * eta),
+        // Node 2: w2
+        (pk[1] + pk[0]) * xi,
+        // Node 2: theta_x2
+        -(qk[0] + qk[1]) * xi,
+        // Node 2: theta_y2
+        xi * (rk[1] - rk[0]),
+        // Node 3: w3
+        -pk[2] * (1.0 - 2.0 * eta) - (pk[1] + pk[2]) * xi,
+        // Node 3: theta_x3
+        qk[2] * (1.0 - 2.0 * eta) + (qk[2] + qk[1]) * xi,
+        // Node 3: theta_y3
+        -2.0 + 6.0 * eta + rk[2] * (1.0 - 2.0 * eta) + xi * (rk[1] - rk[2]),
+    ];
+
+    // dHy/d_xi  (9 components)
+    let hy_xi = [
+        // Node 1: w1
+        tk[0] * (1.0 - 2.0 * xi) + (tk[2] - tk[0]) * eta,
+        // Node 1: theta_x1
+        1.0 + rk[0] * (1.0 - 2.0 * xi) - eta * (rk[0] - rk[2]),
+        // Node 1: theta_y1
+        -pk[0] * (1.0 - 2.0 * xi) + eta * (pk[0] - pk[2]),
+        // Node 2: w2
+        -tk[0] * (1.0 - 2.0 * xi) + (tk[1] + tk[0]) * eta,
+        // Node 2: theta_x2
+        -1.0 + rk[0] * (1.0 - 2.0 * xi) + eta * (rk[1] - rk[0]),
+        // Node 2: theta_y2
+        -pk[0] * (1.0 - 2.0 * xi) - eta * (pk[1] - pk[0]),
+        // Node 3: w3
+        -(tk[2] + tk[1]) * eta,
+        // Node 3: theta_x3
+        (rk[2] + rk[1]) * eta,
+        // Node 3: theta_y3
+        -(pk[1] + pk[2]) * eta,
+    ];
+
+    // dHy/d_eta  (9 components)
+    let hy_eta = [
+        // Node 1: w1
+        (tk[2] - tk[0]) * xi + tk[2] * (1.0 - 2.0 * eta),
+        // Node 1: theta_x1
+        -(rk[0] - rk[2]) * xi + rk[2] * (1.0 - 2.0 * eta),
+        // Node 1: theta_y1
+        (pk[0] - pk[2]) * xi - pk[2] * (1.0 - 2.0 * eta),
+        // Node 2: w2
+        (tk[1] + tk[0]) * xi,
+        // Node 2: theta_x2
+        (rk[1] - rk[0]) * xi,
+        // Node 2: theta_y2
+        -(pk[1] - pk[0]) * xi,
+        // Node 3: w3
+        -tk[2] * (1.0 - 2.0 * eta) - (tk[1] + tk[2]) * xi,
+        // Node 3: theta_x3
+        rk[2] * (1.0 - 2.0 * eta) + (rk[1] + rk[2]) * xi,
+        // Node 3: theta_y3
+        pk[2] * (1.0 - 2.0 * eta) + (pk[1] + pk[2]) * xi,
+    ];
+
+    // Jacobian: map from (xi, eta) to (x, y).
+    // J = [[dx/d_xi, dy/d_xi], [dx/d_eta, dy/d_eta]]
+    // For a triangle with vertices (x1,y1), (x2,y2), (x3,y3):
+    //   x = zeta*x1 + xi*x2 + eta*x3
+    //   dx/d_xi  = x2 - x1,  dy/d_xi  = y2 - y1
+    //   dx/d_eta = x3 - x1,  dy/d_eta = y3 - y1
+    let j11 = p[1].0 - p[0].0;
+    let j12 = p[1].1 - p[0].1;
+    let j21 = p[2].0 - p[0].0;
+    let j22 = p[2].1 - p[0].1;
+    let det_j = j11 * j22 - j12 * j21;
+    let inv_det = 1.0 / det_j;
+
+    // Inverse Jacobian
+    let ji11 = j22 * inv_det;
+    let ji12 = -j12 * inv_det;
+    let ji21 = -j21 * inv_det;
+    let ji22 = j11 * inv_det;
+
+    // B-matrix (3×9): curvatures = B * u_bending
+    // kappa_xx = d(beta_x)/dx = (ji11 * dHx/d_xi + ji12 * dHx/d_eta) for each DOF
+    // kappa_yy = d(beta_y)/dy = (ji21 * dHy/d_xi + ji22 * dHy/d_eta) for each DOF
+    // kappa_xy = d(beta_x)/dy + d(beta_y)/dx
+    //          = (ji21*dHx/d_xi + ji22*dHx/d_eta) + (ji11*dHy/d_xi + ji12*dHy/d_eta)
+    let mut b_dkt = [0.0; 27]; // 3×9
+    for j in 0..9 {
+        b_dkt[0 * 9 + j] = ji11 * hx_xi[j] + ji12 * hx_eta[j];
+        b_dkt[1 * 9 + j] = ji21 * hy_xi[j] + ji22 * hy_eta[j];
+        b_dkt[2 * 9 + j] = ji21 * hx_xi[j] + ji22 * hx_eta[j]
+                          + ji11 * hy_xi[j] + ji12 * hy_eta[j];
+    }
+    b_dkt
+}
+
+/// DKT bending stiffness matrix (9×9, row-major).
+/// Uses 3-point Gauss quadrature over the triangle.
+fn dkt_stiffness(p: &[(f64, f64); 3], e: f64, nu: f64, t: f64) -> [f64; 81] {
+    let g = dkt_geometry(p);
+
+    // D_bending (3×3)
+    let d_coeff = e * t * t * t / (12.0 * (1.0 - nu * nu));
+    let d_bend = [
+        d_coeff,         d_coeff * nu,    0.0,
+        d_coeff * nu,    d_coeff,         0.0,
+        0.0,             0.0,             d_coeff * (1.0 - nu) / 2.0,
+    ];
+
+    // 3-point Gauss quadrature on triangle.
+    // Points: (2/3, 1/6, 1/6), (1/6, 2/3, 1/6), (1/6, 1/6, 2/3)
+    // In area coordinates (L1, L2, L3). Using xi = L2, eta = L3:
+    let gauss_pts: [(f64, f64); 3] = [
+        (1.0 / 6.0, 1.0 / 6.0),
+        (2.0 / 3.0, 1.0 / 6.0),
+        (1.0 / 6.0, 2.0 / 3.0),
+    ];
+    let gauss_w = 1.0 / 3.0; // weight for each point (sums to 1)
+
+    let mut kb = [0.0; 81]; // 9×9
+
+    for gp in &gauss_pts {
+        let b = dkt_b_matrix(p, &g, gp.0, gp.1);
+
+        // DB = D * B  (3×9)
+        let mut db = [0.0; 27];
+        for i in 0..3 {
+            for j in 0..9 {
+                let mut s = 0.0;
+                for k in 0..3 {
+                    s += d_bend[i * 3 + k] * b[k * 9 + j];
+                }
+                db[i * 9 + j] = s;
+            }
+        }
+
+        // K += w * Bt * DB  (9×9)
+        for i in 0..9 {
+            for j in 0..9 {
+                let mut s = 0.0;
+                for k in 0..3 {
+                    s += b[k * 9 + i] * db[k * 9 + j];
+                }
+                kb[i * 9 + j] += gauss_w * s;
+            }
+        }
+    }
+
+    // Multiply by area (the Gauss weights are normalised to unit triangle area;
+    // det(J)/2 = area, and we integrate over the unit triangle).
+    let area = g.area;
+    for v in kb.iter_mut() {
+        *v *= area;
+    }
+    kb
+}
+
+// ---------------------------------------------------------------------------
+// Assembly helpers
+// ---------------------------------------------------------------------------
+
+/// DOF index within the 18-DOF element vector.
+/// Per node: [ux(0), uy(1), uz(2), rx(3), ry(4), rz(5)]
+/// Node offsets: node0 → 0, node1 → 6, node2 → 12.
+
+/// Membrane (CST) DOF positions: ux, uy for each of the 3 nodes.
+const MEM_DOFS: [usize; 6] = [0, 1, 6, 7, 12, 13];
+/// Bending (DKT) DOF positions: uz, rx, ry for each of the 3 nodes.
+const BEND_DOFS: [usize; 9] = [2, 3, 4, 8, 9, 10, 14, 15, 16];
+/// Drilling DOF positions: rz for each of the 3 nodes.
+const DRILL_DOFS: [usize; 3] = [5, 11, 17];
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/// Compute the 18×18 local stiffness matrix for a DKT+CST triangular plate
+/// element (row-major flat vector).
+///
+/// # Arguments
+/// * `coords` – 3 node positions in 3D global space
+/// * `e`      – Young's modulus (kN/m²)
+/// * `nu`     – Poisson's ratio
+/// * `t`      – shell thickness (m)
+pub fn plate_local_stiffness(
+    coords: &[[f64; 3]; 3],
+    e: f64,
+    nu: f64,
+    t: f64,
+) -> Vec<f64> {
+    let (ex, ey, _ez) = local_axes(coords);
+    let p = project_to_2d(coords, &ex, &ey);
+
+    let km = cst_stiffness(&p, e, nu, t);
+    let kb = dkt_stiffness(&p, e, nu, t);
+
+    let n = 18;
+    let mut k = vec![0.0; n * n];
+
+    // Scatter membrane (6×6) into 18×18.
+    for i in 0..6 {
+        for j in 0..6 {
+            k[MEM_DOFS[i] * n + MEM_DOFS[j]] += km[i * 6 + j];
+        }
+    }
+
+    // Scatter bending (9×9) into 18×18.
+    for i in 0..9 {
+        for j in 0..9 {
+            k[BEND_DOFS[i] * n + BEND_DOFS[j]] += kb[i * 9 + j];
+        }
+    }
+
+    // Drilling stiffness: small fraction of the minimum membrane diagonal entry.
+    let mut min_diag = f64::MAX;
+    for i in 0..6 {
+        let d = km[i * 6 + i];
+        if d > 0.0 && d < min_diag {
+            min_diag = d;
+        }
+    }
+    let alpha = 1e-3;
+    let k_drill = alpha * min_diag;
+    for &d in &DRILL_DOFS {
+        k[d * n + d] += k_drill;
+    }
+
+    k
+}
+
+/// Compute the 18×18 transformation matrix from local to global coordinates
+/// (row-major flat vector).
+///
+/// Block-diagonal: six 3×3 rotation sub-blocks (one per DOF-triple per node).
+///
+/// The rotation matrix R has rows [ex, ey, ez] so that u_local = R · u_global.
+pub fn plate_transform_3d(coords: &[[f64; 3]; 3]) -> Vec<f64> {
+    let (ex, ey, ez) = local_axes(coords);
+
+    let n = 18;
+    let mut t = vec![0.0; n * n];
+
+    // 6 blocks of 3×3 along the diagonal.
+    for blk in 0..6 {
+        let off = blk * 3;
+        // Row 0 of block → ex
+        t[(off + 0) * n + (off + 0)] = ex[0];
+        t[(off + 0) * n + (off + 1)] = ex[1];
+        t[(off + 0) * n + (off + 2)] = ex[2];
+        // Row 1 of block → ey
+        t[(off + 1) * n + (off + 0)] = ey[0];
+        t[(off + 1) * n + (off + 1)] = ey[1];
+        t[(off + 1) * n + (off + 2)] = ey[2];
+        // Row 2 of block → ez
+        t[(off + 2) * n + (off + 0)] = ez[0];
+        t[(off + 2) * n + (off + 1)] = ez[1];
+        t[(off + 2) * n + (off + 2)] = ez[2];
+    }
+
+    t
+}
+
+/// Compute the 18-element consistent pressure load vector in **global**
+/// coordinates for a uniform pressure applied normal to the plate surface.
+///
+/// Total force = pressure × area, distributed equally (F/3 per node) along
+/// the local z direction, then transformed to global.
+pub fn plate_pressure_load(
+    coords: &[[f64; 3]; 3],
+    pressure: f64,
+) -> Vec<f64> {
+    let (ex, ey, ez) = local_axes(coords);
+    let p = project_to_2d(coords, &ex, &ey);
+    let area = twice_area(&p).abs() / 2.0;
+
+    let total_force = pressure * area;
+    let f_per_node = total_force / 3.0;
+
+    // The pressure acts in the local z direction.  In global coordinates the
+    // force at each node is f_per_node * ez.
+    let mut f = vec![0.0; 18];
+    for node in 0..3 {
+        let base = node * 6;
+        // Translational DOFs (ux, uy, uz) in global.
+        f[base + 0] = f_per_node * ez[0];
+        f[base + 1] = f_per_node * ez[1];
+        f[base + 2] = f_per_node * ez[2];
+        // Rotational DOFs remain zero for uniform pressure.
+    }
+    f
+}
+
+/// Compute the 18×18 lumped mass matrix (row-major flat vector).
+///
+/// mass per node = ρ · A · t / 3 applied to translational DOFs only.
+pub fn plate_consistent_mass(
+    coords: &[[f64; 3]; 3],
+    rho: f64,
+    t: f64,
+) -> Vec<f64> {
+    let (ex, ey, _ez) = local_axes(coords);
+    let p = project_to_2d(coords, &ex, &ey);
+    let area = twice_area(&p).abs() / 2.0;
+
+    let m_node = rho * area * t / 3.0;
+
+    let n = 18;
+    let mut mass = vec![0.0; n * n];
+
+    for node in 0..3 {
+        let base = node * 6;
+        // Translational DOFs: ux, uy, uz
+        mass[(base + 0) * n + (base + 0)] = m_node;
+        mass[(base + 1) * n + (base + 1)] = m_node;
+        mass[(base + 2) * n + (base + 2)] = m_node;
+        // Rotational DOFs get zero (or a tiny value to avoid singularity).
+    }
+
+    mass
+}
+
+/// Recover plate stresses at the element centroid from local displacements.
+///
+/// # Arguments
+/// * `coords`  – 3 node positions in 3D global space
+/// * `e`       – Young's modulus (kN/m²)
+/// * `nu`      – Poisson's ratio
+/// * `t`       – shell thickness (m)
+/// * `u_local` – 18-element displacement vector in the **local** coordinate system
+pub(crate) fn plate_stress_recovery(
+    coords: &[[f64; 3]; 3],
+    e: f64,
+    nu: f64,
+    t: f64,
+    u_local: &[f64],
+) -> PlateStressLocal {
+    assert!(u_local.len() >= 18, "u_local must have at least 18 entries");
+
+    let (ex, ey, _ez) = local_axes(coords);
+    let p = project_to_2d(coords, &ex, &ey);
+
+    // -----------------------------------------------------------------------
+    // Membrane stresses (constant over the element — CST)
+    // -----------------------------------------------------------------------
+    let (b_cst, _area) = cst_b_matrix(&p);
+
+    // Extract membrane displacements: ux, uy per node.
+    let mut u_mem = [0.0; 6];
+    for i in 0..6 {
+        u_mem[i] = u_local[MEM_DOFS[i]];
+    }
+
+    // epsilon = B_cst * u_mem  (3 components)
+    let mut eps = [0.0; 3];
+    for i in 0..3 {
+        for j in 0..6 {
+            eps[i] += b_cst[i * 6 + j] * u_mem[j];
+        }
+    }
+
+    // D_membrane
+    let dm_coeff = e * t / (1.0 - nu * nu);
+    let d_mem = [
+        dm_coeff,         dm_coeff * nu,    0.0,
+        dm_coeff * nu,    dm_coeff,         0.0,
+        0.0,              0.0,              dm_coeff * (1.0 - nu) / 2.0,
+    ];
+
+    // Membrane stress resultants  (force per unit length: N/m).
+    // To get actual stress (kN/m²) we divide by thickness.
+    let mut n_mem = [0.0; 3]; // Nxx, Nyy, Nxy (force/length)
+    for i in 0..3 {
+        for j in 0..3 {
+            n_mem[i] += d_mem[i * 3 + j] * eps[j];
+        }
+    }
+    // Stress = N / t  (but D already includes t, so N = D*eps and sigma = N/t)
+    let sigma_xx = n_mem[0] / t;
+    let sigma_yy = n_mem[1] / t;
+    let tau_xy = n_mem[2] / t;
+
+    // -----------------------------------------------------------------------
+    // Bending moments at the centroid (DKT)
+    // -----------------------------------------------------------------------
+    let g = dkt_geometry(&p);
+
+    // Evaluate B at centroid (xi=1/3, eta=1/3).
+    let b_dkt = dkt_b_matrix(&p, &g, 1.0 / 3.0, 1.0 / 3.0);
+
+    // Extract bending displacements: w, theta_x, theta_y per node.
+    let mut u_bend = [0.0; 9];
+    for i in 0..9 {
+        u_bend[i] = u_local[BEND_DOFS[i]];
+    }
+
+    // Curvatures kappa = B_dkt * u_bend  (3 components)
+    let mut kappa = [0.0; 3];
+    for i in 0..3 {
+        for j in 0..9 {
+            kappa[i] += b_dkt[i * 9 + j] * u_bend[j];
+        }
+    }
+
+    // D_bending
+    let db_coeff = e * t * t * t / (12.0 * (1.0 - nu * nu));
+    let d_bend = [
+        db_coeff,         db_coeff * nu,    0.0,
+        db_coeff * nu,    db_coeff,         0.0,
+        0.0,              0.0,              db_coeff * (1.0 - nu) / 2.0,
+    ];
+
+    // Moments m = D_bending * kappa  (kN·m / m)
+    let mut mom = [0.0; 3];
+    for i in 0..3 {
+        for j in 0..3 {
+            mom[i] += d_bend[i * 3 + j] * kappa[j];
+        }
+    }
+    let mx = mom[0];
+    let my = mom[1];
+    let mxy = mom[2];
+
+    // -----------------------------------------------------------------------
+    // Combined top/bottom fibre stresses and principal / von Mises
+    // -----------------------------------------------------------------------
+    // Bending stress at extreme fibre (z = ±t/2):
+    //   sigma_bending = ±6 * M / t²
+    let bend_xx = 6.0 * mx / (t * t);
+    let bend_yy = 6.0 * my / (t * t);
+    let bend_xy = 6.0 * mxy / (t * t);
+
+    // Top fibre (z = +t/2): membrane + bending.
+    let sx_top = sigma_xx + bend_xx;
+    let sy_top = sigma_yy + bend_yy;
+    let txy_top = tau_xy + bend_xy;
+
+    // Bottom fibre (z = -t/2): membrane - bending.
+    let sx_bot = sigma_xx - bend_xx;
+    let sy_bot = sigma_yy - bend_yy;
+    let txy_bot = tau_xy - bend_xy;
+
+    // Principal stresses and von Mises on both faces; report worst case.
+    let (s1_top, s2_top, vm_top) = principal_and_von_mises(sx_top, sy_top, txy_top);
+    let (s1_bot, s2_bot, vm_bot) = principal_and_von_mises(sx_bot, sy_bot, txy_bot);
+
+    let (sigma_1, sigma_2, von_mises) = if vm_top >= vm_bot {
+        (s1_top, s2_top, vm_top)
+    } else {
+        (s1_bot, s2_bot, vm_bot)
+    };
+
+    PlateStressLocal {
+        sigma_xx,
+        sigma_yy,
+        tau_xy,
+        mx,
+        my,
+        mxy,
+        sigma_1,
+        sigma_2,
+        von_mises,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Principal stress / von Mises helper
+// ---------------------------------------------------------------------------
+
+/// Compute principal stresses and von Mises equivalent from 2D plane stress.
+fn principal_and_von_mises(sx: f64, sy: f64, txy: f64) -> (f64, f64, f64) {
+    let avg = (sx + sy) / 2.0;
+    let diff = (sx - sy) / 2.0;
+    let r = (diff * diff + txy * txy).sqrt();
+
+    let s1 = avg + r;
+    let s2 = avg - r;
+
+    // Von Mises: sqrt(s1^2 - s1*s2 + s2^2)
+    let vm = (s1 * s1 - s1 * s2 + s2 * s2).sqrt();
+    (s1, s2, vm)
+}

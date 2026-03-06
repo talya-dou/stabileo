@@ -34,7 +34,7 @@ fn make_3d_input(
     }
     let mut secs_map = HashMap::new();
     for (id, a, iy, iz, j) in secs {
-        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j });
+        secs_map.insert(id.to_string(), SolverSection3D { id, name: None, a, iy, iz, j, cw: None });
     }
     let mut elems_map = HashMap::new();
     for (id, t, ni, nj, mi, si) in elems {
@@ -55,13 +55,12 @@ fn make_3d_input(
             rx, ry, rz, rrx, rry, rrz,
             kx: None, ky: None, kz: None, krx: None, kry: None, krz: None,
             dx: None, dy: None, dz: None, drx: None, dry: None, drz: None,
-            normal_x: None, normal_y: None, normal_z: None, is_inclined: None,
-        });
+            normal_x: None, normal_y: None, normal_z: None, is_inclined: None, rw: None, kw: None,
+            });
     }
     SolverInput3D {
         nodes: nodes_map, materials: mats_map, sections: secs_map,
-        elements: elems_map, supports: sups_map, loads, left_hand: None,
-    }
+        elements: elems_map, supports: sups_map, loads, left_hand: None, plates: HashMap::new(), curved_beams: vec![],    }
 }
 
 /// Build a 3D column along X-axis with n_elem elements.
@@ -86,8 +85,7 @@ fn make_3d_column(
     let loads = if axial_load.abs() > 1e-20 {
         vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
             node_id: n_elem + 1,
-            fx: axial_load, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        })]
+            fx: axial_load, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })]
     } else {
         vec![]
     };
@@ -129,18 +127,15 @@ fn make_3d_portal(
     if lateral_load.abs() > 1e-20 {
         loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
             node_id: 2, fx: lateral_load, fy: 0.0, fz: 0.0,
-            mx: 0.0, my: 0.0, mz: 0.0,
-        }));
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None }));
     }
     if gravity_load.abs() > 1e-20 {
         loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
             node_id: 2, fx: 0.0, fy: 0.0, fz: gravity_load,
-            mx: 0.0, my: 0.0, mz: 0.0,
-        }));
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None }));
         loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
             node_id: 3, fx: 0.0, fy: 0.0, fz: gravity_load,
-            mx: 0.0, my: 0.0, mz: 0.0,
-        }));
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None }));
     }
 
     make_3d_input(
@@ -208,8 +203,7 @@ fn buckling_3d_asymmetric_section() {
         (2, n_elem + 1, false, true, true, true, false, false),
     ];
     let loads = vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-        node_id: n_elem + 1, fx: -p, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-    })];
+        node_id: n_elem + 1, fx: -p, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })];
 
     let input = make_3d_input(
         nodes, vec![(1, E, NU)],

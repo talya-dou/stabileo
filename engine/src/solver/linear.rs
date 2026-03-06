@@ -3,6 +3,7 @@ use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly::*;
 
+
 /// Free DOFs threshold: use sparse solver when n_free >= this.
 const SPARSE_THRESHOLD: usize = 64;
 
@@ -127,6 +128,9 @@ pub fn solve_2d(input: &SolverInput) -> Result<AnalysisResults, String> {
 
 /// Solve a 3D linear static analysis.
 pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
+    // Expand curved beams into frame elements before solving
+    let input = expand_curved_beams_3d(input);
+    let input = &input;
     let dof_num = DofNumbering::build_3d(input);
 
     if dof_num.n_free == 0 {
@@ -216,10 +220,13 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
     let mut element_forces = compute_internal_forces_3d(input, &dof_num, &u_full);
     element_forces.sort_by_key(|ef| ef.element_id);
 
+    let plate_stresses = compute_plate_stresses(input, &dof_num, &u_full);
+
     Ok(AnalysisResults3D {
         displacements,
         reactions,
         element_forces,
+        plate_stresses,
     })
 }
 
@@ -245,6 +252,7 @@ pub(crate) fn build_displacements_3d(dof_num: &DofNumbering, u: &[f64]) -> Vec<D
             node_id,
             ux: vals[0], uy: vals[1], uz: vals[2],
             rx: vals[3], ry: vals[4], rz: vals[5],
+            warping: None,
         }
     }).collect()
 }
@@ -371,6 +379,7 @@ pub(crate) fn build_reactions_3d(
             node_id: sup.node_id,
             fx: vals[0], fy: vals[1], fz: vals[2],
             mx: vals[3], my: vals[4], mz: vals[5],
+            bimoment: None,
         });
     }
     reactions
@@ -578,8 +587,7 @@ pub(crate) fn compute_internal_forces_3d(
                 q_yi: 0.0, q_yj: 0.0,
                 distributed_loads_y: Vec::new(), point_loads_y: Vec::new(),
                 q_zi: 0.0, q_zj: 0.0,
-                distributed_loads_z: Vec::new(), point_loads_z: Vec::new(),
-            });
+                distributed_loads_z: Vec::new(), point_loads_z: Vec::new(), bimoment_start: None, bimoment_end: None });
             continue;
         }
 
@@ -681,9 +689,142 @@ pub(crate) fn compute_internal_forces_3d(
             q_zi: q_zi_total,
             q_zj: q_zj_total,
             distributed_loads_z: dist_loads_z,
-            point_loads_z: pt_loads_z,
-        });
+            point_loads_z: pt_loads_z, bimoment_start: None, bimoment_end: None });
     }
 
     forces
+}
+
+/// Expand curved beams into frame elements before solving.
+/// Clones input, adds intermediate nodes and frame elements.
+fn expand_curved_beams_3d(input: &SolverInput3D) -> SolverInput3D {
+    if input.curved_beams.is_empty() {
+        return input.clone();
+    }
+
+    let mut result = input.clone();
+
+    // Find next available node and element IDs
+    let mut next_node_id = result.nodes.values().map(|n| n.id).max().unwrap_or(0) + 1;
+    let mut next_elem_id = result.elements.values().map(|e| e.id).max().unwrap_or(0) + 1;
+
+    for cb in &input.curved_beams {
+        let n_start = result.nodes.values().find(|n| n.id == cb.node_start).unwrap().clone();
+        let n_mid = result.nodes.values().find(|n| n.id == cb.node_mid).unwrap().clone();
+        let n_end = result.nodes.values().find(|n| n.id == cb.node_end).unwrap().clone();
+
+        let expansion = crate::element::expand_curved_beam(
+            cb,
+            [n_start.x, n_start.y, n_start.z],
+            [n_mid.x, n_mid.y, n_mid.z],
+            [n_end.x, n_end.y, n_end.z],
+            next_node_id,
+            next_elem_id,
+        );
+
+        // Snap the mid-arc node into the element chain: find the intermediate node
+        // closest to node_mid and replace its ID with node_mid's ID. This ensures
+        // loads/supports on node_mid work correctly after expansion.
+        let mid_id = cb.node_mid;
+        let mid_pos = [n_mid.x, n_mid.y, n_mid.z];
+        let mut snap_from: Option<usize> = None;
+        let mut snap_dist = f64::MAX;
+        // Only snap if mid-node is not already a start/end node
+        if mid_id != cb.node_start && mid_id != cb.node_end {
+            for &(nid, x, y, z) in &expansion.new_nodes {
+                let d = ((x - mid_pos[0]).powi(2) + (y - mid_pos[1]).powi(2) + (z - mid_pos[2]).powi(2)).sqrt();
+                if d < snap_dist {
+                    snap_dist = d;
+                    snap_from = Some(nid);
+                }
+            }
+        }
+
+        // Add intermediate nodes (replacing the snapped node's ID with mid_id)
+        for &(nid, x, y, z) in &expansion.new_nodes {
+            let actual_id = if snap_from == Some(nid) { mid_id } else { nid };
+            if actual_id != mid_id {
+                // Don't re-insert mid_id since it's already in the map
+                result.nodes.insert(actual_id.to_string(), SolverNode3D { id: actual_id, x, y, z });
+            }
+            if nid >= next_node_id {
+                next_node_id = nid + 1;
+            }
+        }
+
+        // Add frame elements (remapping snapped node ID)
+        for &(eid, ni, nj, mat_id, sec_id, hs, he) in &expansion.new_elements {
+            let actual_ni = if snap_from == Some(ni) { mid_id } else { ni };
+            let actual_nj = if snap_from == Some(nj) { mid_id } else { nj };
+            result.elements.insert(eid.to_string(), SolverElement3D {
+                id: eid,
+                elem_type: "frame".to_string(),
+                node_i: actual_ni,
+                node_j: actual_nj,
+                material_id: mat_id,
+                section_id: sec_id,
+                hinge_start: hs,
+                hinge_end: he,
+                local_yx: None,
+                local_yy: None,
+                local_yz: None,
+                roll_angle: None,
+            });
+            if eid >= next_elem_id {
+                next_elem_id = eid + 1;
+            }
+        }
+    }
+
+    result
+}
+
+/// Compute plate stresses for all plate elements.
+pub(crate) fn compute_plate_stresses(
+    input: &SolverInput3D,
+    dof_num: &DofNumbering,
+    u: &[f64],
+) -> Vec<PlateStress> {
+    let mut stresses = Vec::new();
+
+    for plate in input.plates.values() {
+        let mat = input.materials.values().find(|m| m.id == plate.material_id).unwrap();
+        let e = mat.e * 1000.0;
+        let nu = mat.nu;
+
+        let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
+        let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
+        let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let coords = [
+            [n0.x, n0.y, n0.z],
+            [n1.x, n1.y, n1.z],
+            [n2.x, n2.y, n2.z],
+        ];
+
+        // Get global displacements for plate nodes
+        let plate_dofs = dof_num.plate_element_dofs(&plate.nodes);
+        let u_global: Vec<f64> = plate_dofs.iter().map(|&d| u[d]).collect();
+
+        // Transform to local
+        let t_plate = crate::element::plate_transform_3d(&coords);
+        let u_local = crate::linalg::transform_displacement(&u_global, &t_plate, 18);
+
+        // Recover stresses
+        let s = crate::element::plate_stress_recovery(&coords, e, nu, plate.thickness, &u_local);
+
+        stresses.push(PlateStress {
+            element_id: plate.id,
+            sigma_xx: s.sigma_xx,
+            sigma_yy: s.sigma_yy,
+            tau_xy: s.tau_xy,
+            mx: s.mx,
+            my: s.my,
+            mxy: s.mxy,
+            sigma_1: s.sigma_1,
+            sigma_2: s.sigma_2,
+            von_mises: s.von_mises,
+        });
+    }
+
+    stresses
 }

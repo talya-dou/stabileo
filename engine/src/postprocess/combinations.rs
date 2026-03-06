@@ -255,10 +255,10 @@ pub fn combine_results_3d(input: &CombinationInput3D) -> Option<AnalysisResults3
     let tr = &template.results;
 
     let mut displacements: Vec<Displacement3D> = tr.displacements.iter()
-        .map(|d| Displacement3D { node_id: d.node_id, ux: 0.0, uy: 0.0, uz: 0.0, rx: 0.0, ry: 0.0, rz: 0.0 })
+        .map(|d| Displacement3D { node_id: d.node_id, ux: 0.0, uy: 0.0, uz: 0.0, rx: 0.0, ry: 0.0, rz: 0.0, warping: None })
         .collect();
     let mut reactions: Vec<Reaction3D> = tr.reactions.iter()
-        .map(|r| Reaction3D { node_id: r.node_id, fx: 0.0, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0 })
+        .map(|r| Reaction3D { node_id: r.node_id, fx: 0.0, fy: 0.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bimoment: None })
         .collect();
     let mut element_forces: Vec<ElementForces3D> = tr.element_forces.iter()
         .map(|f| ElementForces3D {
@@ -269,8 +269,7 @@ pub fn combine_results_3d(input: &CombinationInput3D) -> Option<AnalysisResults3
             hinge_start: f.hinge_start, hinge_end: f.hinge_end,
             q_yi: 0.0, q_yj: 0.0, q_zi: 0.0, q_zj: 0.0,
             distributed_loads_y: Vec::new(), point_loads_y: Vec::new(),
-            distributed_loads_z: Vec::new(), point_loads_z: Vec::new(),
-        })
+            distributed_loads_z: Vec::new(), point_loads_z: Vec::new(), bimoment_start: None, bimoment_end: None })
         .collect();
 
     for cf in &input.factors {
@@ -333,7 +332,7 @@ pub fn combine_results_3d(input: &CombinationInput3D) -> Option<AnalysisResults3
         }
     }
 
-    Some(AnalysisResults3D { displacements, reactions, element_forces })
+    Some(AnalysisResults3D { displacements, reactions, element_forces, plate_stresses: vec![] })
 }
 
 // ==================== 3D Envelope ====================
@@ -387,7 +386,7 @@ pub fn compute_envelope_3d(results: &[AnalysisResults3D]) -> Option<FullEnvelope
         }
     }
 
-    let max_abs_results_3d = AnalysisResults3D { displacements, reactions, element_forces };
+    let max_abs_results_3d = AnalysisResults3D { displacements, reactions, element_forces, plate_stresses: vec![] };
 
     fn compute_env_3d(kind: &str, results: &[AnalysisResults3D]) -> EnvelopeDiagramData {
         let first = &results[0];

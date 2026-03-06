@@ -3,7 +3,7 @@ use dedaliano_engine::solver::{buckling, linear, modal, pdelta, plastic};
 use dedaliano_engine::types::*;
 use std::collections::HashMap;
 
-// ─── Helpers ────────────────────────────────────────────────
+// ─── 2D Helpers ─────────────────────────────────────────────
 
 fn make_input(
     nodes: Vec<(usize, f64, f64)>,
@@ -218,6 +218,192 @@ fn make_column(n_elem: usize) -> SolverInput {
     )
 }
 
+// ─── 3D Helpers ─────────────────────────────────────────────
+
+fn make_input_3d(
+    nodes: Vec<(usize, f64, f64, f64)>,
+    mats: Vec<(usize, f64, f64)>,
+    secs: Vec<(usize, f64, f64, f64, f64)>,
+    elems: Vec<(usize, &str, usize, usize, usize, usize)>,
+    sups: Vec<(usize, usize, bool, bool, bool, bool, bool, bool)>,
+    loads: Vec<SolverLoad3D>,
+) -> SolverInput3D {
+    let mut nodes_map = HashMap::new();
+    for (id, x, y, z) in nodes {
+        nodes_map.insert(id.to_string(), SolverNode3D { id, x, y, z });
+    }
+    let mut mats_map = HashMap::new();
+    for (id, e, nu) in mats {
+        mats_map.insert(id.to_string(), SolverMaterial { id, e, nu });
+    }
+    let mut secs_map = HashMap::new();
+    for (id, a, iy, iz, j) in secs {
+        secs_map.insert(
+            id.to_string(),
+            SolverSection3D { id, name: None, a, iy, iz, j, cw: None },
+        );
+    }
+    let mut elems_map = HashMap::new();
+    for (id, t, ni, nj, mi, si) in elems {
+        elems_map.insert(
+            id.to_string(),
+            SolverElement3D {
+                id,
+                elem_type: t.to_string(),
+                node_i: ni,
+                node_j: nj,
+                material_id: mi,
+                section_id: si,
+                hinge_start: false,
+                hinge_end: false,
+                local_yx: None,
+                local_yy: None,
+                local_yz: None,
+                roll_angle: None,
+            },
+        );
+    }
+    let mut sups_map = HashMap::new();
+    for (id, nid, rx, ry, rz, rrx, rry, rrz) in sups {
+        sups_map.insert(
+            id.to_string(),
+            SolverSupport3D {
+                node_id: nid,
+                rx, ry, rz, rrx, rry, rrz,
+                kx: None, ky: None, kz: None,
+                krx: None, kry: None, krz: None,
+                dx: None, dy: None, dz: None,
+                drx: None, dry: None, drz: None,
+                normal_x: None, normal_y: None, normal_z: None,
+                is_inclined: None, rw: None, kw: None,
+            },
+        );
+    }
+    SolverInput3D {
+        nodes: nodes_map,
+        materials: mats_map,
+        sections: secs_map,
+        elements: elems_map,
+        supports: sups_map,
+        loads,
+        left_hand: None, plates: HashMap::new(), curved_beams: vec![],    }
+}
+
+/// 3D cantilever beam along X-axis with tip load in Z.
+fn make_ss_beam_3d(n_elem: usize) -> SolverInput3D {
+    let l = 10.0;
+    let e = 200_000.0;
+    let a = 0.01;
+    let iy = 1e-4;
+    let iz = 1e-4;
+    let j = 1.5e-4;
+    let elem_len = l / n_elem as f64;
+
+    let nodes: Vec<_> = (0..=n_elem)
+        .map(|i| (i + 1, i as f64 * elem_len, 0.0, 0.0))
+        .collect();
+    let elems: Vec<_> = (0..n_elem)
+        .map(|i| (i + 1, "frame", i + 1, i + 2, 1, 1))
+        .collect();
+    // Fixed at node 1
+    let sups = vec![(1, 1, true, true, true, true, true, true)];
+    // Tip load at free end
+    let loads = vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: n_elem + 1,
+        fx: 0.0, fy: 0.0, fz: -10.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None })];
+
+    make_input_3d(
+        nodes,
+        vec![(1, e, 0.3)],
+        vec![(1, a, iy, iz, j)],
+        elems,
+        sups,
+        loads,
+    )
+}
+
+/// 3D multi-story frame in X-Z plane (columns along Z, beams along X).
+fn make_frame_3d(n_stories: usize, n_bays: usize) -> SolverInput3D {
+    let h = 3.0; // story height (Z)
+    let w = 6.0; // bay width (X)
+    let e = 200_000.0;
+    let a = 0.01;
+    let iy = 1e-4;
+    let iz = 1e-4;
+    let j = 1.5e-4;
+
+    let mut nodes = Vec::new();
+    let mut node_id = 1;
+    // Grid: (n_bays+1) columns × (n_stories+1) levels
+    for level in 0..=n_stories {
+        for col in 0..=n_bays {
+            nodes.push((node_id, col as f64 * w, 0.0, level as f64 * h));
+            node_id += 1;
+        }
+    }
+    let cols = n_bays + 1;
+
+    let mut elems = Vec::new();
+    let mut eid = 1;
+    // Columns (vertical, along Z)
+    for level in 0..n_stories {
+        for col in 0..=n_bays {
+            let ni = level * cols + col + 1;
+            let nj = (level + 1) * cols + col + 1;
+            elems.push((eid, "frame", ni, nj, 1, 1));
+            eid += 1;
+        }
+    }
+    // Beams (horizontal, along X) at each floor
+    for level in 1..=n_stories {
+        for bay in 0..n_bays {
+            let ni = level * cols + bay + 1;
+            let nj = level * cols + bay + 2;
+            elems.push((eid, "frame", ni, nj, 1, 1));
+            eid += 1;
+        }
+    }
+
+    // Fixed supports at base
+    let mut sups = Vec::new();
+    for col in 0..=n_bays {
+        sups.push((col + 1, col + 1, true, true, true, true, true, true));
+    }
+
+    // Lateral (X) + gravity (Z) loads at each floor
+    let mut loads = Vec::new();
+    for level in 1..=n_stories {
+        // Lateral at left node
+        loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: level * cols + 1,
+            fx: 10.0, fy: 0.0, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None }));
+        // Gravity at each node
+        for col in 0..=n_bays {
+            loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: level * cols + col + 1,
+                fx: 0.0, fy: 0.0, fz: -50.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None }));
+        }
+    }
+
+    make_input_3d(
+        nodes,
+        vec![(1, e, 0.3)],
+        vec![(1, a, iy, iz, j)],
+        elems,
+        sups,
+        loads,
+    )
+}
+
+fn make_densities() -> HashMap<String, f64> {
+    let mut d = HashMap::new();
+    d.insert("1".to_string(), 7850.0);
+    d
+}
+
 // ─── JSON round-trip benchmark (simulates WASM boundary) ────
 
 fn bench_json_roundtrip(c: &mut Criterion) {
@@ -240,12 +426,12 @@ fn bench_json_roundtrip(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Linear solve benchmarks ─────────────────────────────────
+// ─── 2D Linear solve benchmarks ─────────────────────────────
 
 fn bench_linear_beam(c: &mut Criterion) {
     let mut group = c.benchmark_group("linear_beam");
 
-    for n in [4, 8, 16, 32, 64] {
+    for n in [4, 16, 64, 500, 2000] {
         let input = make_ss_beam(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &input, |b, input| {
             b.iter(|| linear::solve_2d(input).unwrap());
@@ -257,7 +443,7 @@ fn bench_linear_beam(c: &mut Criterion) {
 fn bench_linear_frame(c: &mut Criterion) {
     let mut group = c.benchmark_group("linear_frame");
 
-    for &(stories, bays) in &[(3, 2), (5, 3), (10, 4), (20, 5)] {
+    for &(stories, bays) in &[(3, 2), (5, 3), (10, 4), (20, 5), (50, 5), (100, 5)] {
         let input = make_frame(stories, bays);
         let label = format!("{}s_{}b", stories, bays);
         group.bench_with_input(BenchmarkId::new("solve", &label), &input, |b, input| {
@@ -287,12 +473,12 @@ fn bench_json_solve(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Buckling benchmarks ─────────────────────────────────────
+// ─── 2D Buckling benchmarks ─────────────────────────────────
 
 fn bench_buckling(c: &mut Criterion) {
     let mut group = c.benchmark_group("buckling");
 
-    for n in [4, 8, 16] {
+    for n in [4, 16, 64, 200] {
         let input = make_column(n);
         group.bench_with_input(BenchmarkId::from_parameter(n), &input, |b, input| {
             b.iter(|| buckling::solve_buckling_2d(input, 4).unwrap());
@@ -301,30 +487,32 @@ fn bench_buckling(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Modal benchmarks ────────────────────────────────────────
+// ─── 2D Modal benchmarks ────────────────────────────────────
 
 fn bench_modal(c: &mut Criterion) {
     let mut group = c.benchmark_group("modal");
 
-    let density = 7850.0;
-    for n in [4, 8, 16] {
+    let densities = make_densities();
+    for n in [4, 16, 64, 500] {
         let input = make_ss_beam(n);
-        let mut densities = HashMap::new();
-        densities.insert("1".to_string(), density);
 
-        group.bench_with_input(BenchmarkId::from_parameter(n), &(input, densities), |b, (input, dens)| {
-            b.iter(|| modal::solve_modal_2d(input, dens, 4).unwrap());
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(n),
+            &(input, densities.clone()),
+            |b, (input, dens)| {
+                b.iter(|| modal::solve_modal_2d(input, dens, 4).unwrap());
+            },
+        );
     }
     group.finish();
 }
 
-// ─── P-Delta benchmarks ──────────────────────────────────────
+// ─── 2D P-Delta benchmarks ──────────────────────────────────
 
 fn bench_pdelta(c: &mut Criterion) {
     let mut group = c.benchmark_group("pdelta");
 
-    for &(stories, bays) in &[(3, 2), (5, 3)] {
+    for &(stories, bays) in &[(3, 2), (5, 3), (10, 4), (20, 5), (50, 5)] {
         let input = make_frame(stories, bays);
         let label = format!("{}s_{}b", stories, bays);
         group.bench_with_input(BenchmarkId::new("solve", &label), &input, |b, input| {
@@ -334,7 +522,7 @@ fn bench_pdelta(c: &mut Criterion) {
     group.finish();
 }
 
-// ─── Plastic benchmarks ──────────────────────────────────────
+// ─── 2D Plastic benchmarks ──────────────────────────────────
 
 fn bench_plastic(c: &mut Criterion) {
     let mut group = c.benchmark_group("plastic");
@@ -379,6 +567,68 @@ fn bench_plastic(c: &mut Criterion) {
     group.finish();
 }
 
+// ─── 3D Linear solve benchmarks ─────────────────────────────
+
+fn bench_linear_beam_3d(c: &mut Criterion) {
+    let mut group = c.benchmark_group("linear_beam_3d");
+
+    for n in [4, 16, 64, 500] {
+        let input = make_ss_beam_3d(n);
+        group.bench_with_input(BenchmarkId::from_parameter(n), &input, |b, input| {
+            b.iter(|| linear::solve_3d(input).unwrap());
+        });
+    }
+    group.finish();
+}
+
+fn bench_linear_frame_3d(c: &mut Criterion) {
+    let mut group = c.benchmark_group("linear_frame_3d");
+
+    for &(stories, bays) in &[(5, 3), (10, 4), (20, 5)] {
+        let input = make_frame_3d(stories, bays);
+        let label = format!("{}s_{}b", stories, bays);
+        group.bench_with_input(BenchmarkId::new("solve", &label), &input, |b, input| {
+            b.iter(|| linear::solve_3d(input).unwrap());
+        });
+    }
+    group.finish();
+}
+
+// ─── 3D Modal benchmarks ────────────────────────────────────
+
+fn bench_modal_3d(c: &mut Criterion) {
+    let mut group = c.benchmark_group("modal_3d");
+
+    let densities = make_densities();
+    for n in [4, 16, 64, 200] {
+        let input = make_ss_beam_3d(n);
+
+        group.bench_with_input(
+            BenchmarkId::from_parameter(n),
+            &(input, densities.clone()),
+            |b, (input, dens)| {
+                b.iter(|| modal::solve_modal_3d(input, dens, 4).unwrap());
+            },
+        );
+    }
+    group.finish();
+}
+
+// ─── 3D P-Delta benchmarks ──────────────────────────────────
+
+fn bench_pdelta_3d(c: &mut Criterion) {
+    let mut group = c.benchmark_group("pdelta_3d");
+
+    for &(stories, bays) in &[(5, 3), (10, 4)] {
+        let input = make_frame_3d(stories, bays);
+        let label = format!("{}s_{}b", stories, bays);
+        group.bench_with_input(BenchmarkId::new("solve", &label), &input, |b, input| {
+            b.iter(|| pdelta::solve_pdelta_3d(input, 20, 1e-4).unwrap());
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_json_roundtrip,
@@ -389,5 +639,9 @@ criterion_group!(
     bench_modal,
     bench_pdelta,
     bench_plastic,
+    bench_linear_beam_3d,
+    bench_linear_frame_3d,
+    bench_modal_3d,
+    bench_pdelta_3d,
 );
 criterion_main!(benches);

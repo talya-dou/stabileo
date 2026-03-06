@@ -314,6 +314,34 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
     }
 
+    // Assemble plate element stiffness matrices
+    for plate in input.plates.values() {
+        let mat = input.materials.values().find(|m| m.id == plate.material_id).unwrap();
+        let e = mat.e * 1000.0; // MPa → kN/m²
+        let nu = mat.nu;
+
+        let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
+        let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
+        let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let coords = [
+            [n0.x, n0.y, n0.z],
+            [n1.x, n1.y, n1.z],
+            [n2.x, n2.y, n2.z],
+        ];
+
+        let k_local = crate::element::plate_local_stiffness(&coords, e, nu, plate.thickness);
+        let t_plate = crate::element::plate_transform_3d(&coords);
+        let k_glob = transform_stiffness(&k_local, &t_plate, 18);
+
+        let plate_dofs = dof_num.plate_element_dofs(&plate.nodes);
+        let ndof = plate_dofs.len();
+        for i in 0..ndof {
+            for j in 0..ndof {
+                k_global[plate_dofs[i] * n + plate_dofs[j]] += k_glob[i * ndof + j];
+            }
+        }
+    }
+
     // Assemble 3D nodal loads
     for load in &input.loads {
         if let SolverLoad3D::Nodal(nl) = load {
@@ -322,6 +350,34 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
                 if i < dof_num.dofs_per_node {
                     if let Some(&d) = dof_num.map.get(&(nl.node_id, i)) {
                         f_global[d] += f;
+                    }
+                }
+            }
+            // Bimoment load (warping DOF 6)
+            if let Some(bw) = nl.bw {
+                if bw.abs() > 1e-15 {
+                    if let Some(&d) = dof_num.map.get(&(nl.node_id, 6)) {
+                        f_global[d] += bw;
+                    }
+                }
+            }
+        }
+        // Pressure loads on plate elements
+        if let SolverLoad3D::Pressure(pl) = load {
+            if let Some(plate) = input.plates.values().find(|p| p.id == pl.element_id) {
+                let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
+                let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
+                let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+                let coords = [
+                    [n0.x, n0.y, n0.z],
+                    [n1.x, n1.y, n1.z],
+                    [n2.x, n2.y, n2.z],
+                ];
+                let f_press = crate::element::plate_pressure_load(&coords, pl.pressure);
+                let plate_dofs = dof_num.plate_element_dofs(&plate.nodes);
+                for (i, &dof) in plate_dofs.iter().enumerate() {
+                    if i < f_press.len() {
+                        f_global[dof] += f_press[i];
                     }
                 }
             }

@@ -145,6 +145,45 @@ pub fn solve_moving_loads_2d(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+// ==================== Co-rotational Analysis ====================
+
+/// Solve 2D co-rotational (large displacement) analysis. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_corotational_2d(json: &str, max_iter: usize, tolerance: f64, n_increments: usize) -> Result<String, JsValue> {
+    let input: types::SolverInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::corotational::solve_corotational_2d(&input, max_iter, tolerance, n_increments)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+// ==================== Nonlinear Material Analysis ====================
+
+/// Solve 2D nonlinear material analysis. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_nonlinear_material_2d(json: &str) -> Result<String, JsValue> {
+    let input: types::NonlinearMaterialInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::material_nonlinear::solve_nonlinear_material_2d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+// ==================== Time History Analysis ====================
+
+/// Solve 2D time-history analysis. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_time_history_2d(json: &str) -> Result<String, JsValue> {
+    let input: types::TimeHistoryInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::time_integration::solve_time_history_2d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 // ==================== Kinematic Analysis ====================
 
 /// Analyze 2D kinematic stability. JSON in → JSON out.

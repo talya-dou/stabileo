@@ -10,6 +10,10 @@ pub mod spectral;
 pub mod plastic;
 pub mod moving_loads;
 pub mod kinematic;
+pub mod corotational;
+pub mod material_nonlinear;
+pub mod damping;
+pub mod time_integration;
 
 pub use dof::*;
 pub use assembly::*;
@@ -21,3 +25,6 @@ pub use spectral::*;
 pub use plastic::*;
 pub use moving_loads::*;
 pub use kinematic::*;
+pub use corotational::*;
+pub use material_nonlinear::*;
+pub use time_integration::*;

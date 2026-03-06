@@ -29,8 +29,7 @@ fn test_envelope_3d_json_field_name() {
         max_abs_results_3d: AnalysisResults3D {
             displacements: vec![],
             reactions: vec![],
-            element_forces: vec![],
-        },
+            element_forces: vec![], plate_stresses: vec![] },
     };
 
     let json = serde_json::to_string(&env).unwrap();
@@ -471,7 +470,7 @@ fn test_parity_3d_envelope_json_roundtrip() {
 
     let mut sections = HashMap::new();
     sections.insert("1".to_string(), SolverSection3D {
-        id: 1, name: None, a: 0.01, iy: 0.0001, iz: 0.0001, j: 0.0002,
+        id: 1, name: None, a: 0.01, iy: 0.0001, iz: 0.0001, j: 0.0002, cw: None,
     });
 
     let mut elements = HashMap::new();
@@ -490,16 +489,14 @@ fn test_parity_3d_envelope_json_roundtrip() {
         rx: true, ry: true, rz: true, rrx: true, rry: true, rrz: true,
         kx: None, ky: None, kz: None, krx: None, kry: None, krz: None,
         dx: None, dy: None, dz: None, drx: None, dry: None, drz: None,
-        normal_x: None, normal_y: None, normal_z: None, is_inclined: None,
-    });
+        normal_x: None, normal_y: None, normal_z: None, is_inclined: None, rw: None, kw: None,
+            });
 
     let input = SolverInput3D {
         nodes, materials, sections, elements, supports,
         loads: vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 2, fx: 0.0, fy: -10.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        })],
-        left_hand: None,
-    };
+            node_id: 2, fx: 0.0, fy: -10.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None })],
+        left_hand: None, plates: HashMap::new(), curved_beams: vec![],    };
 
     let results = solve_3d(&input).unwrap();
 
@@ -535,8 +532,8 @@ fn test_parity_3d_combination_superposition() {
 
         let mut sections = HashMap::new();
         sections.insert("1".to_string(), SolverSection3D {
-            id: 1, name: None, a: 0.01, iy: 0.0001, iz: 0.0001, j: 0.0002,
-        });
+            id: 1, name: None, a: 0.01, iy: 0.0001, iz: 0.0001, j: 0.0002, cw: None,
+    });
 
         let mut elements = HashMap::new();
         elements.insert("1".to_string(), SolverElement3D {
@@ -552,31 +549,28 @@ fn test_parity_3d_combination_superposition() {
             rx: true, ry: true, rz: true, rrx: true, rry: true, rrz: true,
             kx: None, ky: None, kz: None, krx: None, kry: None, krz: None,
             dx: None, dy: None, dz: None, drx: None, dry: None, drz: None,
-            normal_x: None, normal_y: None, normal_z: None, is_inclined: None,
-        });
+            normal_x: None, normal_y: None, normal_z: None, is_inclined: None, rw: None, kw: None,
+            });
 
-        SolverInput3D { nodes, materials, sections, elements, supports, loads, left_hand: None }
+        SolverInput3D { nodes, materials, sections, elements, supports, loads, left_hand: None, plates: HashMap::new(), curved_beams: vec![] }
     };
 
     // Case 1: Fy = -10 kN at tip
     let r1 = solve_3d(&make_3d_cantilever(vec![
         SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 2, fx: 0.0, fy: -10.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0,
-        }),
+            node_id: 2, fx: 0.0, fy: -10.0, fz: 0.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None }),
     ])).unwrap();
 
     // Case 2: Fz = -5 kN at tip
     let r2 = solve_3d(&make_3d_cantilever(vec![
         SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 2, fx: 0.0, fy: 0.0, fz: -5.0, mx: 0.0, my: 0.0, mz: 0.0,
-        }),
+            node_id: 2, fx: 0.0, fy: 0.0, fz: -5.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None }),
     ])).unwrap();
 
     // Direct solve: Fy=-20, Fz=-8 (1.2*(-10) + 1.6*0 = -12 Fy? no: let's use 2.0*case1 + 1.0*case2)
     let r_direct = solve_3d(&make_3d_cantilever(vec![
         SolverLoad3D::Nodal(SolverNodalLoad3D {
-            node_id: 2, fx: 0.0, fy: -20.0, fz: -5.0, mx: 0.0, my: 0.0, mz: 0.0,
-        }),
+            node_id: 2, fx: 0.0, fy: -20.0, fz: -5.0, mx: 0.0, my: 0.0, mz: 0.0, bw: None }),
     ])).unwrap();
 
     // Combine: 2.0*case1 + 1.0*case2

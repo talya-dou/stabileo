@@ -208,6 +208,23 @@ pub fn fef_distributed_3d(q_yi: f64, q_yj: f64, q_zi: f64, q_zj: f64, l: f64) ->
     fef
 }
 
+/// Expand a 12-element FEF vector to 14-element by inserting zeros at warping DOF positions (6 and 13).
+/// Mapping: 12-DOF indices 0-5 → 14-DOF indices 0-5, 12-DOF indices 6-11 → 14-DOF indices 7-12.
+pub fn expand_fef_12_to_14(fef12: &[f64; 12]) -> [f64; 14] {
+    let mut fef14 = [0.0; 14];
+    // Node I: DOFs 0-5 stay at 0-5
+    for i in 0..6 {
+        fef14[i] = fef12[i];
+    }
+    // Position 6 = warping DOF = 0.0 (no warping FEF from standard loads)
+    // Node J: DOFs 6-11 go to 7-12
+    for i in 0..6 {
+        fef14[7 + i] = fef12[6 + i];
+    }
+    // Position 13 = warping DOF = 0.0
+    fef14
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -83,6 +83,8 @@ pub struct Displacement3D {
     pub rx: f64,
     pub ry: f64,
     pub rz: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warping: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +97,8 @@ pub struct Reaction3D {
     pub mx: f64,
     pub my: f64,
     pub mz: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bimoment: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -135,6 +139,10 @@ pub struct ElementForces3D {
     pub q_zj: f64,
     pub distributed_loads_z: Vec<DistributedLoadInfo>,
     pub point_loads_z: Vec<PointLoadInfo3D>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bimoment_start: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bimoment_end: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,4 +151,84 @@ pub struct AnalysisResults3D {
     pub displacements: Vec<Displacement3D>,
     pub reactions: Vec<Reaction3D>,
     pub element_forces: Vec<ElementForces3D>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plate_stresses: Vec<PlateStress>,
+}
+
+// ==================== Plate Stress Output ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlateStress {
+    pub element_id: usize,
+    pub sigma_xx: f64,
+    pub sigma_yy: f64,
+    pub tau_xy: f64,
+    pub mx: f64,
+    pub my: f64,
+    pub mxy: f64,
+    pub sigma_1: f64,
+    pub sigma_2: f64,
+    pub von_mises: f64,
+}
+
+// ==================== Co-rotational Output ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorotationalResult {
+    pub results: AnalysisResults,
+    pub iterations: usize,
+    pub converged: bool,
+    pub load_increments: usize,
+    pub max_displacement: f64,
+}
+
+// ==================== Nonlinear Material Output ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NonlinearMaterialResult {
+    pub results: AnalysisResults,
+    pub converged: bool,
+    pub iterations: usize,
+    pub load_factor: f64,
+    pub element_status: Vec<ElementPlasticStatus>,
+    pub load_displacement: Vec<[f64; 2]>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementPlasticStatus {
+    pub element_id: usize,
+    pub state: String,
+    pub utilization: f64,
+    pub plastic_rotation_start: f64,
+    pub plastic_rotation_end: f64,
+}
+
+// ==================== Time History Output ====================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeHistoryResult {
+    pub time_steps: Vec<f64>,
+    pub node_histories: Vec<NodeTimeHistory>,
+    pub peak_displacements: Vec<Displacement>,
+    pub peak_reactions: Vec<Reaction>,
+    pub n_steps: usize,
+    pub method: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeTimeHistory {
+    pub node_id: usize,
+    pub ux: Vec<f64>,
+    pub uy: Vec<f64>,
+    pub rz: Vec<f64>,
+    pub vx: Vec<f64>,
+    pub vy: Vec<f64>,
+    pub ax: Vec<f64>,
+    pub ay: Vec<f64>,
 }

@@ -132,6 +132,48 @@ pub fn frame_transform_3d(ex: &[f64; 3], ey: &[f64; 3], ez: &[f64; 3]) -> Vec<f6
     t
 }
 
+/// 3D transformation matrix (14×14) for warping element.
+/// Same as 12×12 but with two extra 1×1 identity blocks for warping DOFs (positions 6 and 13).
+/// Warping rate (phi') is a scalar invariant under rotation.
+pub fn frame_transform_3d_warping(ex: &[f64; 3], ey: &[f64; 3], ez: &[f64; 3]) -> Vec<f64> {
+    let mut t = vec![0.0; 196]; // 14×14
+    let n = 14;
+
+    // Node I: DOFs 0-5 → two 3×3 rotation blocks
+    for block in 0..2 {
+        let offset = block * 3;
+        t[(offset + 0) * n + (offset + 0)] = ex[0];
+        t[(offset + 0) * n + (offset + 1)] = ex[1];
+        t[(offset + 0) * n + (offset + 2)] = ex[2];
+        t[(offset + 1) * n + (offset + 0)] = ey[0];
+        t[(offset + 1) * n + (offset + 1)] = ey[1];
+        t[(offset + 1) * n + (offset + 2)] = ey[2];
+        t[(offset + 2) * n + (offset + 0)] = ez[0];
+        t[(offset + 2) * n + (offset + 1)] = ez[1];
+        t[(offset + 2) * n + (offset + 2)] = ez[2];
+    }
+    // Warping DOF at position 6: identity (1×1)
+    t[6 * n + 6] = 1.0;
+
+    // Node J: DOFs 7-12 → two 3×3 rotation blocks
+    for block in 0..2 {
+        let offset = 7 + block * 3;
+        t[(offset + 0) * n + (offset + 0)] = ex[0];
+        t[(offset + 0) * n + (offset + 1)] = ex[1];
+        t[(offset + 0) * n + (offset + 2)] = ex[2];
+        t[(offset + 1) * n + (offset + 0)] = ey[0];
+        t[(offset + 1) * n + (offset + 1)] = ey[1];
+        t[(offset + 1) * n + (offset + 2)] = ey[2];
+        t[(offset + 2) * n + (offset + 0)] = ez[0];
+        t[(offset + 2) * n + (offset + 1)] = ez[1];
+        t[(offset + 2) * n + (offset + 2)] = ez[2];
+    }
+    // Warping DOF at position 13: identity (1×1)
+    t[13 * n + 13] = 1.0;
+
+    t
+}
+
 fn default_ey_ref(ex: &[f64; 3]) -> [f64; 3] {
     // Standard textbook convention:
     //   ez = ex × ref, ey = ez × ex

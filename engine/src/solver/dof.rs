@@ -71,7 +71,8 @@ impl DofNumbering {
     /// Build DOF numbering for a 3D structure.
     pub fn build_3d(input: &SolverInput3D) -> Self {
         let has_frame = input.elements.values().any(|e| e.elem_type == "frame");
-        let dofs_per_node = if has_frame { 6 } else { 3 };
+        let has_plate = !input.plates.is_empty();
+        let dofs_per_node = if has_frame || has_plate { 6 } else { 3 };
 
         let mut node_ids: Vec<usize> = input.nodes.values().map(|n| n.id).collect();
         node_ids.sort();
@@ -118,6 +119,19 @@ impl DofNumbering {
             dofs_per_node,
             node_order: node_ids,
         }
+    }
+
+    /// Get DOFs for a plate element (3 nodes, 6 DOFs each = 18 DOFs).
+    pub fn plate_element_dofs(&self, nodes: &[usize; 3]) -> Vec<usize> {
+        let mut dofs = Vec::with_capacity(18);
+        for &node_id in nodes {
+            for local in 0..6 {
+                if let Some(&d) = self.map.get(&(node_id, local)) {
+                    dofs.push(d);
+                }
+            }
+        }
+        dofs
     }
 
     /// Get global DOF index for (node_id, local_dof)
