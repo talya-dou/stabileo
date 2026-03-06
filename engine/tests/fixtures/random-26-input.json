@@ -1,0 +1,80 @@
+{
+  "nodes": {
+    "1": {
+      "id": 1,
+      "x": 0,
+      "y": 0.2431088099256158
+    },
+    "2": {
+      "id": 2,
+      "x": 3.9434238094836473,
+      "y": 0
+    }
+  },
+  "materials": {
+    "1": {
+      "id": 1,
+      "e": 200000,
+      "nu": 0.3
+    }
+  },
+  "sections": {
+    "1": {
+      "id": 1,
+      "a": 0.03299159514834173,
+      "iz": 0.00011749246299732477
+    }
+  },
+  "elements": {
+    "1": {
+      "id": 1,
+      "type": "frame",
+      "nodeI": 1,
+      "nodeJ": 2,
+      "materialId": 1,
+      "sectionId": 1,
+      "hingeStart": false,
+      "hingeEnd": false
+    }
+  },
+  "supports": {
+    "1": {
+      "id": 1,
+      "nodeId": 1,
+      "type": "pinned"
+    },
+    "2": {
+      "id": 2,
+      "nodeId": 2,
+      "type": "rollerX"
+    }
+  },
+  "loads": [
+    {
+      "type": "nodal",
+      "data": {
+        "nodeId": 2,
+        "fx": 0,
+        "fy": -33.57253607711755,
+        "mz": 0
+      }
+    },
+    {
+      "type": "nodal",
+      "data": {
+        "nodeId": 2,
+        "fx": 0,
+        "fy": -29.62957276729867,
+        "mz": -4.461013716645539
+      }
+    },
+    {
+      "type": "distributed",
+      "data": {
+        "elementId": 1,
+        "qI": -10.804315384477377,
+        "qJ": -19.435137141495943
+      }
+    }
+  ]
+}

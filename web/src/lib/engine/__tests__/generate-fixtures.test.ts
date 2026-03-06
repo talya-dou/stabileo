@@ -245,7 +245,7 @@ describe('Generate fixtures for Rust parity testing', () => {
 
   // ─── 5. Random seeded models ────────────────────────────────
 
-  for (let seed = 1; seed <= 20; seed++) {
+  for (let seed = 1; seed <= 50; seed++) {
     it(`generates random-${seed} fixture`, () => {
       const input = makeRandomModel2D(seed);
       try {
