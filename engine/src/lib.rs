@@ -460,6 +460,30 @@ pub fn compute_section_stress_3d(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+// ==================== Multi-Case Load Combinations ====================
+
+/// Solve 2D multi-case load combinations with envelope. JSON: MultiCaseInput
+#[wasm_bindgen]
+pub fn solve_multi_case_2d(json: &str) -> Result<String, JsValue> {
+    let input: solver::load_cases::MultiCaseInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let result = solver::load_cases::solve_multi_case_2d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+/// Solve 3D multi-case load combinations with envelope. JSON: MultiCaseInput3D
+#[wasm_bindgen]
+pub fn solve_multi_case_3d(json: &str) -> Result<String, JsValue> {
+    let input: solver::load_cases::MultiCaseInput3D = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let result = solver::load_cases::solve_multi_case_3d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 // ==================== Harmonic Analysis ====================
 
 /// Solve 2D harmonic (frequency response) analysis. JSON: HarmonicInput

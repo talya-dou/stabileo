@@ -18,6 +18,7 @@ pub mod prestress;
 pub mod staged;
 pub mod cable;
 pub mod harmonic;
+pub mod load_cases;
 
 pub use dof::*;
 pub use assembly::*;
@@ -34,3 +35,4 @@ pub use material_nonlinear::*;
 pub use time_integration::*;
 pub use cable::*;
 pub use harmonic::*;
+pub use load_cases::*;
