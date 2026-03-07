@@ -1,10 +1,10 @@
-/// Validation: Wind Loading — CIRSOC 102 & Cross-Validation
+/// Validation: Wind Loading -- CIRSOC 102 & Cross-Validation
 ///
 /// References:
 ///   - CIRSOC 102-2005: Reglamento Argentino de Accion del Viento sobre las Construcciones
 ///   - CIRSOC 102-2018 (draft update aligned with ASCE 7-16)
 ///   - ASCE 7-22: Minimum Design Loads and Associated Criteria
-///   - EC1-1-4: Actions on structures — Wind actions
+///   - EC1-1-4: Actions on structures -- Wind actions
 ///   - Simiu & Yeo: "Wind Effects on Structures" 4th ed.
 ///
 /// Tests verify wind pressure calculations, exposure factors, gust effects,
@@ -22,27 +22,39 @@ fn cirsoc_velocity_pressure_pa(v: f64) -> f64 {
     0.613 * v * v
 }
 
-/// CIRSOC 102 / ASCE 7 exposure coefficient:
+/// Exposure coefficient per power-law profile:
 ///   Ce(z) = 2.01 * (z / z_g)^(2/alpha)   for z >= z_min
 ///   Ce(z) = Ce(z_min)                      for z < z_min
 ///
-/// Parameters depend on terrain category:
-///   Category II  (open):     alpha=9.5,  z_g=274 m, z_min=5 m
-///   Category III (suburban): alpha=9.5,  z_g=365 m, z_min=5 m
-fn cirsoc_exposure_coefficient(z: f64, alpha: f64, z_g: f64, z_min: f64) -> f64 {
+/// Used by both CIRSOC 102 and ASCE 7 with different parameter tables.
+fn exposure_coefficient(z: f64, alpha: f64, z_g: f64, z_min: f64) -> f64 {
     let z_eff = z.max(z_min);
     2.01 * (z_eff / z_g).powf(2.0 / alpha)
 }
 
-/// ASCE 7 velocity pressure exposure coefficient Kz:
-///   Kz = 2.01 * (z / z_g)^(2/alpha)   for z >= z_min
-///
-/// ASCE 7 Exposure B (urban/suburban): alpha=7.0, z_g=365.76 m (1200 ft), z_min=9.14 m (30 ft)
-/// ASCE 7 Exposure C (open):          alpha=9.5, z_g=274.32 m (900 ft),  z_min=4.57 m (15 ft)
-fn asce7_kz(z: f64, alpha: f64, z_g: f64, z_min: f64) -> f64 {
-    let z_eff = z.max(z_min);
-    2.01 * (z_eff / z_g).powf(2.0 / alpha)
-}
+// Terrain parameters used across tests:
+//
+// CIRSOC 102-2005 (Argentine code):
+//   Category III (suburban): z_g=365 m, z_min=5 m
+//   Category II  (open):     z_g=274 m, z_min=5 m
+//   Both categories use the same alpha=9.5 in the power-law profile.
+//
+// ASCE 7-22 (US code):
+//   Exposure B (urban/suburban): alpha=7.0, z_g=365.76 m (1200 ft), z_min=9.14 m (30 ft)
+//   Exposure C (open):           alpha=9.5, z_g=274.32 m (900 ft),  z_min=4.57 m (15 ft)
+
+const CIRSOC_ALPHA: f64 = 9.5;
+const CIRSOC_CAT3_ZG: f64 = 365.0;  // suburban
+const CIRSOC_CAT2_ZG: f64 = 274.0;  // open terrain
+const CIRSOC_ZMIN: f64 = 5.0;
+
+const ASCE7_EXPB_ALPHA: f64 = 7.0;
+const ASCE7_EXPB_ZG: f64 = 365.76;
+const ASCE7_EXPB_ZMIN: f64 = 9.14;
+
+const ASCE7_EXPC_ALPHA: f64 = 9.5;
+const ASCE7_EXPC_ZG: f64 = 274.32;
+const ASCE7_EXPC_ZMIN: f64 = 4.57;
 
 // ================================================================
 // 1. CIRSOC 102: Basic Velocity Pressure
@@ -87,32 +99,29 @@ fn cirsoc_basic_velocity_pressure() {
 }
 
 // ================================================================
-// 2. CIRSOC 102: Exposure Coefficient — Suburban (Category III)
+// 2. CIRSOC 102: Exposure Coefficient -- Suburban (Category III)
 // ================================================================
 //
-// Category III (suburban): alpha=7.0, z_g=365 m, z_min=5 m
-// At z=10 m: Ce = 2.01 * (10/365)^(2/7.0)
+// Category III (suburban): alpha=9.5, z_g=365 m, z_min=5 m
+// At z=10 m: Ce = 2.01 * (10/365)^(2/9.5)
 //
 // Reference: CIRSOC 102-2005, Table 5
 
 #[test]
 fn cirsoc_exposure_coefficient_suburban() {
-    let alpha = 7.0;
-    let z_g = 365.0;
-    let z_min = 5.0;
     let z = 10.0;
 
-    let ce = cirsoc_exposure_coefficient(z, alpha, z_g, z_min);
+    let ce = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT3_ZG, CIRSOC_ZMIN);
 
-    // Manual calculation: 2.01 * (10/365)^(2/7.0)
+    // Manual calculation: 2.01 * (10/365)^(2/9.5)
     // (10/365) = 0.027397
-    // 2/7.0 = 0.285714
-    // 0.027397^0.285714 = exp(0.210526 * ln(0.027397))
+    // 2/9.5 = 0.210526
+    // 0.027397^0.210526 = exp(0.210526 * ln(0.027397))
     //   ln(0.027397) = -3.5966
-    //   0.285714 * (-3.5966) = -1.0276
-    //   exp(-1.0276) = 0.3580 (approximately, but let's be precise)
-    // Ce = 2.01 * 0.027397^0.285714
-    let expected = 2.01 * (10.0_f64 / 365.0).powf(2.0 / 7.0);
+    //   0.210526 * (-3.5966) = -0.7572
+    //   exp(-0.7572) = 0.4691
+    // Ce = 2.01 * 0.4691 = 0.943
+    let expected = 2.01 * (10.0_f64 / 365.0).powf(2.0 / 9.5);
 
     let err = (ce - expected).abs() / expected;
     assert!(
@@ -128,7 +137,7 @@ fn cirsoc_exposure_coefficient_suburban() {
     );
 
     // Verify Ce increases with height
-    let ce_20 = cirsoc_exposure_coefficient(20.0, alpha, z_g, z_min);
+    let ce_20 = exposure_coefficient(20.0, CIRSOC_ALPHA, CIRSOC_CAT3_ZG, CIRSOC_ZMIN);
     assert!(
         ce_20 > ce,
         "CIRSOC 102: Ce(20m)={:.4} should exceed Ce(10m)={:.4}", ce_20, ce
@@ -136,25 +145,22 @@ fn cirsoc_exposure_coefficient_suburban() {
 }
 
 // ================================================================
-// 3. CIRSOC 102: Exposure Coefficient — Open Terrain (Category II)
+// 3. CIRSOC 102: Exposure Coefficient -- Open Terrain (Category II)
 // ================================================================
 //
 // Category II (open terrain): alpha=9.5, z_g=274 m, z_min=5 m
 // At z=10 m: Ce = 2.01 * (10/274)^(2/9.5)
 //
-// Note: higher alpha corresponds to more open terrain (steeper gradient
-// profile), consistent with ASCE 7 Exposure C (alpha=9.5, z_g=900ft~274m).
+// Open terrain has a smaller gradient height (z_g) than suburban,
+// leading to higher Ce at the same height.
 //
 // Reference: CIRSOC 102-2005, Table 5
 
 #[test]
 fn cirsoc_exposure_coefficient_open() {
-    let alpha = 9.5;
-    let z_g = 274.0;
-    let z_min = 5.0;
     let z = 10.0;
 
-    let ce = cirsoc_exposure_coefficient(z, alpha, z_g, z_min);
+    let ce = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
 
     // Manual: 2.01 * (10/274)^(2/9.5)
     let expected = 2.01 * (10.0_f64 / 274.0).powf(2.0 / 9.5);
@@ -167,7 +173,7 @@ fn cirsoc_exposure_coefficient_open() {
     );
 
     // Open terrain (smaller z_g) should give higher exposure than suburban at same height
-    let ce_suburban = cirsoc_exposure_coefficient(z, 9.5, 365.0, 5.0);
+    let ce_suburban = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT3_ZG, CIRSOC_ZMIN);
     assert!(
         ce > ce_suburban,
         "CIRSOC 102: open Ce={:.4} should exceed suburban Ce={:.4} at same height",
@@ -204,21 +210,18 @@ fn cirsoc_design_pressure_building() {
     let q0_pa = cirsoc_velocity_pressure_pa(v0);
     let q0_kn = q0_pa / 1000.0;
 
-    // Exposure coefficient — Category II (open)
-    let alpha = 9.5;
-    let z_g = 274.0;
-    let z_min = 5.0;
-    let ce = cirsoc_exposure_coefficient(z, alpha, z_g, z_min);
+    // Exposure coefficient -- Category II (open)
+    let ce = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
 
     // Design pressure on windward wall
     let p_windward = q0_kn * ce * cp_windward;
 
     // Step-by-step expected:
     //   q0 = 0.613 * 2025 / 1000 = 1.24133 kN/m^2
-    //   Ce = 2.01 * (10/274)^(2/9.5)
-    //   p = q0 * Ce * 0.8
+    //   Ce = 2.01 * (10/274)^(2/9.5) ~ 1.036
+    //   p = 1.241 * 1.036 * 0.8 ~ 1.029 kN/m^2
     let expected_q0 = 0.613 * v0 * v0 / 1000.0;
-    let expected_ce = 2.01 * (z / z_g).powf(2.0 / alpha);
+    let expected_ce = 2.01 * (z / CIRSOC_CAT2_ZG).powf(2.0 / CIRSOC_ALPHA);
     let expected_p = expected_q0 * expected_ce * cp_windward;
 
     let err = (p_windward - expected_p).abs() / expected_p;
@@ -237,8 +240,8 @@ fn cirsoc_design_pressure_building() {
 
     // Verify the approximate value ~1.03 kN/m^2
     assert!(
-        (p_windward - 0.96).abs() < 0.10,
-        "CIRSOC 102: windward pressure should be ~0.96 kN/m^2, got {:.4}", p_windward
+        (p_windward - 1.03).abs() < 0.10,
+        "CIRSOC 102: windward pressure should be ~1.03 kN/m^2, got {:.4}", p_windward
     );
 }
 
@@ -320,15 +323,12 @@ fn cirsoc_net_pressure_enclosed_building() {
 
 #[test]
 fn asce7_cross_validation_exposure_b() {
-    let alpha = 7.0;
-    let z_g = 365.76; // m (1200 ft)
-    let z_min = 9.14;  // m (30 ft)
-    let z = 10.0;       // m
+    let z = 10.0;
 
-    let kz = asce7_kz(z, alpha, z_g, z_min);
+    let kz = exposure_coefficient(z, ASCE7_EXPB_ALPHA, ASCE7_EXPB_ZG, ASCE7_EXPB_ZMIN);
 
     // Expected: 2.01 * (10/365.76)^(2/7)
-    let expected_kz = 2.01 * (10.0_f64 / 365.76).powf(2.0 / 7.0);
+    let expected_kz = 2.01 * (10.0_f64 / ASCE7_EXPB_ZG).powf(2.0 / ASCE7_EXPB_ALPHA);
 
     let err = (kz - expected_kz).abs() / expected_kz;
     assert!(
@@ -385,7 +385,7 @@ fn asce7_cross_validation_exposure_b() {
 //   Zone 2: 5-10 m, Ce evaluated at z=7.5 m
 //   Zone 3: 10-15 m, Ce evaluated at z=12.5 m
 //
-// Total base shear V = sum of (windward - leeward) pressures x tributary area.
+// Total base shear V = sum of (windward + |leeward|) pressures x tributary area.
 //
 // Reference: CIRSOC 102-2005, Section 5.3
 
@@ -393,21 +393,16 @@ fn asce7_cross_validation_exposure_b() {
 fn cirsoc_base_shear_rectangular() {
     let v0 = 45.0;
     let building_width = 20.0;  // m, perpendicular to wind
-    let _building_depth = 10.0;  // m, parallel to wind
+    let _building_depth = 10.0; // m, parallel to wind
     let building_height = 15.0; // m
 
     // Velocity pressure
     let q0_pa = cirsoc_velocity_pressure_pa(v0);
     let q0_kn = q0_pa / 1000.0;
 
-    // Category II parameters (open terrain)
-    let alpha = 9.5;
-    let z_g = 274.0;
-    let z_min = 5.0;
-
     // Pressure coefficients
     let cp_windward = 0.8;
-    let cp_leeward: f64 = -0.5;
+    let cp_leeward_abs: f64 = 0.5; // magnitude of leeward suction
 
     // Height zones: (z_bottom, z_top, z_eval for Ce)
     let zones: [(f64, f64, f64); 3] = [
@@ -417,8 +412,8 @@ fn cirsoc_base_shear_rectangular() {
     ];
 
     // Leeward Ce evaluated at roof height
-    let ce_roof = cirsoc_exposure_coefficient(building_height, alpha, z_g, z_min);
-    let p_leeward = q0_kn * ce_roof * cp_leeward.abs(); // magnitude (suction acts in same direction as windward push)
+    let ce_roof = exposure_coefficient(building_height, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
+    let p_leeward = q0_kn * ce_roof * cp_leeward_abs;
 
     let mut total_shear = 0.0;
 
@@ -426,11 +421,10 @@ fn cirsoc_base_shear_rectangular() {
         let zone_height = z_top - z_bot;
         let tributary_area = zone_height * building_width;
 
-        let ce_windward = cirsoc_exposure_coefficient(z_eval, alpha, z_g, z_min);
-        let p_windward_zone = q0_kn * ce_windward * cp_windward;
+        let ce_ww = exposure_coefficient(z_eval, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
+        let p_windward_zone = q0_kn * ce_ww * cp_windward;
 
         // Net force on this zone = (windward + leeward magnitude) * area
-        // Leeward is constant for all zones (evaluated at roof)
         let f_windward = p_windward_zone * tributary_area;
         let f_leeward = p_leeward * tributary_area;
 
@@ -450,8 +444,8 @@ fn cirsoc_base_shear_rectangular() {
 
     // Verify monotonicity: higher zones contribute more per unit height
     // (because Ce increases with height)
-    let ce_z1 = cirsoc_exposure_coefficient(5.0, alpha, z_g, z_min);
-    let ce_z3 = cirsoc_exposure_coefficient(12.5, alpha, z_g, z_min);
+    let ce_z1 = exposure_coefficient(5.0, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
+    let ce_z3 = exposure_coefficient(12.5, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
     assert!(
         ce_z3 > ce_z1,
         "CIRSOC 102: Ce at 12.5m ({:.4}) should exceed Ce at 5m ({:.4})",
@@ -460,15 +454,11 @@ fn cirsoc_base_shear_rectangular() {
 
     // Re-compute expected total step by step for 2% tolerance check
     let mut expected_total = 0.0;
-    for &(_z_bot, z_top, z_eval) in &zones {
-        let zone_h = z_top - zones.iter()
-            .find(|&&(_, zt, _)| (zt - z_top).abs() < 0.01)
-            .map_or(z_top, |&(zb, _, _)| z_top - zb);
-        let _ = zone_h; // already computed above
-
-        let ce = cirsoc_exposure_coefficient(z_eval, alpha, z_g, z_min);
-        let f_ww = q0_kn * ce * cp_windward * 5.0 * building_width;
-        let f_lw = q0_kn * ce_roof * cp_leeward.abs() * 5.0 * building_width;
+    for &(_z_bot, _z_top, z_eval) in &zones {
+        let ce = exposure_coefficient(z_eval, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
+        let zone_h = 5.0; // all zones are 5m high
+        let f_ww = q0_kn * ce * cp_windward * zone_h * building_width;
+        let f_lw = q0_kn * ce_roof * cp_leeward_abs * zone_h * building_width;
         expected_total += f_ww + f_lw;
     }
 
@@ -481,50 +471,37 @@ fn cirsoc_base_shear_rectangular() {
 }
 
 // ================================================================
-// 8. CIRSOC 102 vs ASCE 7: Exposure Coefficient Ratio
+// 8. CIRSOC 102 vs ASCE 7: Exposure Coefficient Comparison
 // ================================================================
 //
 // Compare CIRSOC 102 and ASCE 7 exposure coefficients for equivalent
 // terrain categories at the same height.
 //
-// CIRSOC Category III (suburban): alpha=9.5, z_g=365 m
-// ASCE 7  Exposure B  (suburban): alpha=7.0, z_g=365.76 m
+// Open terrain:
+//   CIRSOC Category II: alpha=9.5, z_g=274 m
+//   ASCE 7 Exposure C:  alpha=9.5, z_g=274.32 m
+//   (Nearly identical parameters -- results should match closely)
 //
-// CIRSOC Category II (open):   alpha=7.0, z_g=274 m
-// ASCE 7  Exposure C (open):   alpha=9.5, z_g=274.32 m
-//
-// The coefficients use the same formula but with different alpha/z_g
-// parameters mapped to terrain categories. For equivalent conditions
-// (same alpha, similar z_g), they should produce similar results.
+// Suburban terrain:
+//   CIRSOC Category III: alpha=9.5, z_g=365 m
+//   ASCE 7 Exposure B:   alpha=7.0, z_g=365.76 m
+//   (Different alpha -- results will differ but remain in same ballpark)
 //
 // Reference: Simiu & Yeo, "Wind Effects on Structures", Ch. 3
 
 #[test]
 fn cirsoc_vs_asce7_ratio() {
-    // Compare at multiple heights for equivalent terrain categories.
-    // Both use the same formula: 2.01 * (z/z_g)^(2/alpha)
-    //
-    // CIRSOC Cat II (open):    alpha=9.5, z_g=274 m
-    // ASCE 7 Exp C  (open):   alpha=9.5, z_g=274.32 m
-    //
-    // CIRSOC Cat III (suburban): alpha=9.5, z_g=365 m
-    // ASCE 7 Exp B  (suburban): alpha=7.0, z_g=365.76 m
-    //
-    // When parameters are similar, the results should be close.
-    // When alpha differs (suburban case), we verify they remain in
-    // the same ballpark.
-
     let heights = [5.0, 10.0, 15.0, 20.0, 30.0, 50.0];
 
     // Suburban terrain comparison:
     // CIRSOC Cat III: alpha=9.5, z_g=365 m, z_min=5 m
     // ASCE 7 Exp B:   alpha=7.0, z_g=365.76 m, z_min=9.14 m
     for &z in &heights {
-        let ce_cirsoc = cirsoc_exposure_coefficient(z, 9.5, 365.0, 5.0);
-        let kz_asce7 = asce7_kz(z, 7.0, 365.76, 9.14);
+        let ce_cirsoc = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT3_ZG, CIRSOC_ZMIN);
+        let kz_asce7 = exposure_coefficient(z, ASCE7_EXPB_ALPHA, ASCE7_EXPB_ZG, ASCE7_EXPB_ZMIN);
 
         // Both should be in the same ballpark since z_g values are nearly equal
-        // but alpha differs (9.5 vs 7.0), so we allow up to 15% difference
+        // but alpha differs (9.5 vs 7.0), so we allow a wide tolerance
         let ratio = ce_cirsoc / kz_asce7;
         assert!(
             ratio > 0.50 && ratio < 2.0,
@@ -533,36 +510,33 @@ fn cirsoc_vs_asce7_ratio() {
         );
     }
 
-    // Same-parameter comparison (open terrain): when alpha and z_g are
-    // nearly identical, CIRSOC and ASCE 7 should give the same result
-    // (the formula is the same: 2.01*(z/z_g)^(2/alpha)).
+    // Open terrain comparison (same alpha, nearly same z_g):
+    // CIRSOC Cat II: alpha=9.5, z_g=274 m
+    // ASCE 7 Exp C:  alpha=9.5, z_g=274.32 m
+    // Should give essentially the same result.
     for &z in &heights {
-        let alpha = 9.5;
-        let z_g_cirsoc = 274.0;
-        let z_g_asce7 = 274.32;
+        let ce = exposure_coefficient(z, CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN);
+        let kz = exposure_coefficient(z, ASCE7_EXPC_ALPHA, ASCE7_EXPC_ZG, ASCE7_EXPC_ZMIN);
 
-        let ce = cirsoc_exposure_coefficient(z, alpha, z_g_cirsoc, 5.0);
-        let kz = asce7_kz(z, alpha, z_g_asce7, 5.0);
-
-        // With nearly identical z_g, results should be very close
+        // With nearly identical parameters, results should be very close
         let err = (ce - kz).abs() / ce;
         assert!(
             err < 0.01,
-            "Same-formula at z={}m: CIRSOC Ce={:.4}, ASCE7 Kz={:.4}, err={:.4}%",
+            "Open terrain at z={}m: CIRSOC Ce={:.4}, ASCE7 Kz={:.4}, err={:.4}%",
             z, ce, kz, err * 100.0
         );
     }
 
-    // Verify both codes agree that exposure increases with height
-    for codes in &[
-        (9.5, 365.0, 5.0, "CIRSOC III"),
-        (7.0, 365.76, 9.14, "ASCE7 B"),
-        (9.5, 274.0, 5.0, "CIRSOC II"),
-        (9.5, 274.32, 4.57, "ASCE7 C"),
-    ] {
-        let (alpha, z_g, z_min, name) = *codes;
-        let ce_10 = cirsoc_exposure_coefficient(10.0, alpha, z_g, z_min);
-        let ce_50 = cirsoc_exposure_coefficient(50.0, alpha, z_g, z_min);
+    // Verify all parameter sets agree that exposure increases with height
+    let param_sets: [(f64, f64, f64, &str); 4] = [
+        (CIRSOC_ALPHA, CIRSOC_CAT3_ZG, CIRSOC_ZMIN, "CIRSOC III"),
+        (ASCE7_EXPB_ALPHA, ASCE7_EXPB_ZG, ASCE7_EXPB_ZMIN, "ASCE7 B"),
+        (CIRSOC_ALPHA, CIRSOC_CAT2_ZG, CIRSOC_ZMIN, "CIRSOC II"),
+        (ASCE7_EXPC_ALPHA, ASCE7_EXPC_ZG, ASCE7_EXPC_ZMIN, "ASCE7 C"),
+    ];
+    for &(alpha, z_g, z_min, name) in &param_sets {
+        let ce_10 = exposure_coefficient(10.0, alpha, z_g, z_min);
+        let ce_50 = exposure_coefficient(50.0, alpha, z_g, z_min);
         assert!(
             ce_50 > ce_10,
             "{}: Ce(50m)={:.4} should exceed Ce(10m)={:.4}", name, ce_50, ce_10
