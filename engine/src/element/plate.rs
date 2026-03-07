@@ -599,13 +599,21 @@ pub fn plate_consistent_mass(
     let n = 18;
     let mut mass = vec![0.0; n * n];
 
+    // Rotational inertia per node: I = m_node * t² / 12
+    // This is the physical rotational inertia through the plate thickness,
+    // needed to avoid a singular mass matrix when plate DOFs are free.
+    let i_rot = m_node * t * t / 12.0;
+
     for node in 0..3 {
         let base = node * 6;
         // Translational DOFs: ux, uy, uz
         mass[(base + 0) * n + (base + 0)] = m_node;
         mass[(base + 1) * n + (base + 1)] = m_node;
         mass[(base + 2) * n + (base + 2)] = m_node;
-        // Rotational DOFs get zero (or a tiny value to avoid singularity).
+        // Rotational DOFs: rx, ry, rz — physical rotational inertia
+        mass[(base + 3) * n + (base + 3)] = i_rot;
+        mass[(base + 4) * n + (base + 4)] = i_rot;
+        mass[(base + 5) * n + (base + 5)] = i_rot;
     }
 
     mass

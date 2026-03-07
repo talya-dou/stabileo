@@ -205,6 +205,43 @@ pub fn assemble_mass_matrix_3d(
             }
         }
     }
+
+    // Assemble plate element masses
+    for plate in input.plates.values() {
+        let density = densities.get(&plate.material_id.to_string()).copied().unwrap_or(0.0);
+        if density <= 0.0 { continue; }
+
+        let node_1 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
+        let node_2 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
+        let node_3 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+
+        let coords = [
+            [node_1.x, node_1.y, node_1.z],
+            [node_2.x, node_2.y, node_2.z],
+            [node_3.x, node_3.y, node_3.z],
+        ];
+
+        // density is in kg/m³, divide by 1000 to get tonnes/m³ (consistent with kN units)
+        let m_local = crate::element::plate::plate_consistent_mass(&coords, density / 1000.0, plate.thickness);
+
+        // Plate mass is lumped (diagonal), no rotation needed — assemble directly
+        let mut plate_dofs = Vec::with_capacity(18);
+        for &node_id in &plate.nodes {
+            for dof_idx in 0..6 {
+                plate_dofs.push(dof_num.global_dof(node_id, dof_idx).unwrap());
+            }
+        }
+
+        for i in 0..18 {
+            for j in 0..18 {
+                let val = m_local[i * 18 + j];
+                if val.abs() > 1e-30 {
+                    m_global[plate_dofs[i] * n + plate_dofs[j]] += val;
+                }
+            }
+        }
+    }
+
     m_global
 }
 
@@ -302,6 +339,27 @@ pub fn compute_total_mass_3d(
         let l = (dx * dx + dy * dy + dz * dz).sqrt();
         total += density * sec.a * l / 1000.0;
     }
+
+    // Add plate masses
+    for plate in input.plates.values() {
+        let density = densities.get(&plate.material_id.to_string()).copied().unwrap_or(0.0);
+        if density <= 0.0 { continue; }
+
+        let node_1 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
+        let node_2 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
+        let node_3 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+
+        let v1 = [node_2.x - node_1.x, node_2.y - node_1.y, node_2.z - node_1.z];
+        let v2 = [node_3.x - node_1.x, node_3.y - node_1.y, node_3.z - node_1.z];
+        let cross = [
+            v1[1] * v2[2] - v1[2] * v2[1],
+            v1[2] * v2[0] - v1[0] * v2[2],
+            v1[0] * v2[1] - v1[1] * v2[0],
+        ];
+        let area = (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]).sqrt() / 2.0;
+        total += density * area * plate.thickness / 1000.0;
+    }
+
     total
 }
 
