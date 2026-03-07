@@ -230,6 +230,17 @@ pub fn solve_staged_2d(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+/// Solve 3D staged construction analysis. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_staged_3d(json: &str) -> Result<String, JsValue> {
+    let input: types::StagedInput3D = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::staged::solve_staged_3d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 // ==================== Cable Analysis ====================
 
 /// Solve 2D cable analysis. JSON in → JSON out.
