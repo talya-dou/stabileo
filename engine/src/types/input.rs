@@ -522,6 +522,36 @@ pub struct PlasticMaterialData {
     pub fy: Option<f64>, // Yield stress (MPa)
 }
 
+/// 3D plastic (pushover) analysis input.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlasticInput3D {
+    pub solver: SolverInput3D,
+    pub sections: HashMap<String, PlasticSectionData3D>,
+    pub materials: HashMap<String, PlasticMaterialData>,
+    #[serde(default)]
+    pub max_hinges: Option<usize>,
+    /// Override plastic moments: key is section_id, value is [Mp_y, Mp_z]
+    #[serde(default)]
+    pub mp_overrides: Option<HashMap<String, [f64; 2]>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlasticSectionData3D {
+    pub a: f64,
+    pub iy: f64,
+    pub iz: f64,
+    pub material_id: usize,
+    #[serde(default)]
+    pub b: Option<f64>,
+    #[serde(default)]
+    pub h: Option<f64>,
+    /// Depth in the other direction (for Z-axis plastic modulus)
+    #[serde(default)]
+    pub d: Option<f64>,
+}
+
 /// Moving loads analysis input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

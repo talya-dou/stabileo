@@ -134,6 +134,17 @@ pub fn solve_plastic_2d(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+/// Solve 3D plastic (pushover) analysis. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_plastic_3d(json: &str) -> Result<String, JsValue> {
+    let input: types::PlasticInput3D = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::plastic::solve_plastic_3d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 /// Solve 2D moving loads analysis. JSON in → JSON out.
 #[wasm_bindgen]
 pub fn solve_moving_loads_2d(json: &str) -> Result<String, JsValue> {
