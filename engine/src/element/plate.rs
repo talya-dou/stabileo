@@ -14,7 +14,7 @@
 
 /// Stress results at the element centroid.
 #[derive(Debug, Clone)]
-pub(crate) struct PlateStressLocal {
+pub struct PlateStressLocal {
     /// Membrane stress σ_xx (kN/m²).
     pub sigma_xx: f64,
     /// Membrane stress σ_yy (kN/m²).
@@ -732,7 +732,7 @@ pub fn plate_consistent_mass(
 /// * `nu`      – Poisson's ratio
 /// * `t`       – shell thickness (m)
 /// * `u_local` – 18-element displacement vector in the **local** coordinate system
-pub(crate) fn plate_stress_recovery(
+pub fn plate_stress_recovery(
     coords: &[[f64; 3]; 3],
     e: f64,
     nu: f64,
@@ -916,7 +916,7 @@ pub fn plate_element_quality(coords: &[[f64; 3]; 3]) -> (f64, f64, f64) {
 /// at the element vertices instead of just the centroid.
 ///
 /// Returns an array of 3 `PlateStressLocal` values, one per node.
-pub(crate) fn plate_stress_at_nodes(
+pub fn plate_stress_at_nodes(
     coords: &[[f64; 3]; 3],
     e: f64,
     nu: f64,
