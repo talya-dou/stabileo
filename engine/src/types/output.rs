@@ -184,6 +184,17 @@ pub struct CorotationalResult {
     pub max_displacement: f64,
 }
 
+/// 3D co-rotational large displacement analysis result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CorotationalResult3D {
+    pub results: AnalysisResults3D,
+    pub iterations: usize,
+    pub converged: bool,
+    pub load_increments: usize,
+    pub max_displacement: f64,
+}
+
 // ==================== Nonlinear Material Output ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
