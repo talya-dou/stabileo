@@ -179,7 +179,7 @@ pub fn assemble_mass_matrix_3d(
             );
 
             if dof_num.dofs_per_node >= 7 {
-                // Warping model: embed 12×12 mass into 14-DOF space (zero warping inertia)
+                // Warping model: embed 12×12 mass into 14-DOF space
                 let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
                 let m_glob = transform_stiffness(&m_local, &t, 12);
                 let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
@@ -189,6 +189,20 @@ pub fn assemble_mass_matrix_3d(
                         let gi = elem_dofs[DOF_MAP_12_TO_14[i]];
                         let gj = elem_dofs[DOF_MAP_12_TO_14[j]];
                         m_global[gi * n + gj] += m_glob[i * 12 + j];
+                    }
+                }
+
+                // Warping mass: lumped polar mass moment at warping DOFs.
+                // For thin-walled open sections, warping inertia ≈ ρ*(Iy+Iz)*L/2 per node.
+                // This is approximate but includes warping participation in modal analysis.
+                if let Some(cw) = sec.cw {
+                    if cw > 0.0 {
+                        let ip = sec.iy + sec.iz; // polar second moment (approx)
+                        let m_warp = density * ip * l / (2.0 * 1000.0); // tonnes·m
+                        let w_dof_i = elem_dofs[6];   // warping DOF node I
+                        let w_dof_j = elem_dofs[13];  // warping DOF node J
+                        m_global[w_dof_i * n + w_dof_i] += m_warp;
+                        m_global[w_dof_j * n + w_dof_j] += m_warp;
                     }
                 }
             } else {

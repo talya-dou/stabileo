@@ -2,6 +2,9 @@ use crate::types::*;
 use crate::linalg::*;
 use super::dof::DofNumbering;
 
+/// Maps 12-DOF element indices to 14-DOF positions, skipping warping DOFs 6 and 13.
+const DOF_MAP_12_TO_14: [usize; 12] = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
+
 /// Add geometric stiffness to the global stiffness matrix based on current axial forces.
 /// Used by P-Delta and Buckling analyses.
 pub fn add_geometric_stiffness_2d(
@@ -375,8 +378,14 @@ pub fn add_geometric_stiffness_3d(
             );
             let t = crate::element::frame_transform_3d(&ex, &ey, &ez);
             let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
-            let u_global: Vec<f64> = elem_dofs.iter().map(|&d| u[d]).collect();
-            let u_local = transform_displacement(&u_global, &t, 12);
+
+            // Extract displacements using 12-DOF mapping (skip warping DOFs if present)
+            let u_12: Vec<f64> = if dof_num.dofs_per_node >= 7 {
+                DOF_MAP_12_TO_14.iter().map(|&i| u[elem_dofs[i]]).collect()
+            } else {
+                elem_dofs.iter().map(|&d| u[d]).collect()
+            };
+            let u_local = transform_displacement(&u_12, &t, 12);
 
             // Axial force from local displacements
             let axial_force = e * sec.a / l * (u_local[6] - u_local[0]);
@@ -398,10 +407,22 @@ pub fn add_geometric_stiffness_3d(
             for &(r, c, val) in &xz { kg_local[r * 12 + c] = val * coeff; }
 
             let kg_global = transform_stiffness(&kg_local, &t, 12);
-            let ndof = elem_dofs.len();
-            for i in 0..ndof {
-                for j in 0..ndof {
-                    k_global[elem_dofs[i] * n + elem_dofs[j]] += kg_global[i * ndof + j];
+
+            // Scatter into global K using proper DOF mapping
+            if dof_num.dofs_per_node >= 7 {
+                for i in 0..12 {
+                    for j in 0..12 {
+                        let gi = elem_dofs[DOF_MAP_12_TO_14[i]];
+                        let gj = elem_dofs[DOF_MAP_12_TO_14[j]];
+                        k_global[gi * n + gj] += kg_global[i * 12 + j];
+                    }
+                }
+            } else {
+                let ndof = elem_dofs.len();
+                for i in 0..ndof {
+                    for j in 0..ndof {
+                        k_global[elem_dofs[i] * n + elem_dofs[j]] += kg_global[i * ndof + j];
+                    }
                 }
             }
         }
