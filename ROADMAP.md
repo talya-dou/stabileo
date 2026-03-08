@@ -8,22 +8,18 @@ Own the structural engineering software market vertically — from load determin
 
 ## Status overview
 
-### What exists today (~25% of Phase 1)
+### What exists today
 
-The foundation is built: a working analysis engine, polished UI, and solid infrastructure. But 100% of the revenue-generating code (design checks, connections, load generation, reports) has not been started.
+The foundation is no longer a partial prototype. The current repo already has:
 
-| Done | Not started |
+| Implemented today | Still productizing / deepening |
 |---|---|
-| 2D solver — all 8 analysis types, 1,050+ tests | Steel design code checks (AISC 360 / Eurocode 3) |
-| 3D solver — linear static, load combinations | Concrete design code checks (ACI 318 / Eurocode 2) |
-| 100+ steel section catalog | Code-based load determination (wind, seismic, snow) |
-| Cross-section stress (Navier, Jourawski, torsion) | Calculation reports (LaTeX/PDF) |
-| Import/export (JSON, DXF, IFC, Excel, PNG, URL) | Quantity takeoff and cost estimation |
-| 3D rendering (Three.js) | Offline PWA (Service Worker, IndexedDB) |
-| Unit conversion utilities | AI assistant (LLM integration) |
-| Undo/redo, autosave, kinematic analysis | 3D advanced analysis (P-Delta, modal, buckling, etc.) |
-| DSM wizard (9-step educational tool) | Connection design, foundation design |
-| Rust solver (experimental, not connected) | Collaboration, enterprise, API |
+| Browser-native app with 2D/3D modeling, visualization, and solver integration | Reports, collaboration, and broader firm workflows |
+| Rust solver in the main app flow via WASM | Public-facing workflow packaging around the full solver surface |
+| Broad solver coverage: linear, second-order, buckling, modal, spectrum, time history, harmonic, staged, cable, contact, SSI, nonlinear, fiber, imperfections, creep/shrinkage | Hardening, benchmark depth, and scale/performance on the newest solver families |
+| Plate and shell support including DKT/DKMT triangles and MITC4 quads | Shell workflow maturity and mixed-model robustness |
+| Constraints, nonlinear controls, reduction/substructuring, and strong postprocessing/design modules | Workflow integration, acceptance models, and production-grade solver polish |
+| Large validation and benchmark surface | Verification hardening, invariants, fuzzing, and performance regression gates |
 
 ### Gap analysis by phase
 
@@ -57,7 +53,7 @@ The foundation is built: a working analysis engine, polished UI, and solid infra
 | Phase 4 ships | Month 13 | Month 9 | Month 5 |
 | Phase 5 ships (full platform, ~90% coverage) | Month 17 | Month 12 | Month 7 |
 
-The foundation is strong, but the remaining work is not just formula translation and SaaS infrastructure. Several advanced solver features now exist in code and need the next layer of integration, hardening, and public-surface work before the solver can credibly claim top-tier status.
+The remaining work is not basic solver coverage. It is productization, hardening, verification, performance, shell maturity, and the workflow depth needed to turn a broad solver into a durable structural engineering platform.
 
 ### Solver-first priority roadmap
 
@@ -176,21 +172,31 @@ This is the approximate implementation difficulty ordering for the remaining sol
 
 ## Current state
 
-Dedaliano is a browser-native 2D + 3D structural analysis application implementing the Direct Stiffness Method from scratch. The solver is written in pure TypeScript with no external linear algebra dependencies. Over 1,050 tests across 31 suites validate the engine against analytical solutions.
+Dedaliano is a browser-native 2D and 3D structural analysis application with a broad Rust solver at its core. The engine is exposed through WASM, integrated into the main app flow, and backed by a large automated benchmark and validation program.
 
 ### Implemented
 
-- **2D solver** (3 DOF/node): linear static, P-Delta, buckling, modal, plastic, spectral, moving loads, influence lines
-- **3D solver** (6 DOF/node): linear static, load combinations, envelopes
-- **Load combinations**: LRFD factors, per-case and per-combination results, envelopes
-- **Cross-section stress**: Navier, Jourawski, Bredt/Saint-Venant torsion, Mohr's circle, Von Mises/Tresca failure criteria
-- **Section catalog**: 100+ European steel profiles (IPE, HEB, HEA, IPN, UPN, L, RHS, CHS), concrete sections, custom parametric builder
+- **Broad Rust solver surface**: 2D and 3D linear, P-Delta, buckling, modal, spectral, time-history, harmonic, staged, moving-load, cable, contact, SSI, corotational, material nonlinear, and fiber nonlinear analysis
+- **Shell and plate support**: DKT/DKMT triangular plates and MITC4 quadrilateral shells with pressure, thermal, and edge-load support
+- **Nonlinear workflow depth**: arc-length, displacement control, line search, adaptive stepping, imperfections, residual stress, prestress/PT, creep/shrinkage, and staged construction
+- **Constraints and scale tools**: rigid links, diaphragms, MPCs, equal-DOF constraints, and model reduction/substructuring (Guyan, Craig-Bampton)
+- **Postprocess and design modules**: steel, RC, EC2, CIRSOC 201, EC3, timber, masonry, cold-formed steel, serviceability, connections, and foundations
+- **Cross-section stress and section analysis**: Navier, Jourawski, torsion, Mohr's circle, Von Mises/Tresca, and polygon-based section properties
+- **Section catalog**: steel profiles, concrete sections, and custom parametric builders
 - **DSM wizard**: 9-step interactive walkthrough of the Direct Stiffness Method with KaTeX-rendered matrices
-- **Kinematic analysis**: mechanism detection, rank check, diagnostic reports
-- **Import/export**: JSON, DXF (R12), IFC (via web-ifc WASM), Excel, PNG, URL sharing (LZ-compressed)
-- **3D rendering**: Three.js with Line2 screen-space elements, extruded section profiles, deformed shape visualization, stress utilization color maps
-- **Undo/redo**, **autosave** (localStorage), **feedback system** (GitHub issues)
-- **Rust solver**: primary engine in `engine/`, exposed through WASM and the main app flow
+- **Kinematic analysis**: mechanism detection, rank check, and diagnostic reports
+- **Import/export**: JSON, DXF, IFC, Excel, PNG, and URL sharing
+- **3D rendering**: real-time visualization, deformed shapes, and utilization color maps
+- **App infrastructure**: undo/redo, autosave, feedback workflow, CI, and criterion benchmarks
+
+The current solver is much further along than the original product roadmap assumed. The main open work is now:
+
+- benchmark and verification hardening on the newest solver families
+- performance and scale
+- shell workflow maturity
+- advanced contact variants
+- deeper staged / prestress / time-dependent coupling
+- reports, collaboration, and higher-value product layers on top of the solver
 
 ---
 
@@ -463,7 +469,7 @@ Every feature ships with comprehensive automated tests validated against publish
 - **Textbook solutions**: analytical solutions for known problems (cantilever δ = PL³/3EI, simply supported beams, continuous beams, trusses)
 - **Equilibrium checks**: every test case verifies ΣF = 0 and ΣM = 0 automatically
 
-The existing solver already passes 1,050+ tests. Every new module (member design, connections, loads, concrete, timber) adds hundreds more. If the software passes every published benchmark for a given design code, that is objective evidence of correctness — stronger than any individual reading the code, because it tests outputs against known right answers.
+The existing solver already passes thousands of automated tests, with thousands more expected as new design, reporting, and workflow modules are added. If the software passes every published benchmark for a given design code, that is objective evidence of correctness — stronger than any individual reading the code, because it tests outputs against known right answers.
 
 This approach reduces development timelines by roughly 3x compared to traditional engineering software development. The bottleneck shifts from writing code to human review — which is where it should be for software where a wrong coefficient can affect structural safety.
 
@@ -488,22 +494,19 @@ The technical roadmap is ordered by business impact, not by technical difficulty
 
 **Total: 10-14 dev-months.**
 
-### 1.1 3D solver parity
+### 1.1 Solver parity and hardening
 
-The 3D solver currently handles linear static analysis only. Every advanced analysis type is restricted to 2D. This is the most critical gap. The 2D implementations are complete and well-structured. The 3D versions follow the same algorithms with 12x12 element matrices (6 DOF per node) instead of 6x6.
+The original Phase 1 roadmap assumed that 3D advanced analysis was the main missing solver category. That is no longer true. The current engine already has 3D second-order, buckling, modal, spectral, time-history, staged, contact, SSI, nonlinear, and fiber workflows.
 
-| Analysis | 2D status | 3D work |
-|---|---|---|
-| P-Delta | Complete. Iterative (K + K_G)U = F, tolerance 1e-4. | Assemble 12x12 geometric stiffness K_G from 3D axial forces. Same iteration loop. |
-| Buckling | Complete. Generalized eigenvalue via Cholesky + Jacobi. | 3D K_G in the eigenvalue problem. Same solver. |
-| Modal | Complete. Consistent mass matrix, participation factors, effective mass. | 3D consistent mass matrix (12x12 element M). Participation factors in X, Y, Z. |
-| Plastic | Complete. Event-to-event hinge formation. | Biaxial moment interaction surface (M_y, M_z) instead of uniaxial M_p check. |
-| Spectral | Complete. SRSS/CQC, CIRSOC 103 spectra. | 3D modal superposition. Combine responses in three directions. |
-| Influence lines | Complete. Unit load on 2D element chain. | 3D load paths. |
-| Moving loads | Complete. Train of loads, envelope. | Same as influence lines: 3D paths. |
-| DXF import/export | Complete. R12 format. | Handle 3D entity types (3DFACE, 3DPOLYLINE). |
+What remains in this lane is not raw 3D feature parity. It is:
 
-Estimated effort: 1-1.5 dev-months.
+- benchmark hardening on the newest 3D solver families
+- shell workflow maturity, especially mixed beam-shell models and MITC4 reliability
+- advanced contact variants and harder nonlinear convergence cases
+- better staged / prestress / time-dependent coupling
+- large-model performance and reduction/substructuring workflow maturity
+
+Estimated effort: ongoing hardening program rather than a single feature sprint.
 
 ### 1.2 Steel member design — code checking
 
@@ -708,19 +711,14 @@ Design the 20 most common steel connections. For each: select bolt pattern, weld
 
 New code: ~15,000-25,000 LOC. Estimated effort: 1.5-2 dev-months for initial 10 types.
 
-### 2.2 Rust/WASM solver
+### 2.2 Solver architecture and scale
 
-The TypeScript solver handles ~500 free DOFs in real time. Beyond that, the O(n³) dense linear system solver and O(n⁴) Jacobi eigenvalue solver become bottlenecks. For a 200-element 3D frame (~1,200 DOFs), modal analysis takes seconds, not milliseconds.
+The Rust solver is already the primary engine and is already exposed through WASM. The remaining work in this area is no longer migration. It is:
 
-Integration path:
-1. Compile the Rust solver in `engine/` to WASM via wasm-pack
-2. Expose `solve(json) -> json` callable from TypeScript
-3. Fall back to TypeScript solver if WASM unavailable
-4. Same Rust binary compiles as native executable for server-side computation
-
-Additionally: sparse matrix storage (CSR/CSC) and iterative solvers (conjugate gradient for SPD systems, implicitly restarted Lanczos for eigenvalue problems). Sparse solvers scale O(nnz) per iteration instead of O(n³), making 5,000+ DOF models feasible.
-
-Estimated effort: 1.5-2 dev-months.
+1. large-model performance and sparse-first execution paths
+2. better solver-path consistency across linear, nonlinear, staged, shell, contact, and reduction workflows
+3. server-side execution and API packaging for models that exceed browser-friendly size
+4. benchmark, acceptance-model, and performance regression gates around the newest advanced features
 
 ### 2.3 Real-time collaboration
 
@@ -1239,7 +1237,7 @@ Train a small neural network to approximate the solver for a parametric structur
 
 ### Digital twin integration
 
-Connect a Dedaliano model to real-time sensor data (strain gauges, accelerometers, displacement transducers). Live stress and displacement overlays. Use cases: structural health monitoring, proof load testing, construction monitoring. Depends on REST API and Rust/WASM solver.
+Connect a Dedaliano model to real-time sensor data (strain gauges, accelerometers, displacement transducers). Live stress and displacement overlays. Use cases: structural health monitoring, proof load testing, construction monitoring. Depends on the API and server-side solver platform.
 
 ### Optimization as a service
 
@@ -1368,7 +1366,7 @@ Every feature rated by implementation difficulty. Easy = well-defined formulas o
 | Steel member design (per code) | 1 | 1.5-2 | Medium | Many chapters, each is formula + table lookup |
 | Concrete member design (per code) | 1 | 1.5-2 | Medium | Reinforcement layout, crack width, P-M diagrams |
 | Steel connections (first 10) | 2 | 1.5-2 | Medium | Each type is self-contained, many failure modes |
-| Rust/WASM solver | 2 | 1.5-2 | Medium | Rust solver exists, needs WASM compilation + sparse solvers |
+| Solver architecture and scale | 2 | 1.5-2 | Medium | Rust solver is already primary; remaining work is sparse-first scale, performance, and API/server execution |
 | Enterprise features | 2 | 1.5-2 | Medium | SSO/SAML, admin UI — standard SaaS infrastructure |
 | Bridge design | 4 | 1.5-2 | Medium | AASHTO well-documented, distribution factors are formulaic |
 | Seismic retrofit | 4 | 1.5-2 | Medium | FRP/jacketing formula-based; base isolation needs nonlinear solver |

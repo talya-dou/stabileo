@@ -38,19 +38,20 @@ This document should stay focused on the engine surface, analysis families, and 
 - **Fiber nonlinear beam-columns** (2D & 3D): distributed plasticity / section-integration solvers
 - **Creep / shrinkage**: time-dependent structural response with EC2-style models
 - **Plate/shell** (3D): DKT/DKMT triangular plates and MITC4 quadrilateral shells with pressure, drilling stabilization, and thermal support
+- **Model reduction / substructuring**: Guyan condensation and Craig-Bampton reduction for larger-model workflows
 - **Section analysis**: polygon-based cross-section properties and section metrics
 
 ## Running Tests
 
 ```bash
-cd engine && cargo test              # full suite (4950+ tests)
-cd engine && cargo test validation_  # validation tests only (4505 tests across 568 files)
+cd engine && cargo test              # full suite
+cd engine && cargo test validation_  # validation tests only
 cd engine && cargo test diff_fuzz    # differential fuzz tests (90 tests)
 ```
 
 ## Validation Test Suite
 
-**4505 validation tests across 568 files**, verified against published analytical solutions, industry codes, and commercial software results. See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md) for detailed status of each benchmark.
+**5737 validation tests across 722 files**, verified against published analytical solutions, industry codes, and commercial software results. See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md) for detailed status of each benchmark.
 
 ### Industry Standards and Design Codes
 
@@ -141,7 +142,8 @@ The main remaining engine work is no longer basic solver coverage. It is:
 - performance and scale
 - broader shell maturity and workflow depth
 - advanced contact variants and harder nonlinear convergence cases
-- model reduction / substructuring and other scale-oriented workflow features
+- verification hardening: invariants, property-based tests, fuzzing, and real-model acceptance
+- deeper staged/PT coupling and model-reduction workflow maturity
 
 For the detailed gap inventory and benchmark status, use [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
 

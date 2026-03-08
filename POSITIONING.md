@@ -59,6 +59,7 @@ The next differentiators are less about adding whole new solver categories and m
 - performance at scale
 - benchmark credibility on the newest solver families
 - shell and nonlinear workflow maturity
+- scale-oriented workflow maturity such as reduction/substructuring and large-model solve discipline
 - productizing the full solver surface cleanly across app, API, and downstream tools
 
 That credibility should be built visibly. The strongest long-term trust program is not one technique in isolation, but a stack:
