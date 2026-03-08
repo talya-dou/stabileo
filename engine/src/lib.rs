@@ -789,6 +789,80 @@ pub fn check_spread_footings(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+// ==================== Imperfections ====================
+
+/// Apply imperfections to a 2D model and solve. JSON in → JSON out.
+///
+/// Input: { "solver": SolverInput, "imperfections": ImperfectionInput }
+/// Applies geometric imperfections, adds notional loads, then solves linearly.
+#[wasm_bindgen]
+pub fn solve_with_imperfections_2d(json: &str) -> Result<String, JsValue> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        solver: types::SolverInput,
+        imperfections: types::ImperfectionInput,
+    }
+    let mut input: Input = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+
+    // Apply geometric imperfections
+    solver::imperfections::apply_geometric_imperfections_2d(
+        &mut input.solver, &input.imperfections.node_imperfections,
+    );
+
+    // Add notional loads
+    for notional in &input.imperfections.notional_loads {
+        let loads = solver::imperfections::notional_loads_2d(&input.solver, notional);
+        input.solver.loads.extend(loads);
+    }
+
+    let results = solver::linear::solve_2d(&input.solver)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+/// Apply imperfections to a 3D model and solve. JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_with_imperfections_3d(json: &str) -> Result<String, JsValue> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Input {
+        solver: types::SolverInput3D,
+        imperfections: types::ImperfectionInput,
+    }
+    let mut input: Input = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+
+    solver::imperfections::apply_geometric_imperfections_3d(
+        &mut input.solver, &input.imperfections.node_imperfections,
+    );
+
+    for notional in &input.imperfections.notional_loads {
+        let loads = solver::imperfections::notional_loads_3d(&input.solver, notional);
+        input.solver.loads.extend(loads);
+    }
+
+    let results = solver::linear::solve_3d(&input.solver)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+// ==================== Creep/Shrinkage 3D ====================
+
+/// Solve 3D time-dependent analysis with creep and shrinkage (EC2). JSON in → JSON out.
+#[wasm_bindgen]
+pub fn solve_creep_shrinkage_3d(json: &str) -> Result<String, JsValue> {
+    let input: solver::creep_shrinkage::CreepShrinkageInput3D = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = solver::creep_shrinkage::solve_creep_shrinkage_3d(&input)
+        .map_err(|e| JsValue::from_str(&e))?;
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::types::*;

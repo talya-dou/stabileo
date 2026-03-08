@@ -265,3 +265,140 @@ pub fn solve_creep_shrinkage_2d(input: &CreepShrinkageInput) -> Result<CreepShri
         converged: true,
     })
 }
+
+/// Time step definition for 3D analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeStep3D {
+    pub t_days: f64,
+    #[serde(default)]
+    pub additional_loads: Vec<SolverLoad3D>,
+}
+
+/// Input for time-dependent 3D analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreepShrinkageInput3D {
+    pub solver: SolverInput3D,
+    pub creep_params: HashMap<String, ConcreteCreepParams>,
+    pub time_steps: Vec<TimeStep3D>,
+    #[serde(default = "default_chi")]
+    pub aging_coefficient: f64,
+}
+
+/// Per-step result (3D).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimeStepResult3D {
+    pub t_days: f64,
+    pub displacements: Vec<Displacement3D>,
+    pub reactions: Vec<Reaction3D>,
+    pub element_forces: Vec<ElementForces3D>,
+    pub creep_coefficient: f64,
+    pub shrinkage_strain: f64,
+}
+
+/// Result of 3D time-dependent analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreepShrinkageResult3D {
+    pub steps: Vec<TimeStepResult3D>,
+    pub converged: bool,
+}
+
+/// Solve time-dependent 3D analysis with creep and shrinkage.
+pub fn solve_creep_shrinkage_3d(input: &CreepShrinkageInput3D) -> Result<CreepShrinkageResult3D, String> {
+    let dof_num = DofNumbering::build_3d(&input.solver);
+    if dof_num.n_free == 0 {
+        return Err("No free DOFs".into());
+    }
+
+    let mut steps = input.time_steps.clone();
+    steps.sort_by(|a, b| a.t_days.partial_cmp(&b.t_days).unwrap());
+
+    let _base_results = linear::solve_3d(&input.solver)?;
+
+    let mut results = Vec::new();
+    let cumulative_creep_loads: Vec<SolverLoad3D> = Vec::new();
+
+    for step in &steps {
+        let t = step.t_days;
+
+        let mut max_phi = 0.0_f64;
+        let mut max_eps_sh = 0.0_f64;
+        let mut cs_loads = Vec::new();
+
+        for elem in input.solver.elements.values() {
+            let mat_key = elem.material_id.to_string();
+            let params = match input.creep_params.get(&mat_key) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            let phi = ec2_creep_coefficient(params, t);
+            let eps_sh = ec2_shrinkage_strain(params, t);
+            max_phi = max_phi.max(phi);
+            max_eps_sh = max_eps_sh.max(eps_sh.abs());
+
+            let sec = match input.solver.sections.values().find(|s| s.id == elem.section_id) {
+                Some(s) => s,
+                None => continue,
+            };
+
+            let mat = match input.solver.materials.values().find(|m| m.id == elem.material_id) {
+                Some(m) => m,
+                None => continue,
+            };
+
+            let e_c = mat.e * 1000.0;
+            let e_eff = e_c / (1.0 + input.aging_coefficient * phi);
+            let n_sh = e_eff * sec.a * eps_sh;
+
+            let ni = input.solver.nodes.values().find(|n| n.id == elem.node_i).unwrap();
+            let nj = input.solver.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+            let dx = nj.x - ni.x;
+            let dy = nj.y - ni.y;
+            let dz = nj.z - ni.z;
+            let l = (dx * dx + dy * dy + dz * dz).sqrt();
+            let dir = [dx / l, dy / l, dz / l];
+
+            cs_loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: elem.node_i,
+                fx: n_sh * dir[0],
+                fy: n_sh * dir[1],
+                fz: n_sh * dir[2],
+                mx: 0.0, my: 0.0, mz: 0.0,
+                bw: None,
+            }));
+            cs_loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: elem.node_j,
+                fx: -n_sh * dir[0],
+                fy: -n_sh * dir[1],
+                fz: -n_sh * dir[2],
+                mx: 0.0, my: 0.0, mz: 0.0,
+                bw: None,
+            }));
+        }
+
+        let mut modified = input.solver.clone();
+        modified.loads.extend(cs_loads);
+        modified.loads.extend(cumulative_creep_loads.clone());
+        modified.loads.extend(step.additional_loads.clone());
+
+        let step_results = linear::solve_3d(&modified)?;
+
+        results.push(TimeStepResult3D {
+            t_days: t,
+            displacements: step_results.displacements,
+            reactions: step_results.reactions,
+            element_forces: step_results.element_forces,
+            creep_coefficient: max_phi,
+            shrinkage_strain: max_eps_sh,
+        });
+    }
+
+    Ok(CreepShrinkageResult3D {
+        steps: results,
+        converged: true,
+    })
+}
