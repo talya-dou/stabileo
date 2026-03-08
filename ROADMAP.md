@@ -59,6 +59,55 @@ The foundation is built: a working analysis engine, polished UI, and solid infra
 
 The foundation (solver, rendering, import/export) is the hardest part to get right and it's done. What remains is mostly formula translation (design codes), SaaS infrastructure (collaboration, enterprise), and AI integration — exactly what AI-assisted development is best at.
 
+### Solver-first priority roadmap
+
+This section is intentionally separate from the product and revenue roadmap below.
+
+- The tables above optimize for business phases.
+- This section optimizes for solver quality and technical credibility.
+
+If the goal is "best structural solver", the next solver-core work should be read in this order:
+
+#### 0-3 months
+
+| Priority | Topic | Why now |
+|---|---|---|
+| 1 | Warping torsion completion | The plumbing exists already. This is the cheapest remaining high-leverage solver gap. |
+| 2 | Initial imperfections / initial state basics | Adds realism to stability and nonlinear analysis without requiring a whole new solver family. |
+| 3 | Prestress / post-tension depth improvements | Extends existing staged/prestress support rather than inventing a new architecture. |
+| 4 | Winkler / SSI incremental improvements | Practical value, moderate complexity, and builds toward stronger foundation workflows. |
+| 5 | Benchmark hardening on newest solver families | Raises trust fastest for 3D nonlinear, harmonic, staged, cable, and upgraded shell paths. |
+
+#### 3-6 months
+
+| Priority | Topic | Why now |
+|---|---|---|
+| 6 | Constraint technology | MPCs, rigid links, diaphragms, and eccentric connectivity unlock more realistic building models. |
+| 7 | Nonlinear solution controls | Adaptive stepping, line search, displacement control, and better diagnostics are required for serious nonlinear robustness. |
+| 8 | Basic contact / gap elements | Compression-only, tension-only, uplift, and support-gap behavior close important practical nonlinear gaps. |
+| 9 | Better shell reliability | Focus on load vectors, convergence behavior, distortion tolerance, and benchmark maturity before chasing exotic shell breadth. |
+
+#### 12 months+
+
+| Priority | Topic | Why later |
+|---|---|---|
+| 10 | Fiber / section-based beam-column elements | This is a major jump in nonlinear sophistication and should follow better controls and constraints. |
+| 11 | Advanced contact | Full contact logic is much harder than unilateral gap/support behavior and brings heavy convergence cost. |
+| 12 | Top-tier shell technology | Commercial-grade quads, thick shells, curved shells, and mixed interpolation are a real solver program, not a quick feature. |
+| 13 | Elite nonlinear robustness at scale | This is the long refinement cycle that separates "has the feature" from "works on ugly real models every day". |
+
+#### Recommended implementation order
+
+1. Warping torsion completion
+2. Constraint technology
+3. Initial imperfections / initial state
+4. Nonlinear solution controls
+5. Basic contact / gap
+6. Fiber / section-based beam-column elements
+7. Shell upgrade
+
+This order is not the easiest order. It is the order with the best solver-quality payoff per unit of engineering risk.
+
 ### Competitive displacement by phase
 
 | Incumbent | Phase 1 | Phase 2 | Phase 3 | Phase 4 | Phase 5 |

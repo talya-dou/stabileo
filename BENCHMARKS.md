@@ -175,6 +175,36 @@ The sections below describe current capability and current gaps. This section an
 
 This is the solver-core ordering to use when the goal is technical leadership rather than short-term product breadth.
 
+#### Time-Bucketed View
+
+##### 0-3 months
+
+| Priority | Topic | Why now |
+|----------|-------|---------|
+| 1 | Warping torsion completion | The plumbing already exists, so this is the cheapest remaining high-leverage solver gap |
+| 2 | Initial imperfections / initial state basics | Improves realism in stability and nonlinear analysis without requiring a whole new solver family |
+| 3 | More complete prestress / post-tension behavior | Extends current staged/prestress support rather than inventing a new architecture |
+| 4 | Winkler / SSI incremental improvements | Practical value, moderate complexity, and useful groundwork for stronger foundation workflows |
+| 5 | Benchmark hardening on newest features | Raises trust fastest for 3D nonlinear, harmonic, staged, cable, and upgraded shell paths |
+
+##### 3-6 months
+
+| Priority | Topic | Why now |
+|----------|-------|---------|
+| 6 | Constraint technology | MPCs, rigid links, diaphragms, and eccentric connectivity unlock more realistic building models |
+| 7 | Nonlinear solution controls | Adaptive stepping, line search, displacement control, and better diagnostics are required for serious nonlinear robustness |
+| 8 | Contact / gap / compression-only / tension-only elements | Closes important practical nonlinear gaps like uplift, unilateral support behavior, and basic contact logic |
+| 9 | Better shell reliability | Focus on load vectors, convergence behavior, distortion tolerance, and benchmark maturity before chasing exotic shell breadth |
+
+##### 12 months+
+
+| Priority | Topic | Why later |
+|----------|-------|-----------|
+| 10 | Fiber / section-based beam-column elements | A major jump in nonlinear sophistication that should follow better controls and constraints |
+| 11 | Advanced contact | Much harder than unilateral gap/support behavior and brings heavy convergence cost |
+| 12 | Top-tier shell technology | Commercial-grade quads, thick shells, curved shells, and mixed interpolation are a real solver program, not a quick feature |
+| 13 | Elite nonlinear robustness at scale | This is the long refinement cycle that separates "has the feature" from "works on ugly real models every day" |
+
 #### Must Do Before Claiming Top-Tier
 
 | Priority | Topic | Why It Matters |
