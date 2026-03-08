@@ -24,6 +24,43 @@
 
 ---
 
+## Testing Layers
+
+The benchmark suite is only one part of solver verification. A structural solver should be tested in layers:
+
+1. `Unit tests`
+   Element stiffness, fixed-end forces, transformations, mass matrices, geometric stiffness, damping terms, and postprocessing formulas.
+2. `Analytical validation`
+   Closed-form textbook cases for beams, frames, trusses, buckling, dynamics, thermal loads, Timoshenko beams, cables, staged/prestress sanity checks, and related structural mechanics problems.
+3. `Published benchmark reproduction`
+   ANSYS VM, NAFEMS, SAP2000 / Code_Aster cross-checks, textbook benchmark sets, shell benchmarks, and nonlinear benchmark problems.
+4. `Differential / consistency testing`
+   Dense vs sparse assembly, 2D vs equivalent 3D cases, small-load linear vs nonlinear consistency, and fixture-based regression comparison across solver paths.
+5. `Property / invariant testing`
+   Equilibrium, symmetry, reciprocal behavior, rigid-body modes, superposition where applicable, and physically meaningful scaling/invariance checks.
+6. `Integration testing`
+   Full workflows such as staged analysis, time history, moving loads, harmonic response, nonlinear 3D, shell thermal loading, and multi-case / envelope operations.
+7. `Regression testing`
+   Every bug should leave behind a permanent minimal reproducer.
+8. `Performance and scale testing`
+   Solve time, memory use, iteration counts, sparse vs dense crossover behavior, and large-model reliability.
+9. `Real-model acceptance testing`
+   Representative building, bridge, plate/shell, cable, prestress, and staged-construction models that look like actual engineering work, not only textbook cases.
+
+### Notes on Differential Testing
+
+Differential testing is still useful, but it should not depend on a deleted implementation.
+
+The right long-term role for differential tests here is:
+
+- compare multiple solver paths inside the current engine
+- compare current results against locked fixture baselines
+- compare against external published references or commercial/open-source cross-check models
+
+In other words, the benchmark strategy should be framed around reproducibility and solver consistency, not around parity with a removed TypeScript solver.
+
+---
+
 ## Solver Capability Matrix
 
 This section is intentionally different from the benchmark tables below.
