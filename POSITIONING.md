@@ -53,6 +53,21 @@ The strongest current differentiators are:
 - `Platform leverage`
   The same solver can support the web app, APIs, future plugins, single-purpose tools, and design workflows.
 
+The next differentiators are less about adding whole new solver categories and more about:
+
+- robustness on difficult real models
+- performance at scale
+- benchmark credibility on the newest solver families
+- shell and nonlinear workflow maturity
+- productizing the full solver surface cleanly across app, API, and downstream tools
+
+That credibility should be built visibly. The strongest long-term trust program is not one technique in isolation, but a stack:
+
+- public benchmark and cross-validation coverage
+- invariant and property-based testing
+- fuzzing for edge cases and regression discovery
+- selective proof-oriented rigor on small critical kernels
+
 This document is about market framing, not the full solver inventory.
 
 ## Best Competitive Wedge
@@ -65,6 +80,10 @@ The strongest winnable positions are:
 - best browser-native structural solver
 - best validated structural solver for everyday structural engineering
 - best structural solver for building-frame and common office workflows
+
+Near term, the most credible path is:
+
+`elite structural solver first, broader structural platform second`
 
 Those are credible paths. “Best solver in all engineering physics” is not the right target.
 

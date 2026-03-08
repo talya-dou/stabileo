@@ -17,6 +17,7 @@ This document should stay focused on the engine surface, analysis families, and 
 - **Linear static** (2D & 3D): direct stiffness method, sparse Cholesky solver
 - **P-Delta** (2D & 3D): second-order geometric nonlinearity with iterative convergence
 - **Corotational** (2D & 3D): large-displacement nonlinear analysis (Newton-Raphson)
+- **Arc-length / displacement control**: Riks-style path following and displacement-controlled nonlinear solve
 - **Buckling** (2D & 3D): linearized eigenvalue buckling (Lanczos eigensolver)
 - **Modal** (2D & 3D): natural frequencies and mode shapes via consistent mass matrix
 - **Spectral** (2D & 3D): response spectrum analysis with SRSS/CQC combination
@@ -28,9 +29,15 @@ This document should stay focused on the engine surface, analysis families, and 
 - **Construction staging** (2D & 3D): phased activation, support changes, staged loads, prestress hooks
 - **Harmonic response** (2D & 3D): frequency-response analysis with modal damping input
 - **Winkler foundation** (2D & 3D): beams/frames on elastic foundation
+- **Nonlinear SSI** (2D & 3D): `p-y`, `t-z`, and `q-z` spring-family soil interaction
+- **Contact / gap** (2D & 3D): unilateral support/contact behavior, uplift, and gap elements
+- **Constraints** (2D & 3D): rigid links, diaphragms, equal-DOF constraints, and general linear MPCs
+- **Imperfections / residual stress**: initial geometric imperfections and residual-stress-aware nonlinear workflows
 - **Multi-case solve** (2D & 3D): case-by-case analysis, combinations, envelopes
 - **Cable solver** (2D): tension-only cable/catenary-style solve with iterative update
-- **Plate/shell** (3D): DKT/DKMT triangular plate element with pressure, drilling stabilization, and thermal support
+- **Fiber nonlinear beam-columns** (2D & 3D): distributed plasticity / section-integration solvers
+- **Creep / shrinkage**: time-dependent structural response with EC2-style models
+- **Plate/shell** (3D): DKT/DKMT triangular plates and MITC4 quadrilateral shells with pressure, drilling stabilization, and thermal support
 - **Section analysis**: polygon-based cross-section properties and section metrics
 
 ## Running Tests
@@ -126,40 +133,17 @@ cd engine && cargo test diff_fuzz    # differential fuzz tests (90 tests)
 | **Wind & lateral** | 3 | ~24 | Uniform/triangular wind, story shear, overturning, drift |
 | **Composite & special** | 3 | ~24 | Parallel beams, mixed materials, semi-rigid connections |
 
-### Known Bugs (6 ignored tests)
+### Current Engine Frontier
 
-| Bug | Tests | Impact |
-|-----|-------|--------|
-| 3D thermal loads dropped in assembly (`_ => {}` wildcard) | 2 | 3D thermal analysis produces zero displacement |
-| 3D partial distributed loads ignore a/b parameters | 2 | Partial loads on 3D elements behave as full-span |
-| Plate mass not assembled in mass_matrix.rs | 2 | Modal analysis of mixed plate+beam models incorrect |
+The main remaining engine work is no longer basic solver coverage. It is:
 
-### Incomplete Features
+- benchmark hardening on the newest nonlinear, contact, fiber, shell, and warping paths
+- performance and scale
+- broader shell maturity and workflow depth
+- advanced contact variants and harder nonlinear convergence cases
+- model reduction / substructuring and other scale-oriented workflow features
 
-| Feature | Status | Reference |
-|---------|--------|-----------|
-| Warping torsion (7th DOF) | 14x14 math exists, assembly not wired | Vlasov, Trahair |
-| 3D corotational | Implemented, needs deeper benchmark hardening | Crisfield |
-| Higher-order plate elements | DKT only, limited convergence | — |
-
-### Not Yet Covered
-
-These are areas important to structural engineering practice that the engine does not yet address:
-
-| Topic | Notes |
-|-------|-------|
-| Timoshenko beam element (shear deformation) | Implemented; broader benchmark maturity still needed |
-| Cable/catenary elements | 2D cable solver exists; broader bridge/cable-net depth remains open |
-| Prestressed / post-tensioned concrete | Partial staged/prestress support exists; not a full PT workflow |
-| Cracked concrete section analysis | Not modeled |
-| Creep, shrinkage, time-dependent effects | Not modeled |
-| Soil-structure interaction beyond Winkler | No p-y curves, pile groups |
-| Dynamic wind / gust response | Wind is static lateral loads only |
-| Fatigue / cumulative damage | Not modeled |
-| Connection design (bolt/weld capacity) | Basic postprocess connection checks exist; broader joint families remain open |
-| Fire resistance analysis | No temperature-dependent material properties |
-| Construction staging | 2D and 3D staged analysis exist; broader lifecycle/time-dependent workflows remain open |
-| Fiber-based cross-section plasticity | Only simplified plastic-hinge collapse |
+For the detailed gap inventory and benchmark status, use [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
 
 ## Differential Fuzz Tests
 

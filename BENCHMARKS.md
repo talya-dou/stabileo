@@ -101,9 +101,11 @@ The benchmark suite is only one part of solver verification. A structural solver
    Full workflows such as staged analysis, time history, moving loads, harmonic response, nonlinear 3D, shell thermal loading, and multi-case / envelope operations.
 7. `Regression testing`
    Every bug should leave behind a permanent minimal reproducer.
-8. `Performance and scale testing`
+8. `Property / invariant testing`
+   Constraint consistency, symmetry, equilibrium, reciprocal behavior, rigid-body mode handling, and similar solver invariants should be checked systematically across solver families.
+9. `Performance and scale testing`
    Solve time, memory use, iteration counts, sparse vs dense crossover behavior, and large-model reliability.
-9. `Real-model acceptance testing`
+10. `Real-model acceptance testing`
    Representative building, bridge, plate/shell, cable, prestress, and staged-construction models that look like actual engineering work, not only textbook cases.
 
 ### Notes on Differential Testing
@@ -117,6 +119,8 @@ The right long-term role for differential tests here is:
 - compare against external published references or commercial/open-source cross-check models
 
 In other words, the benchmark strategy should be framed around reproducibility and solver consistency, not around parity with a removed TypeScript solver.
+
+For the broader verification strategy, including fuzzing and selective formal verification, see [`VERIFICATION.md`](/Users/unbalancedparen/projects/dedaliano/VERIFICATION.md).
 
 ---
 
@@ -163,7 +167,7 @@ Status definitions used here:
 | 2D frame / truss elements | Strong | `element/frame.rs`, `element/truss` behavior via linear solver/tests | Mostly shear deformation and nonlinear upgrades |
 | 3D frame / truss elements | Strong | `element/frame.rs`, broad `validation_3d_*` coverage | More difficult mixed nonlinear / shell-coupled cases and warping hardening |
 | Plate / shell triangles | Good | `element/plate.rs`, `validation_plates.rs`, `validation_scordelis_lo.rs`, recent drilling/nodal-stress/thermal upgrades | Higher fidelity shell behavior, convergence quality, and more benchmark depth |
-| MITC4 quadrilateral shell element | Partial | `element/quad.rs` | Element formulation exists, but it is not yet fully wired through the standard input / assembly / public API path |
+| MITC4 quadrilateral shell element | Good | `element/quad.rs`, integrated through standard input and assembly | Needs benchmark depth, shell workflow hardening, and broader mixed-model validation |
 | Curved beams | Partial | `element/curved_beam.rs`, `validation_curved_beams.rs` | Current approach is segmented expansion, not native high-end formulation |
 | Timoshenko beam / shear deformation | Good | `element/frame.rs`, shear-area fields in `types/input.rs`, `validation_timoshenko_solver.rs` | Needs broader production validation across all solver modes |
 | Cable / catenary element | Good | `element/cable.rs`, `solver/cable.rs`, `integration_cable_solver.rs` | Needs broader bridge/cable-net/staged benchmark depth |
@@ -171,15 +175,16 @@ Status definitions used here:
 | Thermal loads / settlements / springs | Strong | `validation_thermal_*`, `validation_prescribed_*`, `validation_spring_supports.rs` | More coupled / 3D edge cases |
 | Winkler foundation solvers (2D/3D) | Good | `solver/winkler.rs`, `integration_winkler.rs`, `validation_foundation_interaction.rs` | Broader SSI families beyond Winkler and tougher benchmark parity |
 | Nonlinear SSI beyond Winkler | Good | `solver/ssi.rs`, `solver/soil_curves.rs` | Needs broader workflow integration, benchmark depth, and stronger mixed-model coupling |
-| Constraint technology | Partial | `solver/constraints.rs`, constraint types in `types/input.rs` | Core MPC/rigid-link/diaphragm logic exists, but still needs standard-solver and public-API integration |
-| Contact / gap / unilateral support behavior | Good | `solver/contact.rs` | 2D/3D support exists, but 3D gap handling is still partial and needs hardening |
+| Constraint technology | Good | `solver/constraints.rs`, constraint types in `types/input.rs`, base solver integration | Needs benchmark depth and workflow hardening |
+| Contact / gap / unilateral support behavior | Good | `solver/contact.rs` | 2D and 3D support exist; the remaining gap is harder contact variants and hardening |
 | Nonlinear solution controls | Good | `solver/line_search.rs`, `solver/adaptive_stepping.rs`, `solver/arc_length.rs` | Controls exist, but they still need broader integration, benchmark depth, and harder-path validation |
-| Fiber / section-based beam-column elements | Good | `element/fiber_beam.rs`, `solver/fiber_nonlinear.rs` | 2D distributed plasticity exists; 3D fiber beam-columns and broader workflow integration remain open |
+| Fiber / section-based beam-column elements | Good | `element/fiber_beam.rs`, `solver/fiber_nonlinear.rs` | 2D and 3D distributed plasticity exist; the remaining gap is benchmark depth and workflow hardening |
+| Initial imperfections / residual stress | Good | `solver/imperfections.rs`, new input types in `types/input.rs` | Needs broader nonlinear integration and benchmark depth |
 | Pressure loads on plates | Good | `SolverLoad3D::Pressure`, plate validation files | Better load vectors and shell-quality convergence |
 | Plate thermal loads / stress recovery | Good | `element/plate.rs`, recent plate integration tests | More benchmark depth and smoothing/quality validation |
 | Prestress / post-tension FE analysis | Good | `solver/prestress.rs`, `solver/staged.rs`, `integration_staged_analysis.rs`, `integration_staged_3d.rs` | Real PT depth now exists, but coupled long-term behavior and broader workflow coverage remain open |
 | Construction staging | Good | `solver/staged.rs`, `integration_staged_analysis.rs`, `integration_staged_3d.rs` | 2D and 3D staged solvers exist; broader workflow depth and time-dependent coupling remain open |
-| Creep / shrinkage / relaxation response | Gap | Formula-level tests exist, no coupled structural response solver | Time-dependent constitutive / load-history implementation |
+| Creep / shrinkage / relaxation response | Good | `solver/creep_shrinkage.rs` | Needs broader staged/PT coupling and benchmark depth |
 | Kinematic / mechanism diagnostics | Strong | `solver/kinematic.rs`, `validation_kinematic.rs`, `validation_3d_kinematic.rs` | Better diagnostics/reporting, not major formulation gap |
 | Section analysis / section properties | Good | `section/mod.rs`, `integration_section.rs`, `validation_section_stress.rs` | Needs richer section libraries and tighter integration with nonlinear/design workflows |
 
@@ -216,50 +221,50 @@ This is the solver-core ordering to use when the goal is technical leadership ra
 
 | Priority | Topic | Why now |
 |----------|-------|---------|
-| 1 | Public API exposure for new solver families | Constraints, contact, SSI, arc-length/displacement control, and fiber nonlinear now exist internally but still need clean public entry points |
-| 2 | MITC4 integration into the standard model path | The quad shell element exists, but it still needs standard input and assembly integration |
-| 3 | Benchmark hardening on newest solver families | The newest solver modules need deeper benchmark parity faster than they need more feature count |
-| 4 | Initial imperfections / initial state basics | This is now one of the clearest remaining solver-class gaps |
+| 1 | Benchmark hardening on newest solver families | The newest solver modules need deeper benchmark parity faster than they need more feature count |
+| 2 | Performance and scale engineering | The solver is broad enough that large-model robustness and sparse performance now matter more |
+| 3 | Better shell reliability and workflow depth | Shell quality and mixed-model behavior are now a bigger differentiator than basic shell presence |
+| 4 | Advanced contact variants | Basic contact exists; the next layer is richer unilateral/contact behavior and harder convergence cases |
 | 5 | Legacy validation cleanup | Warping and other older placeholder files need to be brought in line with the current code surface |
 
 ##### 3-6 months
 
 | Priority | Topic | Why now |
 |----------|-------|---------|
-| 6 | 3D fiber beam-columns | 2D distributed plasticity exists; extending it to 3D is the biggest remaining nonlinear formulation gap |
-| 7 | 3D contact maturity | Contact now exists, but 3D gap behavior is still explicitly incomplete |
-| 8 | Better shell reliability and MITC4 hardening | After wiring MITC4 into the main path, shell quality and mixed-model behavior become the next leverage point |
-| 9 | Performance and scale engineering | The solver is broad enough that large-model robustness and sparse performance now matter more |
+| 6 | Model reduction / substructuring | Valuable once the core nonlinear and shell stack is hardened |
+| 7 | Deeper prestress / staged time-dependent coupling | Prestress exists; long-term staged PT workflows still need more coupling depth |
+| 8 | Specialized shell breadth | Curved shells, broader mixed interpolation, and production shell workflows remain a real solver program |
+| 9 | Benchmark and acceptance-model expansion | Real-model acceptance cases should grow with the new solver surface |
 
 ##### 12 months+
 
 | Priority | Topic | Why later |
 |----------|-------|-----------|
-| 10 | Coupled creep / shrinkage / relaxation response | The main long-term concrete/PT solver gap is now time-dependent response, not prestress existence |
-| 11 | Advanced contact | Much harder than unilateral gap/support behavior and brings heavy convergence cost |
-| 12 | Top-tier shell breadth | Curved shells, broader mixed interpolation, and production shell workflows remain a real solver program |
-| 13 | Model reduction / substructuring | Valuable once the core nonlinear/shell stack is fully integrated and hardened |
+| 10 | Fire / fatigue / specialized lifecycle domains | Important, but no longer core to claiming an elite mainstream structural solver |
+| 11 | Membranes / cable nets / specialized tensile structures | Valuable for long-span specialty markets rather than mainstream parity |
+| 12 | Bridge-specific advanced workflows | High-value specialization once the core solver is fully hardened |
+| 13 | Broader domain expansion | Additional specialty areas should come after the mainstream structural core is clearly dominant |
 
 #### Must Do Before Claiming Top-Tier
 
 | Priority | Topic | Why It Matters |
 |----------|-------|----------------|
-| 1 | Public API and standard-workflow integration | New solver families only create product and benchmark leverage once they are reachable through normal inputs and public entry points |
-| 2 | Benchmark hardening on newest solver families | The remaining differentiator is now proof and hardening, not only additional categories |
-| 3 | Initial imperfections / initial state modeling | Out-of-plumbness, residual stress, prestrain/preload, and initial stress fields are still missing from the main solver path |
-| 4 | 3D fiber beam-columns | 2D distributed plasticity exists; 3D spread-plasticity remains a major nonlinear gap |
-| 5 | Full 3D contact maturity | Contact exists, but the 3D path still needs completion and hardening |
-| 6 | Shell upgrade and MITC4 integration | The quad shell element exists; now it must become a production shell path |
-| 7 | Performance / scale engineering | Large-model reliability, sparse performance, conditioning, and eigensolver robustness are part of solver quality, not implementation detail |
+| 1 | Benchmark hardening on newest solver families | The remaining differentiator is now proof and hardening, not only additional categories |
+| 2 | Shell workflow and reliability hardening | MITC4 is wired; now the shell path must become a production shell workflow |
+| 3 | Performance / scale engineering | Large-model reliability, sparse performance, conditioning, and eigensolver robustness are part of solver quality, not implementation detail |
+| 4 | Advanced contact variants | Contact exists; the remaining step is richer contact behavior and harder convergence cases |
+| 5 | Deeper prestress / staged time-dependent coupling | Time-dependent response exists, but PT/staged coupling still needs more depth |
+| 6 | Model reduction / substructuring | Important for large-model workflows once the core solver is hardened |
+| 7 | Specialized domain expansion | Fire, fatigue, membranes, cable nets, and bridge-specific workflows come after the mainstream core is hardened |
 
 #### Important For Parity
 
 | Priority | Topic | Why It Matters |
 |----------|-------|----------------|
-| 8 | Coupled creep / shrinkage / relaxation response | Important for concrete/PT parity and long-term workflows |
-| 9 | Deeper prestress / staged time-dependent coupling | Prestress exists, but full long-term staged PT workflows remain open |
-| 10 | Better soil-structure workflow integration | Beyond standalone SSI: stronger coupling into foundation, staged, and infrastructure workflows |
-| 11 | Model reduction / condensation / substructuring | Important for larger models and more sophisticated engineering workflows |
+| 8 | Better soil-structure workflow integration | Beyond standalone SSI: stronger coupling into foundation, staged, and infrastructure workflows |
+| 9 | Fire / fatigue / lifecycle domains | Important for specific markets after the mainstream solver is fully hardened |
+| 10 | Bridge-specific advanced workflows | Important for infrastructure specialization rather than mainstream parity |
+| 11 | Membranes / cable nets / specialized tensile structures | Important for specialty long-span markets, not mainstream parity |
 
 #### Later / Specialization
 
@@ -330,31 +335,32 @@ This is the approximate implementation difficulty ordering for the remaining sol
 | Staged truss/cable force handling | Completed | This was a contained staged/result-reconstruction cleanup, not a new solver family. |
 | Warping torsion core implementation | Completed | The core 14-DOF implementation now exists; the remaining work is validation cleanup and hardening. |
 | Full PT depth improvements | Completed | Prestress/PT depth has moved from clear gap to implemented-but-still-hardening. |
-| Public API exposure for new solver families | Open | Mostly integration work rather than new mechanics. |
+| Public API exposure for new solver families | Completed | The newest solver families are now being exposed through the main engine surface. |
 | Legacy validation cleanup | Open | Some old placeholder files, especially warping, no longer match the code. |
 
 #### Medium
 
 | Topic | Status | Why |
 |---|---|---|
-| SSI beyond Winkler | Completed | `p-y`, `t-z`, and `q-z` support now exists; remaining work is integration and hardening. |
-| Constraint technology | Completed | MPCs, rigid links, diaphragms, and equal-DOF support now exist; remaining work is workflow/API integration. |
-| MITC4 integration into the main model path | Open | The element exists, but standard input/assembly integration still needs to happen. |
-| Initial imperfections / initial state basics | Open | Conceptually clean, but needs main-path input and solver integration. |
+| SSI beyond Winkler | Completed | `p-y`, `t-z`, and `q-z` support now exists; remaining work is hardening. |
+| Constraint technology | Completed | MPCs, rigid links, diaphragms, and equal-DOF support now exist in the main solver flow. |
+| MITC4 integration into the main model path | Completed | The quadrilateral shell element is now wired into standard input and assembly. |
+| Initial imperfections / initial state basics | Completed | Initial geometric imperfections and residual-stress inputs now exist; remaining work is hardening and benchmark depth. |
 
 #### Medium to High
 
 | Topic | Status | Why |
 |---|---|---|
 | Nonlinear solution controls | Completed | Line search, adaptive stepping, arc-length, and displacement control now exist; remaining work is broader hardening. |
-| Contact / gap basics | Completed | Basic unilateral/contact capability now exists; remaining work is deeper 3D maturity and harder contact cases. |
-| 3D contact maturity | Open | The 3D path exists but still has explicit incomplete cases. |
+| Contact / gap basics | Completed | Basic unilateral/contact capability now exists in 2D and 3D. |
+| 3D contact maturity | Completed | 3D gap and uplift support now exist; remaining work is harder contact variants and hardening. |
 
 #### High
 
 | Topic | Status | Why |
 |---|---|---|
-| 3D fiber / section-based beam-column elements | Open | 2D distributed plasticity now exists; 3D remains the major remaining formulation jump. |
+| 3D fiber / section-based beam-column elements | Completed | 2D and 3D distributed plasticity now exist; remaining work is hardening and benchmark depth. |
+| Time-dependent creep / shrinkage / relaxation response | Completed | Time-dependent structural response now exists; remaining work is broader staged/PT coupling and benchmark depth. |
 
 #### Very High
 
@@ -1289,20 +1295,18 @@ These are the largest gaps between the current engine and a top-tier structural 
 
 | Topic | Difficulty | Current State | Why It Matters |
 |-------|-----------|---------------|----------------|
-| Public API / standard-workflow exposure for new solver families | Medium | Gap | Constraints, contact, SSI, arc-length/displacement control, and fiber nonlinear should be reachable through the same public surface as the rest of the solver |
-| MITC4 quadrilateral shell integration | Medium | Partial | The element exists, but it still needs standard input and assembly wiring to become a normal modeling option |
+| Initial imperfections / residual-stress modeling hardening | Medium | Good | Core implementation exists; what remains is nonlinear integration depth and benchmark maturity |
 | Warping torsion (7th DOF) hardening | Medium | Good | Core implementation exists; what remains is benchmark cleanup, mixed-model edge cases, and broader validation |
 | Cable / catenary elements | Medium | Good | Implemented, but needs broader benchmark maturity and specialized behavior depth |
 | 3D geometric nonlinear (corotational) | Hard | Good | Implemented, but needs stronger controls and benchmark breadth |
 | 3D material nonlinear | Hard | Partial | Implemented, but still early relative to top-tier inelastic solvers |
-| 3D fiber beam-columns | Hard | Gap | 2D distributed plasticity exists; 3D spread-plasticity remains a major nonlinear gap |
 | Prestress / post-tension FE behavior | Hard | Good | Real PT depth exists now, but full time-dependent coupling and workflow breadth remain open |
 | Construction staging | Hard | Good | 2D and 3D implementations exist; broader workflow depth and prestress/time-dependent coupling remain open |
-| Creep & shrinkage response | Hard | Gap | Essential for long-term concrete/PT behavior |
+| Creep & shrinkage response | Hard | Good | Core time-dependent response now exists; the remaining gap is broader staged/PT coupling and long-term benchmark depth |
 | Plate / shell advanced elements and load vectors | Hard | Good | Triangles and MITC4 now exist; the gap is production shell breadth, reliability, and integration |
-| Full 3D contact maturity | Hard | Partial | Contact exists, but the 3D path still has explicitly incomplete cases |
+| Advanced contact variants | Hard | Good | Contact exists, but richer contact laws and harder convergence cases remain open |
 | Nonlinear solution controls and path-following hardening | Hard | Good | Controls now exist; what remains is hard-path validation and broader integration |
-| Constraint workflow integration | Medium | Partial | Constraint mechanics exist, but they still need smoother integration into standard solve flows and APIs |
+| Model reduction / substructuring | Medium | Gap | Important for large-model workflows, repeated solves, and advanced scaling |
 
 ### Engineering / Design Coverage and Gaps
 

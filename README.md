@@ -69,6 +69,9 @@ The solver currently combines:
 - contact and soil-structure interaction
 - staged construction and prestress / PT workflows
 - warping torsion
+- 3D fiber beam-column nonlinear analysis
+- initial imperfections and residual-stress modeling
+- time-dependent creep / shrinkage response
 - dynamic analysis
 - strong postprocessing and design layers
 - broad validation coverage
@@ -78,11 +81,61 @@ The main remaining differentiators are:
 - robustness on hard real models
 - performance at scale
 - benchmark credibility
-- workflow and modeling quality
+- shell maturity and workflow quality
 
 A reasonable description today is:
 
 `Dedaliano is a strong open structural solver with broad analysis coverage and a large public validation program.`
+
+What is distinctive is not any one verification technique by itself. The stronger identity is:
+
+`an open, browser-native structural solver with unusually deep public proof of correctness`
+
+For the full verification strategy, see [`VERIFICATION.md`](/Users/unbalancedparen/projects/dedaliano/VERIFICATION.md).
+
+## Supported capabilities
+
+At a high level, the current solver supports:
+
+- 2D and 3D linear static analysis
+- 2D and 3D second-order analysis, buckling, modal analysis, response spectrum, time history, harmonic response, and moving loads
+- 2D and 3D corotational and material nonlinear analysis
+- plastic analysis, staged construction, prestress / post-tension workflows, cable analysis, contact / gap behavior, and nonlinear SSI
+- initial imperfections / residual stress modeling and time-dependent creep / shrinkage workflows
+- frame, truss, cable, plate, and shell formulations, including Timoshenko beams, warping torsion, triangular plates, and MITC4 quadrilateral shells
+- constraints including rigid links, diaphragms, equal-DOF constraints, and general linear MPCs
+- 2D and 3D fiber beam-column nonlinear solvers
+- section analysis, stress recovery, load combinations, envelopes, and kinematic diagnostics
+- design-check and postprocess modules for steel, concrete, timber, masonry, cold-formed steel, serviceability, connections, and foundations
+
+For the detailed engine surface and current maturity by category, see [`engine/README.md`](/Users/unbalancedparen/projects/dedaliano/engine/README.md) and [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
+
+## Supported codes and validation references
+
+Current design-check and workflow coverage includes:
+
+- `AISC 360`
+- `ACI 318`
+- `EN 1992-1-1 (EC2)`
+- `EN 1993-1-1 (EC3)`
+- `CIRSOC 201`
+- `AISI S100`
+- `NDS`
+- `TMS 402`
+- `ASCE 7`, `EN 1990`, and related load-combination / serviceability workflows where applicable
+
+The solver and postprocess stack are validated against analytical solutions and benchmark families including:
+
+- `NAFEMS`
+- `ANSYS Verification Manual`
+- `Code_Aster`
+- `SAP2000`
+- `OpenSees`
+- `Robot Structural Analysis`
+- `STAAD.Pro`
+- textbook and closed-form structural mechanics references
+
+For exact benchmark families, validation files, and current status, see [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
 
 ## What is structural analysis
 
