@@ -71,12 +71,16 @@ pub fn solve_nonlinear_material_2d(
         }
     }
 
+    // Pre-build lookup maps for O(1) access by ID.
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+
     // Initialize element states: all elastic.
     let mut states: Vec<(usize, ElementState)> = solver
         .elements
         .values()
         .map(|elem| {
-            let alpha = lookup_alpha(input, elem);
+            let alpha = lookup_alpha(input, &mat_by_id, elem);
             (
                 elem.id,
                 ElementState {
@@ -219,13 +223,12 @@ pub fn solve_nonlinear_material_2d(
 // Helper: look up the hardening ratio alpha for an element.
 // ---------------------------------------------------------------------------
 
-fn lookup_alpha(input: &NonlinearMaterialInput, elem: &SolverElement) -> f64 {
-    let mat = input
-        .solver
-        .materials
-        .values()
-        .find(|m| m.id == elem.material_id);
-    if let Some(mat) = mat {
+fn lookup_alpha(
+    input: &NonlinearMaterialInput,
+    mat_by_id: &std::collections::HashMap<usize, &SolverMaterial>,
+    elem: &SolverElement,
+) -> f64 {
+    if let Some(mat) = mat_by_id.get(&elem.material_id) {
         let mat_key = mat.id.to_string();
         if let Some(model) = input.material_models.get(&mat_key) {
             return model.alpha.unwrap_or(DEFAULT_ALPHA);
@@ -260,11 +263,18 @@ fn assemble_tangent_stiffness(
     let n = dof_num.n_total;
     let mut k_global = vec![0.0; n * n];
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> =
+        solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection> =
+        solver.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in solver.elements.values() {
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -407,11 +417,18 @@ fn compute_global_internal_forces(
     let n = dof_num.n_total;
     let mut f_int = vec![0.0; n];
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> =
+        solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection> =
+        solver.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in solver.elements.values() {
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -521,10 +538,12 @@ fn update_element_states(
     // This gives us the "demand" forces on each element.
     let element_forces = super::linear::compute_internal_forces_2d(solver, dof_num, u);
 
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement> =
+        solver.elements.values().map(|e| (e.id, e)).collect();
+
     for ef in &element_forces {
-        let elem = solver.elements.values().find(|e| e.id == ef.element_id);
-        let elem = match elem {
-            Some(e) => e,
+        let elem = match elem_by_id.get(&ef.element_id) {
+            Some(e) => *e,
             None => continue,
         };
 
@@ -635,9 +654,12 @@ fn build_element_status(
     let element_forces = super::linear::compute_internal_forces_2d(solver, dof_num, u);
     let mut statuses = Vec::new();
 
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement> =
+        solver.elements.values().map(|e| (e.id, e)).collect();
+
     for ef in &element_forces {
-        let elem = match solver.elements.values().find(|e| e.id == ef.element_id) {
-            Some(e) => e,
+        let elem = match elem_by_id.get(&ef.element_id) {
+            Some(e) => *e,
             None => continue,
         };
 
@@ -759,12 +781,16 @@ pub fn solve_nonlinear_material_3d(
         }
     }
 
+    // Pre-build lookup map for O(1) access by ID.
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+
     // Initialize element states: all elastic.
     let mut states: Vec<(usize, ElementState3D)> = solver
         .elements
         .values()
         .map(|elem| {
-            let alpha = lookup_alpha_3d(input, elem);
+            let alpha = lookup_alpha_3d(input, &mat_by_id, elem);
             (
                 elem.id,
                 ElementState3D {
@@ -884,13 +910,12 @@ pub fn solve_nonlinear_material_3d(
 // 3D helper: look up hardening ratio alpha for a 3D element.
 // ---------------------------------------------------------------------------
 
-fn lookup_alpha_3d(input: &NonlinearMaterialInput3D, elem: &SolverElement3D) -> f64 {
-    let mat = input
-        .solver
-        .materials
-        .values()
-        .find(|m| m.id == elem.material_id);
-    if let Some(mat) = mat {
+fn lookup_alpha_3d(
+    input: &NonlinearMaterialInput3D,
+    mat_by_id: &std::collections::HashMap<usize, &SolverMaterial>,
+    elem: &SolverElement3D,
+) -> f64 {
+    if let Some(mat) = mat_by_id.get(&elem.material_id) {
         let mat_key = mat.id.to_string();
         if let Some(model) = input.material_models.get(&mat_key) {
             return model.alpha.unwrap_or(DEFAULT_ALPHA);
@@ -925,11 +950,18 @@ fn assemble_tangent_stiffness_3d(
     let mut k_global = vec![0.0; n * n];
     let left_hand = solver.left_hand.unwrap_or(false);
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> =
+        solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection3D> =
+        solver.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in solver.elements.values() {
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -1055,11 +1087,18 @@ fn compute_global_internal_forces_3d(
     let mut f_int = vec![0.0; n];
     let left_hand = solver.left_hand.unwrap_or(false);
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> =
+        solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection3D> =
+        solver.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in solver.elements.values() {
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -1204,9 +1243,12 @@ fn update_element_states_3d(
 ) {
     let element_forces = super::linear::compute_internal_forces_3d(solver, dof_num, u);
 
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement3D> =
+        solver.elements.values().map(|e| (e.id, e)).collect();
+
     for ef in &element_forces {
-        let elem = match solver.elements.values().find(|e| e.id == ef.element_id) {
-            Some(e) => e,
+        let elem = match elem_by_id.get(&ef.element_id) {
+            Some(e) => *e,
             None => continue,
         };
 
@@ -1312,9 +1354,12 @@ fn build_element_status_3d(
     let element_forces = super::linear::compute_internal_forces_3d(solver, dof_num, u);
     let mut statuses = Vec::new();
 
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement3D> =
+        solver.elements.values().map(|e| (e.id, e)).collect();
+
     for ef in &element_forces {
-        let elem = match solver.elements.values().find(|e| e.id == ef.element_id) {
-            Some(e) => e,
+        let elem = match elem_by_id.get(&ef.element_id) {
+            Some(e) => *e,
             None => continue,
         };
 

@@ -14,18 +14,21 @@ pub fn add_geometric_stiffness_2d(
     k_global: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> = input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection> = input.sections.values().map(|s| (s.id, s)).collect();
 
     for elem in input.elements.values() {
         if elem.elem_type == "truss" || elem.elem_type == "cable" {
             // Truss geometric stiffness
-            add_truss_kg_2d(input, dof_num, elem, u, k_global, n);
+            add_truss_kg_2d(&node_by_id, &mat_by_id, &sec_by_id, dof_num, elem, u, k_global, n);
             continue;
         }
 
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -83,17 +86,19 @@ pub fn add_geometric_stiffness_2d(
 }
 
 fn add_truss_kg_2d(
-    input: &SolverInput,
+    node_by_id: &std::collections::HashMap<usize, &SolverNode>,
+    mat_by_id: &std::collections::HashMap<usize, &SolverMaterial>,
+    sec_by_id: &std::collections::HashMap<usize, &SolverSection>,
     dof_num: &DofNumbering,
     elem: &SolverElement,
     u: &[f64],
     k_global: &mut [f64],
     n: usize,
 ) {
-    let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-    let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-    let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-    let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+    let node_i = node_by_id[&elem.node_i];
+    let node_j = node_by_id[&elem.node_j];
+    let mat = mat_by_id[&elem.material_id];
+    let sec = sec_by_id[&elem.section_id];
 
     let dx = node_j.x - node_i.x;
     let dy = node_j.y - node_i.y;
@@ -151,11 +156,13 @@ pub fn build_kg_from_forces_2d(
 ) -> Vec<f64> {
     let n = dof_num.n_total;
     let mut k_g = vec![0.0; n * n];
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement> = input.elements.values().map(|e| (e.id, e)).collect();
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
 
     for ef in element_forces {
-        let elem = input.elements.values().find(|e| e.id == ef.element_id).unwrap();
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let elem = elem_by_id[&ef.element_id];
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -233,11 +240,13 @@ pub fn build_kg_from_forces_3d(
     let n = dof_num.n_total;
     let mut k_g = vec![0.0; n * n];
     let left_hand = input.left_hand.unwrap_or(false);
+    let elem_by_id: std::collections::HashMap<usize, &SolverElement3D> = input.elements.values().map(|e| (e.id, e)).collect();
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
 
     for ef in element_forces {
-        let elem = input.elements.values().find(|e| e.id == ef.element_id).unwrap();
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let elem = elem_by_id[&ef.element_id];
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -333,16 +342,18 @@ pub fn add_quad_geometric_stiffness_3d(
     k_g: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> = input.materials.values().map(|m| (m.id, m)).collect();
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
 
     for quad in input.quads.values() {
-        let mat = input.materials.values().find(|m| m.id == quad.material_id).unwrap();
+        let mat = mat_by_id[&quad.material_id];
         let e = mat.e * 1000.0;
         let nu = mat.nu;
 
-        let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-        let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+        let n0 = node_by_id[&quad.nodes[0]];
+        let n1 = node_by_id[&quad.nodes[1]];
+        let n2 = node_by_id[&quad.nodes[2]];
+        let n3 = node_by_id[&quad.nodes[3]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
@@ -386,12 +397,15 @@ pub fn add_geometric_stiffness_3d(
 ) {
     let n = dof_num.n_total;
     let left_hand = input.left_hand.unwrap_or(false);
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> = input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection3D> = input.sections.values().map(|s| (s.id, s)).collect();
 
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;

@@ -13,10 +13,13 @@ pub fn assemble_mass_matrix_2d(
     let n = dof_num.n_total;
     let mut m_global = vec![0.0; n * n];
 
+    let node_by_id: HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let section_by_id: HashMap<usize, &SolverSection> = input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let sec = section_by_id[&elem.section_id];
 
         let density = densities.get(&elem.material_id.to_string()).copied().unwrap_or(0.0);
         if density <= 0.0 {
@@ -138,13 +141,16 @@ pub fn assemble_mass_matrix_3d(
     let mut m_global = vec![0.0; n * n];
     let left_hand = input.left_hand.unwrap_or(false);
 
+    let node_by_id: HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let section_by_id: HashMap<usize, &SolverSection3D> = input.sections.values().map(|s| (s.id, s)).collect();
+
     /// Maps 12-DOF element indices to 14-DOF positions, skipping warping DOFs 6 and 13.
     const DOF_MAP_12_TO_14: [usize; 12] = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12];
 
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let sec = section_by_id[&elem.section_id];
 
         let density = densities.get(&elem.material_id.to_string()).copied().unwrap_or(0.0);
         if density <= 0.0 { continue; }
@@ -225,9 +231,9 @@ pub fn assemble_mass_matrix_3d(
         let density = densities.get(&plate.material_id.to_string()).copied().unwrap_or(0.0);
         if density <= 0.0 { continue; }
 
-        let node_1 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-        let node_2 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-        let node_3 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let node_1 = node_by_id[&plate.nodes[0]];
+        let node_2 = node_by_id[&plate.nodes[1]];
+        let node_3 = node_by_id[&plate.nodes[2]];
 
         let coords = [
             [node_1.x, node_1.y, node_1.z],
@@ -261,10 +267,10 @@ pub fn assemble_mass_matrix_3d(
         let density = densities.get(&quad.material_id.to_string()).copied().unwrap_or(0.0);
         if density <= 0.0 { continue; }
 
-        let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-        let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+        let n0 = node_by_id[&quad.nodes[0]];
+        let n1 = node_by_id[&quad.nodes[1]];
+        let n2 = node_by_id[&quad.nodes[2]];
+        let n3 = node_by_id[&quad.nodes[3]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
@@ -371,11 +377,14 @@ pub fn compute_total_mass_3d(
     input: &SolverInput3D,
     densities: &HashMap<String, f64>,
 ) -> f64 {
+    let node_by_id: HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let section_by_id: HashMap<usize, &SolverSection3D> = input.sections.values().map(|s| (s.id, s)).collect();
+
     let mut total = 0.0;
     for elem in input.elements.values() {
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let sec = section_by_id[&elem.section_id];
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
         let density = densities.get(&elem.material_id.to_string()).copied().unwrap_or(0.0);
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -389,9 +398,9 @@ pub fn compute_total_mass_3d(
         let density = densities.get(&plate.material_id.to_string()).copied().unwrap_or(0.0);
         if density <= 0.0 { continue; }
 
-        let node_1 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-        let node_2 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-        let node_3 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let node_1 = node_by_id[&plate.nodes[0]];
+        let node_2 = node_by_id[&plate.nodes[1]];
+        let node_3 = node_by_id[&plate.nodes[2]];
 
         let v1 = [node_2.x - node_1.x, node_2.y - node_1.y, node_2.z - node_1.z];
         let v2 = [node_3.x - node_1.x, node_3.y - node_1.y, node_3.z - node_1.z];
@@ -412,11 +421,14 @@ pub fn compute_total_mass(
     input: &SolverInput,
     densities: &HashMap<String, f64>,
 ) -> f64 {
+    let node_by_id: HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let section_by_id: HashMap<usize, &SolverSection> = input.sections.values().map(|s| (s.id, s)).collect();
+
     let mut total = 0.0;
     for elem in input.elements.values() {
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let sec = section_by_id[&elem.section_id];
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
         let density = densities.get(&elem.material_id.to_string()).copied().unwrap_or(0.0);
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;

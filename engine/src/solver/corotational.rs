@@ -137,11 +137,18 @@ fn assemble_corotational(
 ) {
     let n = dof_num.n_total;
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let e = mat.e * 1000.0; // MPa -> kN/m^2
 
@@ -398,9 +405,8 @@ fn subtract_element_fef(
     _a: f64,
     _iz: f64,
     f_local: &mut [f64; 6],
+    sec: &SolverSection,
 ) {
-    let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
-
     for load in &input.loads {
         match load {
             SolverLoad::Distributed(dl) if dl.element_id == elem.id => {
@@ -574,11 +580,18 @@ fn compute_corotational_forces(
 ) -> Vec<ElementForces> {
     let mut forces = Vec::new();
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let e = mat.e * 1000.0;
 
@@ -650,7 +663,7 @@ fn compute_corotational_forces(
             }
 
             // Subtract FEF for output (element forces = K*u - FEF)
-            subtract_element_fef(input, elem, l0, e, sec.a, sec.iz, &mut f_local);
+            subtract_element_fef(input, elem, l0, e, sec.a, sec.iz, &mut f_local, sec);
 
             // Collect load metadata
             let (mut total_qi, mut total_qj) = (0.0, 0.0);
@@ -824,11 +837,18 @@ fn assemble_corotational_3d(
 ) {
     let n = dof_num.n_total;
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection3D> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let e = mat.e * 1000.0; // MPa → kN/m²
         let g = e / (2.0 * (1.0 + mat.nu));
@@ -1251,11 +1271,18 @@ fn compute_corotational_forces_3d(
 ) -> Vec<ElementForces3D> {
     let mut forces = Vec::new();
 
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: std::collections::HashMap<usize, &SolverSection3D> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let e = mat.e * 1000.0;
         let g = e / (2.0 * (1.0 + mat.nu));
