@@ -4,6 +4,7 @@ use super::dof::DofNumbering;
 use super::assembly::*;
 use super::linear::{build_displacements_2d, compute_internal_forces_2d,
     build_displacements_3d, compute_internal_forces_3d};
+use super::constraints::FreeConstraintSystem;
 
 /// Free DOFs threshold for sparse path in P-Delta iterations.
 const SPARSE_THRESHOLD: usize = 64;
@@ -41,6 +42,15 @@ pub fn solve_pdelta_2d(
     let free_idx: Vec<usize> = (0..nf).collect();
     let f_f = extract_subvec(&asm.f, &free_idx);
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.constraints, &dof_num, &input.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+    let f_solve = if let Some(ref cs) = cs {
+        cs.reduce_vector(&f_f)
+    } else {
+        f_f.clone()
+    };
+
     let mut u_prev = vec![0.0; n];
     // Initialize with linear displacements
     for d in &linear_results.displacements {
@@ -54,7 +64,7 @@ pub fn solve_pdelta_2d(
     let mut converged = false;
     let mut iterations = 0;
     let mut u_current = u_prev.clone();
-    let use_sparse = nf >= SPARSE_THRESHOLD;
+    let use_sparse = ns >= SPARSE_THRESHOLD;
     let mut symbolic: Option<SymbolicCholesky> = None;
 
     for iter in 0..max_iter {
@@ -64,19 +74,23 @@ pub fn solve_pdelta_2d(
         let mut k_total = asm.k.clone();
         super::geometric_stiffness::add_geometric_stiffness_2d(input, &dof_num, &u_current, &mut k_total);
 
-        // Extract Kff (with K_G) and solve
+        // Extract Kff (with K_G) and optionally apply constraint transform
         let k_ff = extract_submatrix(&k_total, n, &free_idx, &free_idx);
+        let k_solve = if let Some(ref cs) = cs {
+            cs.reduce_matrix(&k_ff)
+        } else {
+            k_ff
+        };
 
-        let u_f = if use_sparse {
-            let k_ff_csc = CscMatrix::from_dense_symmetric(&k_ff, nf);
-            let sym = symbolic.get_or_insert_with(|| symbolic_cholesky(&k_ff_csc));
-            match numeric_cholesky(sym, &k_ff_csc) {
-                Some(factor) => sparse_cholesky_solve(&factor, &f_f),
+        let u_indep = if use_sparse {
+            let k_csc = CscMatrix::from_dense_symmetric(&k_solve, ns);
+            let sym = symbolic.get_or_insert_with(|| symbolic_cholesky(&k_csc));
+            match numeric_cholesky(sym, &k_csc) {
+                Some(factor) => sparse_cholesky_solve(&factor, &f_solve),
                 None => {
-                    // Fallback to dense LU
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f.clone();
-                    match lu_solve(&mut k_work, &mut f_work, nf) {
+                    let mut k_work = k_solve;
+                    let mut f_work = f_solve.clone();
+                    match lu_solve(&mut k_work, &mut f_work, ns) {
                         Some(u) => u,
                         None => {
                             return Ok(PDeltaResult {
@@ -92,13 +106,13 @@ pub fn solve_pdelta_2d(
                 }
             }
         } else {
-            let mut k_work = k_ff.clone();
-            match cholesky_solve(&mut k_work, &f_f, nf) {
+            let mut k_work = k_solve.clone();
+            match cholesky_solve(&mut k_work, &f_solve, ns) {
                 Some(u) => u,
                 None => {
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f.clone();
-                    match lu_solve(&mut k_work, &mut f_work, nf) {
+                    let mut k_work = k_solve;
+                    let mut f_work = f_solve.clone();
+                    match lu_solve(&mut k_work, &mut f_work, ns) {
                         Some(u) => u,
                         None => {
                             return Ok(PDeltaResult {
@@ -113,6 +127,12 @@ pub fn solve_pdelta_2d(
                     }
                 }
             }
+        };
+
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
         };
 
         let mut u_new = vec![0.0; n];
@@ -250,6 +270,15 @@ pub fn solve_pdelta_3d(
     let free_idx: Vec<usize> = (0..nf).collect();
     let f_f = extract_subvec(&asm.f, &free_idx);
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_3d(&input.constraints, &dof_num, &input.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+    let f_solve = if let Some(ref cs) = cs {
+        cs.reduce_vector(&f_f)
+    } else {
+        f_f.clone()
+    };
+
     let mut u_prev = vec![0.0; n];
     for d in &linear_results.displacements {
         let vals = [d.ux, d.uy, d.uz, d.rx, d.ry, d.rz];
@@ -261,7 +290,7 @@ pub fn solve_pdelta_3d(
     let mut converged = false;
     let mut iterations = 0;
     let mut u_current = u_prev.clone();
-    let use_sparse = nf >= SPARSE_THRESHOLD;
+    let use_sparse = ns >= SPARSE_THRESHOLD;
     let mut symbolic: Option<SymbolicCholesky> = None;
 
     for iter in 0..max_iter {
@@ -271,16 +300,21 @@ pub fn solve_pdelta_3d(
         super::geometric_stiffness::add_geometric_stiffness_3d(input, &dof_num, &u_current, &mut k_total);
 
         let k_ff = extract_submatrix(&k_total, n, &free_idx, &free_idx);
+        let k_solve = if let Some(ref cs) = cs {
+            cs.reduce_matrix(&k_ff)
+        } else {
+            k_ff
+        };
 
-        let u_f = if use_sparse {
-            let k_ff_csc = CscMatrix::from_dense_symmetric(&k_ff, nf);
-            let sym = symbolic.get_or_insert_with(|| symbolic_cholesky(&k_ff_csc));
-            match numeric_cholesky(sym, &k_ff_csc) {
-                Some(factor) => sparse_cholesky_solve(&factor, &f_f),
+        let u_indep = if use_sparse {
+            let k_csc = CscMatrix::from_dense_symmetric(&k_solve, ns);
+            let sym = symbolic.get_or_insert_with(|| symbolic_cholesky(&k_csc));
+            match numeric_cholesky(sym, &k_csc) {
+                Some(factor) => sparse_cholesky_solve(&factor, &f_solve),
                 None => {
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f.clone();
-                    match lu_solve(&mut k_work, &mut f_work, nf) {
+                    let mut k_work = k_solve;
+                    let mut f_work = f_solve.clone();
+                    match lu_solve(&mut k_work, &mut f_work, ns) {
                         Some(u) => u,
                         None => {
                             return Ok(PDeltaResult3D {
@@ -296,13 +330,13 @@ pub fn solve_pdelta_3d(
                 }
             }
         } else {
-            let mut k_work = k_ff.clone();
-            match cholesky_solve(&mut k_work, &f_f, nf) {
+            let mut k_work = k_solve.clone();
+            match cholesky_solve(&mut k_work, &f_solve, ns) {
                 Some(u) => u,
                 None => {
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f.clone();
-                    match lu_solve(&mut k_work, &mut f_work, nf) {
+                    let mut k_work = k_solve;
+                    let mut f_work = f_solve.clone();
+                    match lu_solve(&mut k_work, &mut f_work, ns) {
                         Some(u) => u,
                         None => {
                             return Ok(PDeltaResult3D {
@@ -317,6 +351,12 @@ pub fn solve_pdelta_3d(
                     }
                 }
             }
+        };
+
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
         };
 
         let mut u_new = vec![0.0; n];

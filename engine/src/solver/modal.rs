@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use super::dof::DofNumbering;
 use super::assembly::*;
 use super::mass_matrix::*;
+use super::constraints::FreeConstraintSystem;
 
 /// Modal analysis result.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -70,25 +71,36 @@ pub fn solve_modal_2d(
     let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
     let m_ff = extract_submatrix(&m_full, n, &free_idx, &free_idx);
 
+    // Apply constraint transform if present
+    let cs = FreeConstraintSystem::build_2d(&input.constraints, &dof_num, &input.nodes);
+    let (k_solve, m_solve, ns) = if let Some(ref cs) = cs {
+        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&m_ff), cs.n_free_indep)
+    } else {
+        (k_ff.clone(), m_ff.clone(), nf)
+    };
+
     // Solve K·φ = λ·M·φ where λ = ω²
-    let result = lanczos_generalized_eigen(&k_ff, &m_ff, nf, num_modes, 0.0)
+    let result = lanczos_generalized_eigen(&k_solve, &m_solve, ns, num_modes, 0.0)
         .ok_or_else(|| "Eigenvalue decomposition failed".to_string())?;
 
-    let num_modes = num_modes.min(nf);
+    let num_modes = num_modes.min(ns);
 
     // Build influence vectors for X and Y directions
-    // r_x[i] = 1 for X translational DOFs, 0 otherwise
-    // r_y[i] = 1 for Y translational DOFs, 0 otherwise
-    let mut r_x = vec![0.0; nf];
-    let mut r_y = vec![0.0; nf];
+    let mut r_x_full = vec![0.0; nf];
+    let mut r_y_full = vec![0.0; nf];
     for &node_id in &dof_num.node_order {
         if let Some(&d) = dof_num.map.get(&(node_id, 0)) {
-            if d < nf { r_x[d] = 1.0; }
+            if d < nf { r_x_full[d] = 1.0; }
         }
         if let Some(&d) = dof_num.map.get(&(node_id, 1)) {
-            if d < nf { r_y[d] = 1.0; }
+            if d < nf { r_y_full[d] = 1.0; }
         }
     }
+    let (r_x_s, r_y_s) = if let Some(ref cs) = cs {
+        (cs.reduce_vector(&r_x_full), cs.reduce_vector(&r_y_full))
+    } else {
+        (r_x_full, r_y_full)
+    };
 
     let mut modes = Vec::new();
     let mut cum_mrx = 0.0;
@@ -105,22 +117,18 @@ pub fn solve_modal_2d(
         let freq = omega / (2.0 * std::f64::consts::PI);
         let period = if freq > 1e-20 { 1.0 / freq } else { f64::INFINITY };
 
-        // Extract eigenvector (column idx from n×k matrix)
-        let phi: Vec<f64> = (0..nf).map(|i| result.vectors[i * n_converged + idx]).collect();
+        // Extract eigenvector in solve space (ns-dimensional)
+        let phi_s: Vec<f64> = (0..ns).map(|i| result.vectors[i * n_converged + idx]).collect();
 
-        // Compute φᵀ·M·φ
-        let m_phi = mat_vec_sub(&m_ff, &phi, nf);
-        let phi_m_phi: f64 = phi.iter().zip(m_phi.iter()).map(|(a, b)| a * b).sum();
+        // Compute φᵀ·M·φ in solve space
+        let m_phi = mat_vec_sub(&m_solve, &phi_s, ns);
+        let phi_m_phi: f64 = phi_s.iter().zip(m_phi.iter()).map(|(a, b)| a * b).sum();
 
-        // Participation factors: Γ = φᵀ·M·r / (φᵀ·M·φ)
-        let phi_m_rx: f64 = phi.iter().zip(r_x.iter()).zip(m_phi.iter())
-            .map(|((_, rx), mp)| {
-                // Actually need φᵀ·M·r, but we have M·φ, so use r·(M·φ) ≠ φ·(M·r)
-                // Since M is symmetric: φᵀ·M·r = rᵀ·M·φ = Σ r_i * (M·φ)_i
-                rx * mp
-            }).sum::<f64>();
+        // Participation factors in solve space
+        let phi_m_rx: f64 = r_x_s.iter().zip(m_phi.iter())
+            .map(|(rx, mp)| rx * mp).sum();
 
-        let phi_m_ry: f64 = r_y.iter().zip(m_phi.iter())
+        let phi_m_ry: f64 = r_y_s.iter().zip(m_phi.iter())
             .map(|(ry, mp)| ry * mp).sum();
 
         let gamma_x = if phi_m_phi.abs() > 1e-30 { phi_m_rx / phi_m_phi } else { 0.0 };
@@ -134,12 +142,19 @@ pub fn solve_modal_2d(
         cum_mrx += mrx;
         cum_mry += mry;
 
+        // Expand eigenvector back to full free DOFs
+        let phi_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&phi_s)
+        } else {
+            phi_s
+        };
+
         // Build mode shape (normalized to max = 1)
         let mut u_mode = vec![0.0; n];
         let mut max_disp = 0.0f64;
         for i in 0..nf {
-            u_mode[i] = phi[i];
-            max_disp = max_disp.max(phi[i].abs());
+            u_mode[i] = phi_f[i];
+            max_disp = max_disp.max(phi_f[i].abs());
         }
         if max_disp > 1e-20 {
             for val in u_mode.iter_mut().take(nf) {
@@ -258,20 +273,33 @@ pub fn solve_modal_3d(
     let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
     let m_ff = extract_submatrix(&m_full, n, &free_idx, &free_idx);
 
-    let result = lanczos_generalized_eigen(&k_ff, &m_ff, nf, num_modes, 0.0)
+    // Apply constraint transform if present
+    let cs = FreeConstraintSystem::build_3d(&input.constraints, &dof_num, &input.nodes);
+    let (k_solve, m_solve, ns) = if let Some(ref cs) = cs {
+        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&m_ff), cs.n_free_indep)
+    } else {
+        (k_ff.clone(), m_ff, nf)
+    };
+
+    let result = lanczos_generalized_eigen(&k_solve, &m_solve, ns, num_modes, 0.0)
         .ok_or_else(|| "Eigenvalue decomposition failed".to_string())?;
 
-    let num_modes = num_modes.min(nf);
+    let num_modes = num_modes.min(ns);
 
     // Build influence vectors for X, Y, Z translational DOFs
-    let mut r_x = vec![0.0; nf];
-    let mut r_y = vec![0.0; nf];
-    let mut r_z = vec![0.0; nf];
+    let mut r_x_full = vec![0.0; nf];
+    let mut r_y_full = vec![0.0; nf];
+    let mut r_z_full = vec![0.0; nf];
     for &node_id in &dof_num.node_order {
-        if let Some(&d) = dof_num.map.get(&(node_id, 0)) { if d < nf { r_x[d] = 1.0; } }
-        if let Some(&d) = dof_num.map.get(&(node_id, 1)) { if d < nf { r_y[d] = 1.0; } }
-        if let Some(&d) = dof_num.map.get(&(node_id, 2)) { if d < nf { r_z[d] = 1.0; } }
+        if let Some(&d) = dof_num.map.get(&(node_id, 0)) { if d < nf { r_x_full[d] = 1.0; } }
+        if let Some(&d) = dof_num.map.get(&(node_id, 1)) { if d < nf { r_y_full[d] = 1.0; } }
+        if let Some(&d) = dof_num.map.get(&(node_id, 2)) { if d < nf { r_z_full[d] = 1.0; } }
     }
+    let (r_x_s, r_y_s, r_z_s) = if let Some(ref cs) = cs {
+        (cs.reduce_vector(&r_x_full), cs.reduce_vector(&r_y_full), cs.reduce_vector(&r_z_full))
+    } else {
+        (r_x_full, r_y_full, r_z_full)
+    };
 
     let mut modes = Vec::new();
     let mut cum_mrx = 0.0;
@@ -287,14 +315,14 @@ pub fn solve_modal_3d(
         let freq = omega / (2.0 * std::f64::consts::PI);
         let period = if freq > 1e-20 { 1.0 / freq } else { f64::INFINITY };
 
-        let phi: Vec<f64> = (0..nf).map(|i| result.vectors[i * n_converged + idx]).collect();
+        let phi_s: Vec<f64> = (0..ns).map(|i| result.vectors[i * n_converged + idx]).collect();
 
-        let m_phi = mat_vec_sub(&m_ff, &phi, nf);
-        let phi_m_phi: f64 = phi.iter().zip(m_phi.iter()).map(|(a, b)| a * b).sum();
+        let m_phi = mat_vec_sub(&m_solve, &phi_s, ns);
+        let phi_m_phi: f64 = phi_s.iter().zip(m_phi.iter()).map(|(a, b)| a * b).sum();
 
-        let phi_m_rx: f64 = r_x.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
-        let phi_m_ry: f64 = r_y.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
-        let phi_m_rz: f64 = r_z.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
+        let phi_m_rx: f64 = r_x_s.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
+        let phi_m_ry: f64 = r_y_s.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
+        let phi_m_rz: f64 = r_z_s.iter().zip(m_phi.iter()).map(|(r, mp)| r * mp).sum();
 
         let gamma_x = if phi_m_phi.abs() > 1e-30 { phi_m_rx / phi_m_phi } else { 0.0 };
         let gamma_y = if phi_m_phi.abs() > 1e-30 { phi_m_ry / phi_m_phi } else { 0.0 };
@@ -310,11 +338,17 @@ pub fn solve_modal_3d(
         cum_mry += mry;
         cum_mrz += mrz;
 
+        let phi_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&phi_s)
+        } else {
+            phi_s
+        };
+
         let mut u_mode = vec![0.0; n];
         let mut max_disp = 0.0f64;
         for i in 0..nf {
-            u_mode[i] = phi[i];
-            max_disp = max_disp.max(phi[i].abs());
+            u_mode[i] = phi_f[i];
+            max_disp = max_disp.max(phi_f[i].abs());
         }
         if max_disp > 1e-20 {
             for val in u_mode.iter_mut().take(nf) { *val /= max_disp; }

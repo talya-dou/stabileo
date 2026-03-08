@@ -4,6 +4,7 @@ use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly::*;
 use super::geometric_stiffness::{build_kg_from_forces_2d, build_kg_from_forces_3d};
+use super::constraints::FreeConstraintSystem;
 
 /// Buckling analysis result.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -72,6 +73,14 @@ pub fn solve_buckling_2d(
         neg_kg_ff[i] = -kg_ff_raw[i];
     }
 
+    // Apply constraint transform if present
+    let cs = FreeConstraintSystem::build_2d(&input.constraints, &dof_num, &input.nodes);
+    let (k_solve, neg_kg_solve, ns) = if let Some(ref cs) = cs {
+        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&neg_kg_ff), cs.n_free_indep)
+    } else {
+        (k_ff, neg_kg_ff, nf)
+    };
+
     // Check if any element is in compression
     let has_compression = linear.element_forces.iter().any(|ef| {
         (ef.n_start + ef.n_end) / 2.0 < -1e-6
@@ -81,15 +90,10 @@ pub fn solve_buckling_2d(
     }
 
     // 4. Solve generalized eigenvalue: (-Kg)·φ = μ·K·φ  (K is SPD)
-    //    Then λ = 1/μ are the critical load factors.
-    //    We swap A=-Kg, B=K because K is SPD (required for Cholesky).
-    //    Use dense solver: buckling needs all eigenvalues to find positive μ values.
-    let result = solve_generalized_eigen(&neg_kg_ff, &k_ff, nf, 200)
+    let result = solve_generalized_eigen(&neg_kg_solve, &k_solve, ns, 200)
         .ok_or_else(|| "Eigenvalue decomposition failed — stiffness matrix issue".to_string())?;
 
-    // 5. Extract positive μ values → λ = 1/μ (critical load factors)
-    //    μ are sorted ascending; we want positive μ → smallest λ = 1/largest_μ.
-    let num_modes = num_modes.min(nf);
+    let num_modes = num_modes.min(ns);
     let mut mode_pairs: Vec<(f64, usize)> = Vec::new();
     for (idx, &mu) in result.values.iter().enumerate() {
         if mu > 1e-12 {
@@ -97,16 +101,22 @@ pub fn solve_buckling_2d(
             mode_pairs.push((lambda, idx));
         }
     }
-    // Sort by ascending load factor (smallest λ first)
     mode_pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
     let mut modes = Vec::new();
     for &(lambda, idx) in mode_pairs.iter().take(num_modes) {
+        let phi_s: Vec<f64> = (0..ns).map(|i| result.vectors[i * ns + idx]).collect();
+        let phi_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&phi_s)
+        } else {
+            phi_s
+        };
+
         let mut u_mode = vec![0.0; n];
         let mut max_disp = 0.0f64;
         for i in 0..nf {
-            u_mode[i] = result.vectors[i * nf + idx];
-            max_disp = max_disp.max(u_mode[i].abs());
+            u_mode[i] = phi_f[i];
+            max_disp = max_disp.max(phi_f[i].abs());
         }
         if max_disp > 1e-20 {
             for i in 0..nf {
@@ -242,6 +252,14 @@ pub fn solve_buckling_3d(
     let mut neg_kg_ff = vec![0.0; nf * nf];
     for i in 0..nf * nf { neg_kg_ff[i] = -kg_ff_raw[i]; }
 
+    // Apply constraint transform if present
+    let cs = FreeConstraintSystem::build_3d(&input.constraints, &dof_num, &input.nodes);
+    let (k_solve, neg_kg_solve, ns) = if let Some(ref cs) = cs {
+        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&neg_kg_ff), cs.n_free_indep)
+    } else {
+        (k_ff, neg_kg_ff, nf)
+    };
+
     let has_compression = linear.element_forces.iter().any(|ef| {
         (ef.n_start + ef.n_end) / 2.0 < -1e-6
     });
@@ -249,10 +267,10 @@ pub fn solve_buckling_3d(
         return Err("No compressed elements — buckling not applicable".into());
     }
 
-    let result = solve_generalized_eigen(&neg_kg_ff, &k_ff, nf, 200)
+    let result = solve_generalized_eigen(&neg_kg_solve, &k_solve, ns, 200)
         .ok_or_else(|| "Eigenvalue decomposition failed".to_string())?;
 
-    let num_modes = num_modes.min(nf);
+    let num_modes = num_modes.min(ns);
     let mut mode_pairs: Vec<(f64, usize)> = Vec::new();
     for (idx, &mu) in result.values.iter().enumerate() {
         if mu > 1e-12 {
@@ -263,11 +281,18 @@ pub fn solve_buckling_3d(
 
     let mut modes = Vec::new();
     for &(lambda, idx) in mode_pairs.iter().take(num_modes) {
+        let phi_s: Vec<f64> = (0..ns).map(|i| result.vectors[i * ns + idx]).collect();
+        let phi_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&phi_s)
+        } else {
+            phi_s
+        };
+
         let mut u_mode = vec![0.0; n];
         let mut max_disp = 0.0f64;
         for i in 0..nf {
-            u_mode[i] = result.vectors[i * nf + idx];
-            max_disp = max_disp.max(u_mode[i].abs());
+            u_mode[i] = phi_f[i];
+            max_disp = max_disp.max(phi_f[i].abs());
         }
         if max_disp > 1e-20 {
             for i in 0..nf { u_mode[i] /= max_disp; }

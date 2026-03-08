@@ -574,6 +574,83 @@ fn get_node_offset(
     (0.0, 0.0, 0.0)
 }
 
+// ==================== Reusable Constraint System ====================
+
+/// Pre-computed constraint system for use by any solver.
+///
+/// Encapsulates the C_ff matrix (free-free portion of the constraint
+/// transform) so that any solver can easily reduce K, M, F and expand
+/// the solution back to full DOFs.
+pub struct FreeConstraintSystem {
+    /// C_ff matrix: nf × n_free_indep (row-major)
+    pub c_ff: Vec<f64>,
+    /// Number of free independent DOFs (reduced system size)
+    pub n_free_indep: usize,
+    /// Number of free DOFs (unreduced)
+    pub nf: usize,
+}
+
+impl FreeConstraintSystem {
+    /// Build a constraint system from constraints and DOF numbering.
+    /// Returns None if there are no constraints.
+    pub fn build_2d(
+        constraints: &[Constraint],
+        dof_num: &DofNumbering,
+        nodes: &HashMap<String, SolverNode>,
+    ) -> Option<Self> {
+        if constraints.is_empty() { return None; }
+        let nf = dof_num.n_free;
+        let ct = build_constraint_transform(constraints, dof_num, Some(nodes), None);
+        Some(Self::from_transform(&ct, nf))
+    }
+
+    /// Build a constraint system for 3D.
+    pub fn build_3d(
+        constraints: &[Constraint],
+        dof_num: &DofNumbering,
+        nodes: &HashMap<String, SolverNode3D>,
+    ) -> Option<Self> {
+        if constraints.is_empty() { return None; }
+        let nf = dof_num.n_free;
+        let ct = build_constraint_transform(constraints, dof_num, None, Some(nodes));
+        Some(Self::from_transform(&ct, nf))
+    }
+
+    fn from_transform(ct: &ConstraintTransform, nf: usize) -> Self {
+        let n_indep = ct.n_independent;
+        let free_indep: Vec<usize> = ct.independent_dofs.iter()
+            .enumerate()
+            .filter(|(_, &d)| d < nf)
+            .map(|(i, _)| i)
+            .collect();
+        let n_free_indep = free_indep.len();
+
+        let mut c_ff = vec![0.0; nf * n_free_indep];
+        for i in 0..nf {
+            for (j_new, &j_old) in free_indep.iter().enumerate() {
+                c_ff[i * n_free_indep + j_new] = ct.c_matrix[i * n_indep + j_old];
+            }
+        }
+
+        FreeConstraintSystem { c_ff, n_free_indep, nf }
+    }
+
+    /// Reduce a symmetric matrix: K_reduced = C_ff^T * K_ff * C_ff
+    pub fn reduce_matrix(&self, k_ff: &[f64]) -> Vec<f64> {
+        ct_k_c(&self.c_ff, k_ff, self.nf, self.n_free_indep)
+    }
+
+    /// Reduce a force vector: F_reduced = C_ff^T * F_f
+    pub fn reduce_vector(&self, f_f: &[f64]) -> Vec<f64> {
+        ct_f(&self.c_ff, f_f, self.nf, self.n_free_indep)
+    }
+
+    /// Expand solution: u_f = C_ff * u_indep
+    pub fn expand_solution(&self, u_indep: &[f64]) -> Vec<f64> {
+        c_times_u(&self.c_ff, u_indep, self.nf, self.n_free_indep)
+    }
+}
+
 /// Compute C^T * K * C where C is (m × p) and K is (m × m), result is (p × p).
 fn ct_k_c(c: &[f64], k: &[f64], m: usize, p: usize) -> Vec<f64> {
     // temp = K * C  (m × p)
