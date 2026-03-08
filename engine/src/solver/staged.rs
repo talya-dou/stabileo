@@ -10,7 +10,13 @@ use crate::element::*;
 use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly::{AssemblyResult, assemble_element_loads_2d, assemble_3d};
-use super::linear::{build_displacements_3d, compute_plate_stresses};
+use super::linear::{
+    build_displacements_2d,
+    build_displacements_3d,
+    build_reactions_2d,
+    compute_internal_forces_2d,
+    compute_plate_stresses,
+};
 use super::prestress::prestress_fef_2d;
 
 /// Solve a 2D staged construction analysis.
@@ -110,7 +116,13 @@ pub fn solve_staged_2d(input: &StagedInput) -> Result<StagedAnalysisResults, Str
             stage_results.push(StageResult {
                 stage_name: stage.name.clone(),
                 stage_index: stage_idx,
-                results: build_results_from_u(&cumulative_u, &dof_num, &input, &active_elements),
+                results: build_results_from_u(
+                    &cumulative_u,
+                    &dof_num,
+                    &stage_solver_input,
+                    &vec![0.0; nr],
+                    nf,
+                ),
             });
             continue;
         }
@@ -144,7 +156,13 @@ pub fn solve_staged_2d(input: &StagedInput) -> Result<StagedAnalysisResults, Str
         stage_results.push(StageResult {
             stage_name: stage.name.clone(),
             stage_index: stage_idx,
-            results: build_results_from_u(&cumulative_u, &dof_num, &input, &active_elements),
+            results: build_results_from_u(
+                &cumulative_u,
+                &dof_num,
+                &stage_solver_input,
+                &compute_stage_reactions_vec(&asm, n, nf, nr, &cumulative_u, &u_r),
+                nf,
+            ),
         });
     }
 
@@ -428,154 +446,14 @@ fn assemble_staged_2d(
 fn build_results_from_u(
     u: &[f64],
     dof_num: &DofNumbering,
-    input: &StagedInput,
-    active_elements: &HashSet<usize>,
+    input: &SolverInput,
+    reactions_vec: &[f64],
+    nf: usize,
 ) -> AnalysisResults {
-    // Displacements
-    let mut displacements = Vec::new();
-    for node in input.nodes.values() {
-        let ux = dof_num.map.get(&(node.id, 0)).map(|&d| u[d]).unwrap_or(0.0);
-        let uy = dof_num.map.get(&(node.id, 1)).map(|&d| u[d]).unwrap_or(0.0);
-        let rz = if dof_num.dofs_per_node >= 3 {
-            dof_num.map.get(&(node.id, 2)).map(|&d| u[d]).unwrap_or(0.0)
-        } else {
-            0.0
-        };
-        displacements.push(Displacement {
-            node_id: node.id,
-            ux, uy, rz,
-        });
-    }
-    displacements.sort_by_key(|d| d.node_id);
-
-    // Element forces (for active elements)
-    let mut element_forces = Vec::new();
-    for elem in input.elements.values() {
-        if !active_elements.contains(&elem.id) { continue; }
-        if elem.elem_type == "truss" || elem.elem_type == "cable" { continue; } // TODO: truss forces
-
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
-
-        let dx = node_j.x - node_i.x;
-        let dy = node_j.y - node_i.y;
-        let l = (dx * dx + dy * dy).sqrt();
-        let cos = dx / l;
-        let sin = dy / l;
-        let e = mat.e * 1000.0;
-
-        let phi = if let Some(as_y) = sec.as_y {
-            let g = e / (2.0 * (1.0 + mat.nu));
-            12.0 * e * sec.iz / (g * as_y * l * l)
-        } else {
-            0.0
-        };
-
-        let k_local = frame_local_stiffness_2d(
-            e, sec.a, sec.iz, l, elem.hinge_start, elem.hinge_end, phi,
-        );
-        let t = frame_transform_2d(cos, sin);
-
-        // Get element global displacements
-        let elem_dofs = dof_num.element_dofs(elem.node_i, elem.node_j);
-        let mut u_global = [0.0; 6];
-        for i in 0..6 {
-            u_global[i] = u[elem_dofs[i]];
-        }
-
-        // Transform to local: u_local = T * u_global
-        let mut u_local = [0.0; 6];
-        for i in 0..6 {
-            for j in 0..6 {
-                u_local[i] += t[i * 6 + j] * u_global[j];
-            }
-        }
-
-        // Element forces: f_local = K_local * u_local
-        let mut f_local = [0.0; 6];
-        for i in 0..6 {
-            for j in 0..6 {
-                f_local[i] += k_local[i * 6 + j] * u_local[j];
-            }
-        }
-
-        element_forces.push(ElementForces {
-            element_id: elem.id,
-            n_start: f_local[0],
-            n_end: f_local[3],
-            v_start: f_local[1],
-            v_end: f_local[4],
-            m_start: f_local[2],
-            m_end: f_local[5],
-            length: l,
-            q_i: 0.0,
-            q_j: 0.0,
-            point_loads: vec![],
-            distributed_loads: vec![],
-            hinge_start: elem.hinge_start,
-            hinge_end: elem.hinge_end,
-        });
-    }
+    let displacements = build_displacements_2d(dof_num, u);
+    let mut element_forces = compute_internal_forces_2d(input, dof_num, u);
     element_forces.sort_by_key(|ef| ef.element_id);
-
-    // Compute reactions from element forces (equilibrium at supported nodes).
-    let mut node_forces = std::collections::HashMap::<usize, [f64; 3]>::new();
-
-    for ef in &element_forces {
-        if let Some(elem) = input.elements.values().find(|e| e.id == ef.element_id) {
-            let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-            let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-
-            let dx = node_j.x - node_i.x;
-            let dy = node_j.y - node_i.y;
-            let l = (dx * dx + dy * dy).sqrt();
-            let cos = dx / l;
-            let sin = dy / l;
-
-            // Transform local forces to global
-            let f_local = [ef.n_start, ef.v_start, ef.m_start, ef.n_end, ef.v_end, ef.m_end];
-            let t = frame_transform_2d(cos, sin);
-            let mut f_global = [0.0; 6];
-            for i in 0..6 {
-                for j in 0..6 {
-                    f_global[i] += t[j * 6 + i] * f_local[j];
-                }
-            }
-
-            let entry_i = node_forces.entry(elem.node_i).or_insert([0.0; 3]);
-            entry_i[0] += f_global[0];
-            entry_i[1] += f_global[1];
-            entry_i[2] += f_global[2];
-
-            let entry_j = node_forces.entry(elem.node_j).or_insert([0.0; 3]);
-            entry_j[0] += f_global[3];
-            entry_j[1] += f_global[4];
-            entry_j[2] += f_global[5];
-        }
-    }
-
-    // Reactions = internal forces at supported nodes
-    let mut reactions = Vec::new();
-    for sup in input.supports.values() {
-        if sup.support_type == "spring" { continue; }
-        if let Some(nf) = node_forces.get(&sup.node_id) {
-            reactions.push(Reaction {
-                node_id: sup.node_id,
-                rx: nf[0],
-                ry: nf[1],
-                mz: nf[2],
-            });
-        } else {
-            reactions.push(Reaction {
-                node_id: sup.node_id,
-                rx: 0.0,
-                ry: 0.0,
-                mz: 0.0,
-            });
-        }
-    }
+    let mut reactions = build_reactions_2d(input, dof_num, reactions_vec, &[], nf, u);
     reactions.sort_by_key(|r| r.node_id);
 
     AnalysisResults {
@@ -583,6 +461,33 @@ fn build_results_from_u(
         reactions,
         element_forces,
     }
+}
+
+fn compute_stage_reactions_vec(
+    asm: &AssemblyResult,
+    n: usize,
+    nf: usize,
+    nr: usize,
+    u_full: &[f64],
+    u_r: &[f64],
+) -> Vec<f64> {
+    if nr == 0 {
+        return Vec::new();
+    }
+
+    let free_idx: Vec<usize> = (0..nf).collect();
+    let rest_idx: Vec<usize> = (nf..n).collect();
+    let k_rf = extract_submatrix(&asm.k, n, &rest_idx, &free_idx);
+    let k_rr = extract_submatrix(&asm.k, n, &rest_idx, &rest_idx);
+    let f_r = extract_subvec(&asm.f, &rest_idx);
+    let k_rf_uf = mat_vec_rect(&k_rf, &u_full[..nf], nr, nf);
+    let k_rr_ur = mat_vec_rect(&k_rr, u_r, nr, nr);
+
+    let mut reactions_vec = vec![0.0; nr];
+    for i in 0..nr {
+        reactions_vec[i] = k_rf_uf[i] + k_rr_ur[i] - f_r[i];
+    }
+    reactions_vec
 }
 
 // ==================== 3D Staged Construction Analysis ====================

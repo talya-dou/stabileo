@@ -9,6 +9,7 @@
 mod helpers;
 
 use dedaliano_engine::types::*;
+use dedaliano_engine::solver::linear::solve_2d;
 use dedaliano_engine::solver::staged::solve_staged_2d;
 use std::collections::HashMap;
 
@@ -507,4 +508,122 @@ fn three_stages_increasing_load() {
         "Stage 2 should be 2x stage 1: {} vs {}", uy2, 2.0 * uy1);
     assert!((uy3 - 3.0 * uy1).abs() < tol,
         "Stage 3 should be 3x stage 1: {} vs {}", uy3, 3.0 * uy1);
+}
+
+#[test]
+fn staged_braced_frame_matches_linear_results() {
+    let mut nodes = HashMap::new();
+    nodes.insert("1".into(), SolverNode { id: 1, x: 0.0, y: 0.0 });
+    nodes.insert("2".into(), SolverNode { id: 2, x: 4.0, y: 0.0 });
+    nodes.insert("3".into(), SolverNode { id: 3, x: 0.0, y: 3.0 });
+    nodes.insert("4".into(), SolverNode { id: 4, x: 4.0, y: 3.0 });
+
+    let mut materials = HashMap::new();
+    materials.insert("m1".into(), SolverMaterial { id: 1, e: 200_000.0, nu: 0.3 });
+
+    let mut sections = HashMap::new();
+    sections.insert("frame".into(), SolverSection { id: 1, a: 0.02, iz: 2e-4, as_y: None });
+    sections.insert("brace".into(), SolverSection { id: 2, a: 0.01, iz: 1e-4, as_y: None });
+
+    let mut elements = HashMap::new();
+    elements.insert("c1".into(), SolverElement {
+        id: 1, elem_type: "frame".into(), node_i: 1, node_j: 3,
+        material_id: 1, section_id: 1, hinge_start: false, hinge_end: false,
+    });
+    elements.insert("b1".into(), SolverElement {
+        id: 2, elem_type: "frame".into(), node_i: 3, node_j: 4,
+        material_id: 1, section_id: 1, hinge_start: false, hinge_end: false,
+    });
+    elements.insert("c2".into(), SolverElement {
+        id: 3, elem_type: "frame".into(), node_i: 2, node_j: 4,
+        material_id: 1, section_id: 1, hinge_start: false, hinge_end: false,
+    });
+    elements.insert("brace".into(), SolverElement {
+        id: 4, elem_type: "truss".into(), node_i: 1, node_j: 4,
+        material_id: 1, section_id: 2, hinge_start: false, hinge_end: false,
+    });
+
+    let mut supports = HashMap::new();
+    supports.insert("s1".into(), SolverSupport {
+        id: 1, node_id: 1, support_type: "fixed".into(),
+        kx: None, ky: None, kz: None, dx: None, dy: None, drz: None, angle: None,
+    });
+    supports.insert("s2".into(), SolverSupport {
+        id: 2, node_id: 2, support_type: "pinned".into(),
+        kx: None, ky: None, kz: None, dx: None, dy: None, drz: None, angle: None,
+    });
+
+    let loads = vec![SolverLoad::Nodal(SolverNodalLoad {
+        node_id: 4, fx: 50.0, fy: -25.0, mz: 0.0,
+    })];
+
+    let normal_input = SolverInput {
+        nodes: nodes.clone(),
+        materials: materials.clone(),
+        sections: sections.clone(),
+        elements: elements.clone(),
+        supports: supports.clone(),
+        loads: loads.clone(),
+    };
+    let normal = solve_2d(&normal_input).unwrap();
+
+    let staged_input = StagedInput {
+        nodes,
+        materials,
+        sections,
+        elements,
+        supports,
+        loads,
+        stages: vec![ConstructionStage {
+            name: "Full braced frame".into(),
+            elements_added: vec![1, 2, 3, 4],
+            elements_removed: vec![],
+            load_indices: vec![0],
+            supports_added: vec![1, 2],
+            supports_removed: vec![],
+            prestress_loads: vec![],
+        }],
+    };
+    let staged = solve_staged_2d(&staged_input).unwrap();
+    let stage = &staged.stages[0].results;
+
+    for (staged_disp, normal_disp) in stage.displacements.iter().zip(normal.displacements.iter()) {
+        assert_eq!(staged_disp.node_id, normal_disp.node_id);
+        assert!((staged_disp.ux - normal_disp.ux).abs() < 1e-8);
+        assert!((staged_disp.uy - normal_disp.uy).abs() < 1e-8);
+        assert!((staged_disp.rz - normal_disp.rz).abs() < 1e-8);
+    }
+
+    let staged_brace = stage.element_forces.iter().find(|ef| ef.element_id == 4).unwrap();
+    let normal_brace = normal.element_forces.iter().find(|ef| ef.element_id == 4).unwrap();
+    assert!((staged_brace.n_start - normal_brace.n_start).abs() < 1e-8);
+    assert!((staged_brace.n_end - normal_brace.n_end).abs() < 1e-8);
+    assert!(staged_brace.n_start.abs() > 1e-6, "brace force should be nonzero");
+    assert!(staged_brace.v_start.abs() < 1e-12);
+    assert!(staged_brace.m_start.abs() < 1e-12);
+
+    for (staged_reaction, normal_reaction) in stage.reactions.iter().zip(normal.reactions.iter()) {
+        assert_eq!(staged_reaction.node_id, normal_reaction.node_id);
+        assert!(
+            (staged_reaction.rx - normal_reaction.rx).abs() < 1e-8,
+            "node {} rx staged={} normal={}",
+            staged_reaction.node_id,
+            staged_reaction.rx,
+            normal_reaction.rx,
+        );
+        assert!(
+            (staged_reaction.ry - normal_reaction.ry).abs() < 1e-8,
+            "node {} ry staged={} normal={}",
+            staged_reaction.node_id,
+            staged_reaction.ry,
+            normal_reaction.ry,
+        );
+        assert!(
+            (staged_reaction.mz - normal_reaction.mz).abs() < 1e-8,
+            "node {} mz staged={} normal={}",
+            staged_reaction.node_id,
+            staged_reaction.mz,
+            normal_reaction.mz,
+        );
+    }
 }
