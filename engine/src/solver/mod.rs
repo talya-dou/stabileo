@@ -20,6 +20,8 @@ pub mod cable;
 pub mod harmonic;
 pub mod load_cases;
 pub mod winkler;
+pub mod line_search;
+pub mod adaptive_stepping;
 
 pub use dof::*;
 pub use assembly::*;
