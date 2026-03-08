@@ -15,6 +15,10 @@ The cleanest short description is:
 
 `Dedaliano is an open-source structural analysis and structural mechanics platform for structural engineering.`
 
+The stronger current claim is:
+
+`Dedaliano is becoming one of the strongest open structural solvers, with a broader product surface than most solver-first projects.`
+
 ## What It Is Not
 
 Dedaliano is not:

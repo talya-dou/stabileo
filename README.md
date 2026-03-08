@@ -88,7 +88,7 @@ The main remaining differentiators are:
 
 A reasonable description today is:
 
-`Dedaliano is a strong open structural solver with broad analysis coverage and a large public validation program.`
+`Dedaliano is becoming one of the strongest open structural solvers, with a broader product surface than most solver-first projects.`
 
 What is distinctive is not any one verification technique by itself. The stronger identity is:
 
