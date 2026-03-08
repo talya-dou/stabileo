@@ -240,10 +240,9 @@ fn timber_beam_column_interaction() {
     );
 
     // NDS interaction check (using computed forces):
-    // fc = P/A, fb = M*y/I = M*(d/2)/I
+    // fc = P/A
     let e_eff = e_spf * 1000.0;
     let fc = p_axial.abs() / a; // kPa
-    let _fb = m_base / iz * (d_col / 2.0); // kPa
 
     // FcE = pi^2 * E'_min / (Le/d)^2, using E_min ≈ 0.58 * E for visually graded
     let e_min = 0.58 * e_eff;
