@@ -156,12 +156,19 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode> = input.solver.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement> = input.solver.elements.values().map(|e| (e.id, e)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = input.solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection> = input.solver.sections.values().map(|s| (s.id, s)).collect();
+    let elem_by_id_str: HashMap<String, &SolverElement> = input.solver.elements.values().map(|e| (e.id.to_string(), e)).collect();
+
     // Track element statuses
     let mut elem_status: HashMap<usize, ContactStatus> = HashMap::new();
     for (eid_str, _behavior) in &input.element_behaviors {
         if let Ok(eid) = eid_str.parse::<usize>() {
             elem_status.insert(eid, ContactStatus::Active);
-        } else if let Some(elem) = input.solver.elements.values().find(|e| e.id.to_string() == *eid_str) {
+        } else if let Some(elem) = elem_by_id_str.get(eid_str) {
             elem_status.insert(elem.id, ContactStatus::Active);
         }
     }
@@ -193,11 +200,11 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
         for (eid, status) in &elem_status {
             if *status == ContactStatus::Inactive {
                 // Subtract this element's stiffness from global K
-                if let Some(elem) = input.solver.elements.values().find(|e| e.id == *eid) {
-                    let ni = input.solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-                    let nj = input.solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-                    let mat = input.solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-                    let sec = input.solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+                if let Some(&elem) = elem_by_id.get(eid) {
+                    let ni = node_by_id[&elem.node_i];
+                    let nj = node_by_id[&elem.node_j];
+                    let mat = mat_by_id[&elem.material_id];
+                    let sec = sec_by_id[&elem.section_id];
 
                     let dx = nj.x - ni.x;
                     let dy = nj.y - ni.y;
@@ -320,17 +327,17 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
         for (eid_str, behavior) in &input.element_behaviors {
             let eid: usize = if let Ok(id) = eid_str.parse() {
                 id
-            } else if let Some(elem) = input.solver.elements.values().find(|e| e.id.to_string() == *eid_str) {
+            } else if let Some(elem) = elem_by_id_str.get(eid_str) {
                 elem.id
             } else {
                 continue;
             };
 
-            if let Some(elem) = input.solver.elements.values().find(|e| e.id == eid) {
-                let ni = input.solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-                let nj = input.solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-                let mat = input.solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-                let sec = input.solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+            if let Some(&elem) = elem_by_id.get(&eid) {
+                let ni = node_by_id[&elem.node_i];
+                let nj = node_by_id[&elem.node_j];
+                let mat = mat_by_id[&elem.material_id];
+                let sec = sec_by_id[&elem.section_id];
 
                 let dx = nj.x - ni.x;
                 let dy = nj.y - ni.y;
@@ -501,6 +508,12 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode3D> = input.solver.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement3D> = input.solver.elements.values().map(|e| (e.id, e)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = input.solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection3D> = input.solver.sections.values().map(|s| (s.id, s)).collect();
+
     // Track element statuses
     let mut elem_status: HashMap<usize, ContactStatus> = HashMap::new();
     for (eid_str, _) in &input.element_behaviors {
@@ -534,12 +547,12 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
         // Deactivate elements
         for (eid, status) in &elem_status {
             if *status == ContactStatus::Inactive {
-                if let Some(elem) = input.solver.elements.values().find(|e| e.id == *eid) {
+                if let Some(&elem) = elem_by_id.get(eid) {
                     if elem.elem_type == "truss" || elem.elem_type == "cable" {
-                        let ni = input.solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-                        let nj = input.solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-                        let mat = input.solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-                        let sec = input.solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+                        let ni = node_by_id[&elem.node_i];
+                        let nj = node_by_id[&elem.node_j];
+                        let mat = mat_by_id[&elem.material_id];
+                        let sec = sec_by_id[&elem.section_id];
 
                         let dx = nj.x - ni.x;
                         let dy = nj.y - ni.y;
@@ -623,11 +636,11 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
                 Err(_) => continue,
             };
 
-            if let Some(elem) = input.solver.elements.values().find(|e| e.id == eid) {
-                let ni = input.solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-                let nj = input.solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-                let mat = input.solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-                let sec = input.solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+            if let Some(&elem) = elem_by_id.get(&eid) {
+                let ni = node_by_id[&elem.node_i];
+                let nj = node_by_id[&elem.node_j];
+                let mat = mat_by_id[&elem.material_id];
+                let sec = sec_by_id[&elem.section_id];
 
                 let dx = nj.x - ni.x;
                 let dy = nj.y - ni.y;

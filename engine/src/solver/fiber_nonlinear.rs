@@ -241,6 +241,7 @@ fn assemble_fiber_elements(
     k_t: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let node_by_id: HashMap<usize, &SolverNode> = solver.nodes.values().map(|n| (n.id, n)).collect();
 
     for elem in solver.elements.values() {
         if elem.elem_type == "truss" || elem.elem_type == "cable" { continue; }
@@ -256,8 +257,8 @@ fn assemble_fiber_elements(
             None => continue,
         };
 
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -318,16 +319,19 @@ fn assemble_elastic_elements(
     k_t: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let node_by_id: HashMap<usize, &SolverNode> = solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection> = solver.sections.values().map(|s| (s.id, s)).collect();
 
     for elem in solver.elements.values() {
         let sec_key = elem.section_id.to_string();
 
         if elem.elem_type == "truss" || elem.elem_type == "cable" {
             // Truss element
-            let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-            let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-            let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-            let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+            let node_i = node_by_id[&elem.node_i];
+            let node_j = node_by_id[&elem.node_j];
+            let mat = mat_by_id[&elem.material_id];
+            let sec = sec_by_id[&elem.section_id];
             let e = mat.e * 1000.0;
             let dx = node_j.x - node_i.x;
             let dy = node_j.y - node_i.y;
@@ -361,10 +365,10 @@ fn assemble_elastic_elements(
             }
         } else if !fiber_sections.contains_key(&sec_key) {
             // Elastic frame element (no fiber section defined)
-            let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-            let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-            let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-            let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+            let node_i = node_by_id[&elem.node_i];
+            let node_j = node_by_id[&elem.node_j];
+            let mat = mat_by_id[&elem.material_id];
+            let sec = sec_by_id[&elem.section_id];
 
             let e = mat.e * 1000.0;
             let dx = node_j.x - node_i.x;
@@ -610,6 +614,9 @@ fn assemble_fiber_elements_3d(
     k_t: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let node_by_id: HashMap<usize, &SolverNode3D> = solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection3D> = solver.sections.values().map(|s| (s.id, s)).collect();
 
     for elem in solver.elements.values() {
         if elem.elem_type == "truss" || elem.elem_type == "cable" { continue; }
@@ -625,8 +632,8 @@ fn assemble_fiber_elements_3d(
             None => continue,
         };
 
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -634,8 +641,8 @@ fn assemble_fiber_elements_3d(
         let l = (dx * dx + dy * dy + dz * dz).sqrt();
 
         // Get GJ for torsion
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec3d = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let mat = mat_by_id[&elem.material_id];
+        let sec3d = sec_by_id[&elem.section_id];
         let e_val = mat.e * 1000.0;
         let g = e_val / (2.0 * (1.0 + mat.nu));
         let gj = g * sec3d.j;
@@ -695,6 +702,9 @@ fn assemble_elastic_elements_3d(
     k_t: &mut [f64],
 ) {
     let n = dof_num.n_total;
+    let node_by_id: HashMap<usize, &SolverNode3D> = solver.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = solver.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection3D> = solver.sections.values().map(|s| (s.id, s)).collect();
 
     for elem in solver.elements.values() {
         let sec_key = elem.section_id.to_string();
@@ -704,10 +714,10 @@ fn assemble_elastic_elements_3d(
             continue;
         }
 
-        let node_i = solver.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = solver.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = solver.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = solver.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let e_val = mat.e * 1000.0;
         let g = e_val / (2.0 * (1.0 + mat.nu));

@@ -252,12 +252,18 @@ fn assemble_staged_2d(
     let mut k_global = vec![0.0; n * n];
     let mut f_global = vec![0.0; n];
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode> = full_input.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement> = full_input.elements.values().map(|e| (e.id, e)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = full_input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection> = full_input.sections.values().map(|s| (s.id, s)).collect();
+
     // Assemble active element stiffness matrices
     for elem in stage_input.elements.values() {
-        let node_i = full_input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = full_input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = full_input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = full_input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -331,9 +337,9 @@ fn assemble_staged_2d(
         if !active_elements.contains(&ps.element_id) { continue; }
 
         // Find the element
-        if let Some(elem) = full_input.elements.values().find(|e| e.id == ps.element_id) {
-            let node_i = full_input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-            let node_j = full_input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+        if let Some(&elem) = elem_by_id.get(&ps.element_id) {
+            let node_i = node_by_id[&elem.node_i];
+            let node_j = node_by_id[&elem.node_j];
 
             let dx = node_j.x - node_i.x;
             let dy = node_j.y - node_i.y;
@@ -536,13 +542,18 @@ fn iterate_cables_staged_2d(
     let mut cables = Vec::new();
     let mut cable_tensions: HashMap<usize, f64> = HashMap::new();
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode> = full_input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = full_input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection> = full_input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in stage_input.elements.values() {
         if elem.elem_type != "cable" { continue; }
 
-        let node_i = full_input.nodes.values().find(|nd| nd.id == elem.node_i).unwrap();
-        let node_j = full_input.nodes.values().find(|nd| nd.id == elem.node_j).unwrap();
-        let mat = full_input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = full_input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -978,13 +989,19 @@ fn build_results_from_u_3d(
     let left_hand = stage_input.left_hand.unwrap_or(false);
     let mut element_forces = Vec::new();
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode3D> = full_input.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement3D> = full_input.elements.values().map(|e| (e.id, e)).collect();
+    let mat_by_id: HashMap<usize, &SolverMaterial> = full_input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_by_id: HashMap<usize, &SolverSection3D> = full_input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in full_input.elements.values() {
         if !active_elements.contains(&elem.id) { continue; }
 
-        let node_i = full_input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = full_input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = full_input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = full_input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_by_id[&elem.node_i];
+        let node_j = node_by_id[&elem.node_j];
+        let mat = mat_by_id[&elem.material_id];
+        let sec = sec_by_id[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -1098,9 +1115,9 @@ fn build_results_from_u_3d(
     // Compute reactions from equilibrium at supported nodes
     let mut node_forces = HashMap::<usize, [f64; 6]>::new();
     for ef in &element_forces {
-        if let Some(elem) = full_input.elements.values().find(|e| e.id == ef.element_id) {
-            let node_i = full_input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-            let node_j = full_input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+        if let Some(&elem) = elem_by_id.get(&ef.element_id) {
+            let node_i = node_by_id[&elem.node_i];
+            let node_j = node_by_id[&elem.node_j];
 
             let (ex, ey, ez) = compute_local_axes_3d(
                 node_i.x, node_i.y, node_i.z,

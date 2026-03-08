@@ -155,6 +155,10 @@ fn build_load_path(
     let mut path = Vec::new();
     let mut cum_pos = 0.0;
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement> = input.elements.values().map(|e| (e.id, e)).collect();
+
     let elem_ids: Vec<usize> = if let Some(ids) = path_element_ids {
         ids.to_vec()
     } else {
@@ -163,10 +167,10 @@ fn build_load_path(
     };
 
     for eid in &elem_ids {
-        let elem = input.elements.values().find(|e| e.id == *eid)
+        let elem = elem_by_id.get(eid)
             .ok_or_else(|| format!("Element {} not found", eid))?;
-        let ni = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let nj = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+        let ni = node_by_id[&elem.node_i];
+        let nj = node_by_id[&elem.node_j];
         let dx = nj.x - ni.x;
         let dy = nj.y - ni.y;
         let l = (dx * dx + dy * dy).sqrt();
@@ -189,10 +193,11 @@ fn build_load_path(
 
 fn auto_detect_path(input: &SolverInput) -> Result<Vec<usize>, String> {
     // Find a chain: start from leftmost supported node, traverse connected elements
+    let node_by_id: HashMap<usize, &SolverNode> = input.nodes.values().map(|n| (n.id, n)).collect();
     let mut elem_list: Vec<&SolverElement> = input.elements.values().collect();
     elem_list.sort_by(|a, b| {
-        let na = input.nodes.values().find(|n| n.id == a.node_i).unwrap();
-        let nb = input.nodes.values().find(|n| n.id == b.node_i).unwrap();
+        let na = node_by_id[&a.node_i];
+        let nb = node_by_id[&b.node_i];
         na.x.partial_cmp(&nb.x).unwrap()
     });
 
@@ -292,6 +297,10 @@ pub fn solve_moving_loads_3d(input: &MovingLoadInput3D) -> Result<MovingLoadEnve
         });
     }
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode3D> = solver_input.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement3D> = solver_input.elements.values().map(|e| (e.id, e)).collect();
+
     let start_pos = -max_offset;
     let end_pos = total_length;
     let mut pos = start_pos;
@@ -320,9 +329,9 @@ pub fn solve_moving_loads_3d(input: &MovingLoadInput3D) -> Result<MovingLoadEnve
                 let _ex = [seg.dir_x, seg.dir_y, seg.dir_z];
 
                 // Compute the element's local axes using the same function as the solver
-                if let Some(elem) = solver_input.elements.values().find(|e| e.id == seg.element_id) {
-                    let ni = solver_input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-                    let nj = solver_input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+                if let Some(&elem) = elem_by_id.get(&seg.element_id) {
+                    let ni = node_by_id[&elem.node_i];
+                    let nj = node_by_id[&elem.node_j];
                     let left_hand = solver_input.left_hand.unwrap_or(false);
                     let (_lex, ley, lez) = crate::element::compute_local_axes_3d(
                         ni.x, ni.y, ni.z, nj.x, nj.y, nj.z,
@@ -387,6 +396,10 @@ fn build_load_path_3d(
     let mut path = Vec::new();
     let mut cum_pos = 0.0;
 
+    // Build lookup maps to avoid O(n) linear scans per element
+    let node_by_id: HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
+    let elem_by_id: HashMap<usize, &SolverElement3D> = input.elements.values().map(|e| (e.id, e)).collect();
+
     let elem_ids: Vec<usize> = if let Some(ids) = path_element_ids {
         ids.to_vec()
     } else {
@@ -394,10 +407,10 @@ fn build_load_path_3d(
     };
 
     for eid in &elem_ids {
-        let elem = input.elements.values().find(|e| e.id == *eid)
+        let elem = elem_by_id.get(eid)
             .ok_or_else(|| format!("Element {} not found", eid))?;
-        let ni = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let nj = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
+        let ni = node_by_id[&elem.node_i];
+        let nj = node_by_id[&elem.node_j];
         let dx = nj.x - ni.x;
         let dy = nj.y - ni.y;
         let dz = nj.z - ni.z;
@@ -419,10 +432,11 @@ fn build_load_path_3d(
 }
 
 fn auto_detect_path_3d(input: &SolverInput3D) -> Result<Vec<usize>, String> {
+    let node_by_id: HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
     let mut elem_list: Vec<&SolverElement3D> = input.elements.values().collect();
     elem_list.sort_by(|a, b| {
-        let na = input.nodes.values().find(|n| n.id == a.node_i).unwrap();
-        let nb = input.nodes.values().find(|n| n.id == b.node_i).unwrap();
+        let na = node_by_id[&a.node_i];
+        let nb = node_by_id[&b.node_i];
         na.x.partial_cmp(&nb.x).unwrap()
     });
     Ok(elem_list.iter().map(|e| e.id).collect())
