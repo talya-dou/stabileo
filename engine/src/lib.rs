@@ -585,6 +585,24 @@ pub fn check_serviceability(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+#[wasm_bindgen]
+pub fn check_bolt_groups(json: &str) -> Result<String, JsValue> {
+    let input: postprocess::connection_check::BoltGroupInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = postprocess::connection_check::check_bolt_groups(&input);
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+#[wasm_bindgen]
+pub fn check_weld_groups(json: &str) -> Result<String, JsValue> {
+    let input: postprocess::connection_check::WeldGroupInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = postprocess::connection_check::check_weld_groups(&input);
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::types::*;
