@@ -16,21 +16,21 @@
 | Textbook Classics | 1920 | 0 | 0 | 1920 |
 | Mathematical Properties & Numerical Methods | 195 | 0 | 0 | 195 |
 | FEM Quality & Convergence | 78 | 0 | 0 | 78 |
-| Engineering Practice & Specialized Structures | 832 | 0 | 0 | 832 |
+| Engineering Practice & Specialized Structures | 960 | 0 | 0 | 960 |
 | Fixed Bugs (regression) | 6 | 0 | 0 | 6 |
 | Placeholders | 0 | 3 | 0 | 3 |
-| **Total** | **3615** | **3** | **1** | **3619** |
+| **Total** | **3743** | **3** | **1** | **3747** |
 
 The table above is the curated benchmark-status ledger. It is narrower than the full automated test inventory shown below, because many validation/unit/integration tests are support checks, regression tests, or formula verifications rather than one benchmark row per test.
 
-**4065 validation test functions across 510 validation files. 4454+ total registered tests across 535+ Rust test files.**
+**4273 validation test functions across 538 validation files. 4710+ total registered tests across 563+ Rust test files.**
 
 Current measured inventory:
 
-- `510` files matching `engine/tests/validation_*.rs`
-- `4065` `#[test]` functions inside validation files
+- `538` files matching `engine/tests/validation_*.rs`
+- `4273` `#[test]` functions inside validation files
 - `25` files matching `engine/tests/integration_*.rs` (181 integration test functions)
-- `4454` total registered tests from `cargo test -- --list`
+- `4710` total registered tests from `cargo test -- --list`
 
 ### Design Check Modules (17 postprocess modules, 82 unit tests + 25 integration test files)
 
@@ -1103,6 +1103,26 @@ This order improves solver class faster than expanding sideways into more specia
 - `validation_storage_rack_extended.rs` (8) — Upright column, pallet beam moment, frame sway, semi-rigid connector, down-aisle stability, cross-aisle bracing, base plate, progressive collapse
 - `validation_glass_structures_extended.rs` (8) — Glass fin deflection, laminated effective thickness, column buckling, post-breakage, balustrade cantilever, thermal stress, facade wind, aspect ratio
 - `validation_nuclear_containment_extended.rs` (8) — Internal pressure, DBA pressure, dome membrane, liner strain, thermal gradient, seismic cantilever, penetration reinforcement, combined loads
+
+### Extended Validation — Wave 17 (8 files, 64 tests)
+- `validation_advanced_concrete_extended.rs` (8) — Strut-and-tie, T-beam effective width, torsion cracking, post-tensioned load balancing, two-way slab moments, ACI coefficients, development length, modular ratio
+- `validation_coastal_structures_extended.rs` (8) — Wave force vertical wall, breakwater armor Hudson, overtopping crest wall, wave runup Iribarren, seawall impact, jetty beam, rubble mound sliding, combined wave-current pier
+- `validation_deep_excavation_extended.rs` (8) — Sheet pile cantilever, single-anchored wall, multi-propped wall, apparent earth pressure, bottom heave stability, strut load, waling beam, diaphragm wall
+- `validation_snow_ice_loading_extended.rs` (8) — Ground-to-roof conversion, balanced flat roof, sloped roof reduction, drift surcharge, unbalanced gable frame, rain-on-snow, radial ice accretion, thermal contraction
+- `validation_expansion_joints_extended.rs` (8) — Free thermal expansion, restrained thermal force, gap sizing, multi-span bridge, portal frame thermal, steel vs concrete differential, temperature gradient, bearing movement
+- `validation_power_transmission_extended.rs` (8) — Conductor sag parabolic, wind on conductor, tower leg compression, cross-arm cantilever, wind on tower body, foundation overturning, broken wire, ice-wind combination
+- `validation_rock_mechanics_extended.rs` (8) — Hoek-Brown failure, RMR classification, GSI modulus estimation, rock bolt capacity, Kirsch circular opening, in-situ stress, slope planar failure, Barton Q-system
+- `validation_scaffolding_extended.rs` (8) — Tube axial capacity, ledger beam, standard buckling, tie force wind, bracing diagonal, formwork pressure Rodin, prop Euler buckling, platform combined loading
+
+### Extended Validation — Wave 18 (8 files, 64 tests)
+- `validation_geosynthetics_extended.rs` (8) — MSE wall reinforcement, geogrid slope, geomembrane liner, soil nail wall, bearing capacity improvement, separation filter, reinforced embankment, wraparound wall
+- `validation_water_retaining_extended.rs` (8) — Hydrostatic cantilever, crack width control, minimum reinforcement, hoop tension, joint spacing, rectangular tank, water testing, combined earth-water
+- `validation_steel_fiber_concrete_extended.rs` (8) — Flexural strength, volume fraction effect, residual strength, slab on grade, tunnel segment ductility, beam vs RC, fiber aspect ratio, hybrid fiber-rebar
+- `validation_tensile_structures_extended.rs` (8) — Soap film biaxial, catenary vs parabolic, pretension stiffness, cable net point load, anticlastic saddle, wind uplift pretension, ring beam tension, fabric biaxial stress
+- `validation_laminate_plate_extended.rs` (8) — Rule of mixtures, CLT ABD matrices, Tsai-Wu failure, symmetric B=0, crossply vs angleply, beam equivalent EI, thermal residual stress, effective modulus
+- `validation_structural_acoustics_extended.rs` (8) — Mass law TL, STC rating, coincidence frequency, double wall, floor impact DG11, vibration isolation, modal density, radiation efficiency
+- `validation_pavement_design_extended.rs` (8) — AASHTO structural number, traffic ESAL, PCA thickness, Boussinesq stress, Westergaard interior, CBR design, fatigue cracking, temperature curling
+- `validation_fsi_extended.rs` (8) — Westergaard added mass, radiation damping, sloshing period, pipe whip, vortex-induced vibration, submerged frequency, water hammer, Chopra period lengthening
 
 ---
 
