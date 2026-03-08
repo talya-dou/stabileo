@@ -237,11 +237,30 @@ fn solve_complex_system(
 }
 
 /// Estimate first two natural frequencies from K and M for Rayleigh damping.
-/// Uses a simple inverse iteration (power method on K^{-1}*M).
+/// Uses the Lanczos eigenvalue solver for accurate natural frequencies.
 fn compute_rayleigh_from_stiffness_mass(
     k: &[f64], m: &[f64], n: usize, xi: f64,
 ) -> (f64, f64) {
-    // Quick estimate: use diagonal ratios for first freq
+    // Use Lanczos to find the first two eigenvalues (omega^2)
+    if let Some(result) = lanczos_generalized_eigen(k, m, n, 2, 0.0) {
+        // Filter out near-zero eigenvalues (rigid-body modes)
+        let positive: Vec<f64> = result.values.iter()
+            .copied()
+            .filter(|&v| v > 1e-10)
+            .collect();
+
+        if positive.len() >= 2 {
+            let omega1 = positive[0].sqrt();
+            let omega2 = positive[1].sqrt();
+            return rayleigh_coefficients(omega1, omega2, xi);
+        } else if positive.len() == 1 {
+            let omega1 = positive[0].sqrt();
+            let omega2 = 3.0 * omega1; // fallback ratio for second mode
+            return rayleigh_coefficients(omega1, omega2, xi);
+        }
+    }
+
+    // Fallback: diagonal ratio estimate
     let mut omega1_sq: f64 = 0.0;
     let mut count: usize = 0;
     for i in 0..n {
@@ -261,9 +280,7 @@ fn compute_rayleigh_from_stiffness_mass(
     }
 
     let omega1 = omega1_sq.sqrt();
-    // Estimate omega2 as 3x omega1 (typical for beams)
     let omega2 = 3.0 * omega1;
-
     rayleigh_coefficients(omega1, omega2, xi)
 }
 
