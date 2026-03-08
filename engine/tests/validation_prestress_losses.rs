@@ -61,7 +61,7 @@ fn validation_elastic_shortening() {
     let w_conc: f64 = 150.0;   // pcf, unit weight
 
     // Concrete modulus at transfer
-    let eci: f64 = 33.0 * w_conc.powf(1.5) * (fci * 1000.0).sqrt() / 1000.0;
+    let _eci: f64 = 33.0 * w_conc.powf(1.5) * (fci * 1000.0).sqrt() / 1000.0;
     // 33 * 150^1.5 * sqrt(4500) / 1000 to get ksi
     // 33 * 1837.117 * 67.082 / 1000 = 4064... let's use simplified
     // Actually Eci = 57000*sqrt(f'ci_psi) psi = 57*sqrt(f'ci_ksi*1000) ksi

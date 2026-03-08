@@ -329,10 +329,10 @@ fn validation_von_karman_correction() {
     let r: f64 = 0.3;          // m
     let e: f64 = 200e9;        // Pa
     let nu: f64 = 0.3;
-    let d: f64 = e * t.powi(3) / (12.0 * (1.0 - nu * nu));
+    let _d: f64 = e * t.powi(3) / (12.0 * (1.0 - nu * nu));
 
     // Von Karman correction factor
-    // q/q_linear = 1 + 0.488*(w0/t)²
+    // q/q_linear = 1 + 0.488*(w0/t)^2
     let correction = |w0_over_t: f64| -> f64 {
         1.0 + 0.488 * w0_over_t * w0_over_t
     };

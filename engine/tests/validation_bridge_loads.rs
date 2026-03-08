@@ -243,7 +243,7 @@ fn validation_impact_factor() {
 #[test]
 fn validation_distribution_factor() {
     let s: f64 = 8.0;      // ft, beam spacing
-    let l: f64 = 60.0;     // ft, span length
+    let _l: f64 = 60.0;    // ft, span length (for reference)
 
     // S/D method (Standard Specification, simplified)
     // Two or more lanes loaded, concrete deck on steel beams: D = 5.5
