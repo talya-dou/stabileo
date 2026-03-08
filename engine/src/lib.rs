@@ -576,6 +576,15 @@ pub fn check_timber_members(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+#[wasm_bindgen]
+pub fn check_serviceability(json: &str) -> Result<String, JsValue> {
+    let input: postprocess::serviceability::ServiceabilityInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let results = postprocess::serviceability::check_serviceability(&input);
+    serde_json::to_string(&results)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::types::*;
