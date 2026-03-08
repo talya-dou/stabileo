@@ -868,3 +868,71 @@ pub struct StagedAnalysisResults3D {
     pub stages: Vec<StageResult3D>,
     pub final_results: AnalysisResults3D,
 }
+
+// ==================== Constraint Types ====================
+
+/// Multi-point constraint definition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Constraint {
+    /// Rigid link: slave follows master with rigid-body kinematics.
+    #[serde(rename = "rigidLink")]
+    RigidLink(RigidLinkConstraint),
+    /// Diaphragm: in-plane rigidity coupling translational DOFs.
+    #[serde(rename = "diaphragm")]
+    Diaphragm(DiaphragmConstraint),
+    /// General linear MPC: Σ(coeff_i × u_i) = 0
+    #[serde(rename = "linearMPC")]
+    LinearMPC(LinearMPCConstraint),
+    /// Equal DOF: slave DOFs equal master DOFs.
+    #[serde(rename = "equalDOF")]
+    EqualDOF(EqualDOFConstraint),
+}
+
+/// Rigid link: slave node follows master node with rigid-body offset.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RigidLinkConstraint {
+    pub master_node: usize,
+    pub slave_node: usize,
+    /// DOFs to constrain on slave: 0=ux,1=uy (2D); 0..5 (3D). Empty = all translational.
+    #[serde(default)]
+    pub dofs: Vec<usize>,
+}
+
+/// Diaphragm: nodes share in-plane rigid-body motion around a master.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiaphragmConstraint {
+    pub master_node: usize,
+    pub slave_nodes: Vec<usize>,
+    /// Plane: "XY" (default), "XZ", or "YZ"
+    #[serde(default = "default_diaphragm_plane")]
+    pub plane: String,
+}
+
+fn default_diaphragm_plane() -> String { "XY".into() }
+
+/// General linear MPC: Σ(coeff_i × u_{node_i, dof_i}) = 0
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinearMPCConstraint {
+    pub terms: Vec<MPCTerm>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MPCTerm {
+    pub node_id: usize,
+    pub dof: usize,
+    pub coefficient: f64,
+}
+
+/// Equal DOF: slave DOFs = master DOFs (1:1 coupling).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EqualDOFConstraint {
+    pub master_node: usize,
+    pub slave_node: usize,
+    pub dofs: Vec<usize>,
+}

@@ -25,6 +25,7 @@ pub mod adaptive_stepping;
 pub mod contact;
 pub mod soil_curves;
 pub mod ssi;
+pub mod constraints;
 
 pub use dof::*;
 pub use assembly::*;
