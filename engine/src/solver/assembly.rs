@@ -113,12 +113,20 @@ pub fn assemble_2d(input: &SolverInput, dof_num: &DofNumbering) -> AssemblyResul
     let mut k_global = vec![0.0; n * n];
     let mut f_global = vec![0.0; n];
 
+    // Pre-build O(1) lookup maps
+    let node_map: std::collections::HashMap<usize, &SolverNode> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     // Assemble element stiffness matrices
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -349,11 +357,23 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
     let mut f_global = vec![0.0; n];
     let left_hand = input.left_hand.unwrap_or(false);
 
+    // Pre-build O(1) lookup maps
+    let node_map: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection3D> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+    let plate_map: std::collections::HashMap<usize, &SolverPlateElement> =
+        input.plates.values().map(|p| (p.id, p)).collect();
+    let quad_map: std::collections::HashMap<usize, &SolverQuadElement> =
+        input.quads.values().map(|q| (q.id, q)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -452,13 +472,13 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
 
     // Assemble plate element stiffness matrices
     for plate in input.plates.values() {
-        let mat = input.materials.values().find(|m| m.id == plate.material_id).unwrap();
+        let mat = mat_map[&plate.material_id];
         let e = mat.e * 1000.0; // MPa → kN/m²
         let nu = mat.nu;
 
-        let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let n0 = node_map[&plate.nodes[0]];
+        let n1 = node_map[&plate.nodes[1]];
+        let n2 = node_map[&plate.nodes[2]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
@@ -480,14 +500,14 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
 
     // Assemble quad (MITC4 shell) element stiffness matrices
     for quad in input.quads.values() {
-        let mat = input.materials.values().find(|m| m.id == quad.material_id).unwrap();
+        let mat = mat_map[&quad.material_id];
         let e = mat.e * 1000.0; // MPa → kN/m²
         let nu = mat.nu;
 
-        let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-        let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+        let n0 = node_map[&quad.nodes[0]];
+        let n1 = node_map[&quad.nodes[1]];
+        let n2 = node_map[&quad.nodes[2]];
+        let n3 = node_map[&quad.nodes[3]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
@@ -538,10 +558,10 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
         // Pressure loads on plate elements
         if let SolverLoad3D::Pressure(pl) = load {
-            if let Some(plate) = input.plates.values().find(|p| p.id == pl.element_id) {
-                let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-                let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-                let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+            if let Some(&plate) = plate_map.get(&pl.element_id) {
+                let n0 = node_map[&plate.nodes[0]];
+                let n1 = node_map[&plate.nodes[1]];
+                let n2 = node_map[&plate.nodes[2]];
                 let coords = [
                     [n0.x, n0.y, n0.z],
                     [n1.x, n1.y, n1.z],
@@ -558,16 +578,16 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
         // Plate thermal loads
         if let SolverLoad3D::PlateThermal(tl) = load {
-            if let Some(plate) = input.plates.values().find(|p| p.id == tl.element_id) {
-                let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-                let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-                let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+            if let Some(&plate) = plate_map.get(&tl.element_id) {
+                let n0 = node_map[&plate.nodes[0]];
+                let n1 = node_map[&plate.nodes[1]];
+                let n2 = node_map[&plate.nodes[2]];
                 let coords = [
                     [n0.x, n0.y, n0.z],
                     [n1.x, n1.y, n1.z],
                     [n2.x, n2.y, n2.z],
                 ];
-                let mat = input.materials.values().find(|m| m.id == plate.material_id).unwrap();
+                let mat = mat_map[&plate.material_id];
                 let e = mat.e * 1000.0;
                 let nu = mat.nu;
                 let alpha = tl.alpha.unwrap_or(12e-6);
@@ -585,11 +605,11 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
         // Quad pressure loads
         if let SolverLoad3D::QuadPressure(pl) = load {
-            if let Some(quad) = input.quads.values().find(|q| q.id == pl.element_id) {
-                let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-                let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-                let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-                let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+            if let Some(&quad) = quad_map.get(&pl.element_id) {
+                let n0 = node_map[&quad.nodes[0]];
+                let n1 = node_map[&quad.nodes[1]];
+                let n2 = node_map[&quad.nodes[2]];
+                let n3 = node_map[&quad.nodes[3]];
                 let coords = [
                     [n0.x, n0.y, n0.z],
                     [n1.x, n1.y, n1.z],
@@ -607,15 +627,15 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
         // Quad thermal loads
         if let SolverLoad3D::QuadThermal(tl) = load {
-            if let Some(quad) = input.quads.values().find(|q| q.id == tl.element_id) {
-                let mat = input.materials.values().find(|m| m.id == quad.material_id).unwrap();
+            if let Some(&quad) = quad_map.get(&tl.element_id) {
+                let mat = mat_map[&quad.material_id];
                 let e = mat.e * 1000.0;
                 let nu = mat.nu;
                 let alpha = tl.alpha.unwrap_or(1.2e-5);
-                let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-                let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-                let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-                let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+                let n0 = node_map[&quad.nodes[0]];
+                let n1 = node_map[&quad.nodes[1]];
+                let n2 = node_map[&quad.nodes[2]];
+                let n3 = node_map[&quad.nodes[3]];
                 let coords = [
                     [n0.x, n0.y, n0.z],
                     [n1.x, n1.y, n1.z],
@@ -636,11 +656,11 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
         // Quad edge loads
         if let SolverLoad3D::QuadEdge(el) = load {
-            if let Some(quad) = input.quads.values().find(|q| q.id == el.element_id) {
-                let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-                let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-                let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-                let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+            if let Some(&quad) = quad_map.get(&el.element_id) {
+                let n0 = node_map[&quad.nodes[0]];
+                let n1 = node_map[&quad.nodes[1]];
+                let n2 = node_map[&quad.nodes[2]];
+                let n3 = node_map[&quad.nodes[3]];
                 let coords = [
                     [n0.x, n0.y, n0.z],
                     [n1.x, n1.y, n1.z],
@@ -947,11 +967,19 @@ pub fn assemble_sparse_2d(input: &SolverInput, dof_num: &DofNumbering) -> Sparse
     let mut max_diag = 0.0f64;
     let mut diag_vals = vec![0.0f64; nf];
 
+    // Pre-build O(1) lookup maps
+    let node_map: std::collections::HashMap<usize, &SolverNode> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -1094,11 +1122,19 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
     let mut max_diag = 0.0f64;
     let mut diag_vals = vec![0.0f64; nf];
 
+    // Pre-build O(1) lookup maps
+    let node_map: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection3D> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;

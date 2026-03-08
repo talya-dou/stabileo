@@ -473,11 +473,18 @@ pub(crate) fn compute_internal_forces_2d(
 ) -> Vec<ElementForces> {
     let mut forces = Vec::new();
 
+    let node_map: std::collections::HashMap<usize, &SolverNode> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -638,11 +645,18 @@ pub(crate) fn compute_internal_forces_3d(
     let mut forces = Vec::new();
     let left_hand = input.left_hand.unwrap_or(false);
 
+    let node_map: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+    let sec_map: std::collections::HashMap<usize, &SolverSection3D> =
+        input.sections.values().map(|s| (s.id, s)).collect();
+
     for elem in input.elements.values() {
-        let node_i = input.nodes.values().find(|n| n.id == elem.node_i).unwrap();
-        let node_j = input.nodes.values().find(|n| n.id == elem.node_j).unwrap();
-        let mat = input.materials.values().find(|m| m.id == elem.material_id).unwrap();
-        let sec = input.sections.values().find(|s| s.id == elem.section_id).unwrap();
+        let node_i = node_map[&elem.node_i];
+        let node_j = node_map[&elem.node_j];
+        let mat = mat_map[&elem.material_id];
+        let sec = sec_map[&elem.section_id];
 
         let dx = node_j.x - node_i.x;
         let dy = node_j.y - node_i.y;
@@ -909,10 +923,13 @@ fn expand_curved_beams_3d(input: &SolverInput3D) -> SolverInput3D {
     let mut next_node_id = result.nodes.values().map(|n| n.id).max().unwrap_or(0) + 1;
     let mut next_elem_id = result.elements.values().map(|e| e.id).max().unwrap_or(0) + 1;
 
+    let cb_node_map: std::collections::HashMap<usize, SolverNode3D> =
+        result.nodes.values().map(|n| (n.id, n.clone())).collect();
+
     for cb in &input.curved_beams {
-        let n_start = result.nodes.values().find(|n| n.id == cb.node_start).unwrap().clone();
-        let n_mid = result.nodes.values().find(|n| n.id == cb.node_mid).unwrap().clone();
-        let n_end = result.nodes.values().find(|n| n.id == cb.node_end).unwrap().clone();
+        let n_start = cb_node_map[&cb.node_start].clone();
+        let n_mid = cb_node_map[&cb.node_mid].clone();
+        let n_end = cb_node_map[&cb.node_end].clone();
 
         let expansion = crate::element::expand_curved_beam(
             cb,
@@ -988,14 +1005,19 @@ pub(crate) fn compute_plate_stresses(
 ) -> Vec<PlateStress> {
     let mut stresses = Vec::new();
 
+    let node_map: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+
     for plate in input.plates.values() {
-        let mat = input.materials.values().find(|m| m.id == plate.material_id).unwrap();
+        let mat = mat_map[&plate.material_id];
         let e = mat.e * 1000.0;
         let nu = mat.nu;
 
-        let n0 = input.nodes.values().find(|nd| nd.id == plate.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == plate.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == plate.nodes[2]).unwrap();
+        let n0 = node_map[&plate.nodes[0]];
+        let n1 = node_map[&plate.nodes[1]];
+        let n2 = node_map[&plate.nodes[2]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
@@ -1042,15 +1064,20 @@ pub(crate) fn compute_quad_stresses(
 ) -> Vec<QuadStress> {
     let mut stresses = Vec::new();
 
+    let node_map: std::collections::HashMap<usize, &SolverNode3D> =
+        input.nodes.values().map(|n| (n.id, n)).collect();
+    let mat_map: std::collections::HashMap<usize, &SolverMaterial> =
+        input.materials.values().map(|m| (m.id, m)).collect();
+
     for quad in input.quads.values() {
-        let mat = input.materials.values().find(|m| m.id == quad.material_id).unwrap();
+        let mat = mat_map[&quad.material_id];
         let e = mat.e * 1000.0;
         let nu = mat.nu;
 
-        let n0 = input.nodes.values().find(|nd| nd.id == quad.nodes[0]).unwrap();
-        let n1 = input.nodes.values().find(|nd| nd.id == quad.nodes[1]).unwrap();
-        let n2 = input.nodes.values().find(|nd| nd.id == quad.nodes[2]).unwrap();
-        let n3 = input.nodes.values().find(|nd| nd.id == quad.nodes[3]).unwrap();
+        let n0 = node_map[&quad.nodes[0]];
+        let n1 = node_map[&quad.nodes[1]];
+        let n2 = node_map[&quad.nodes[2]];
+        let n3 = node_map[&quad.nodes[3]];
         let coords = [
             [n0.x, n0.y, n0.z],
             [n1.x, n1.y, n1.z],
