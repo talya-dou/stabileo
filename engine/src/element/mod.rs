@@ -6,6 +6,7 @@ pub mod cable;
 pub mod curved_beam;
 pub mod plate;
 pub mod fiber_beam;
+pub mod quad;
 
 pub use frame::*;
 pub use truss::*;
