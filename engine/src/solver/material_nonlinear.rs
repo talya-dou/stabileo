@@ -3,6 +3,7 @@ use crate::linalg::*;
 use crate::element::*;
 use super::dof::DofNumbering;
 use super::assembly;
+use super::constraints::FreeConstraintSystem;
 
 /// Free DOFs threshold: use sparse solver when n_free >= this.
 const SPARSE_THRESHOLD: usize = 64;
@@ -42,6 +43,10 @@ pub fn solve_nonlinear_material_2d(
     let free_idx: Vec<usize> = (0..nf).collect();
     let rest_idx: Vec<usize> = (nf..n).collect();
     let nr = n - nf;
+
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&solver.constraints, &dof_num, &solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
 
     // Full elastic assembly to obtain the total external load vector.
     let asm = assembly::assemble_2d(solver, &dof_num);
@@ -151,7 +156,18 @@ pub fn solve_nonlinear_material_2d(
                 rhs[i] -= k_fr_ur[i];
             }
 
-            let delta_u_f = solve_system(k_ff, rhs, nf)?;
+            let (k_s, rhs_s) = if let Some(ref cs) = cs {
+                (cs.reduce_matrix(&k_ff), cs.reduce_vector(&rhs))
+            } else {
+                (k_ff, rhs)
+            };
+
+            let delta_u_indep = solve_system(k_s, rhs_s, ns)?;
+            let delta_u_f = if let Some(ref cs) = cs {
+                cs.expand_solution(&delta_u_indep)
+            } else {
+                delta_u_indep
+            };
 
             // Update displacements.
             for i in 0..nf {

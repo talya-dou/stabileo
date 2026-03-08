@@ -21,6 +21,7 @@ use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly;
 use super::linear;
+use super::constraints::FreeConstraintSystem;
 
 /// Result of a cable analysis.
 #[derive(Debug, Clone)]
@@ -117,6 +118,10 @@ pub fn solve_cable_2d(
 
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
+
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.constraints, &dof_num, &input.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
 
     // Identify cable elements
     let has_cables = input.elements.values().any(|e| e.elem_type == "cable");
@@ -236,7 +241,17 @@ pub fn solve_cable_2d(
         let free_idx: Vec<usize> = (0..nf).collect();
         let k_ff = extract_submatrix(&k_global, n, &free_idx, &free_idx);
         let f_f: Vec<f64> = f_global[..nf].to_vec();
-        let u_f = solve_system(&k_ff, &f_f, nf)?;
+        let (k_solve, f_solve) = if let Some(ref cs) = cs {
+            (cs.reduce_matrix(&k_ff), cs.reduce_vector(&f_f))
+        } else {
+            (k_ff, f_f)
+        };
+        let u_indep = solve_system(&k_solve, &f_solve, ns)?;
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
+        };
 
         for i in 0..nf {
             u_full[i] = u_f[i];
@@ -349,6 +364,10 @@ pub fn solve_cable_3d(
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_3d(&input.constraints, &dof_num, &input.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+
     let has_cables = input.elements.values().any(|e| e.elem_type == "cable");
 
     if !has_cables {
@@ -455,7 +474,17 @@ pub fn solve_cable_3d(
         let free_idx: Vec<usize> = (0..nf).collect();
         let k_ff = extract_submatrix(&k_global, n, &free_idx, &free_idx);
         let f_f: Vec<f64> = f_global[..nf].to_vec();
-        let u_f = solve_system(&k_ff, &f_f, nf)?;
+        let (k_solve, f_solve) = if let Some(ref cs) = cs {
+            (cs.reduce_matrix(&k_ff), cs.reduce_vector(&f_f))
+        } else {
+            (k_ff, f_f)
+        };
+        let u_indep = solve_system(&k_solve, &f_solve, ns)?;
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
+        };
 
         for i in 0..nf {
             u_full[i] = u_f[i];

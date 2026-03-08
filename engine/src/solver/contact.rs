@@ -19,6 +19,7 @@ use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly;
 use super::linear;
+use super::constraints::FreeConstraintSystem;
 
 /// Contact element status.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -155,6 +156,10 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
 
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
+
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
 
     // Build lookup maps to avoid O(n) linear scans per element
     let node_by_id: HashMap<usize, &SolverNode> = input.solver.nodes.values().map(|n| (n.id, n)).collect();
@@ -303,18 +308,28 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
         let free_idx: Vec<usize> = (0..nf).collect();
         let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
         let f_f: Vec<f64> = asm.f[..nf].to_vec();
+        let (k_s, f_s) = if let Some(ref cs) = cs {
+            (cs.reduce_matrix(&k_ff), cs.reduce_vector(&f_f))
+        } else {
+            (k_ff, f_f)
+        };
 
-        let u_f = {
-            let mut k_work = k_ff.clone();
-            match cholesky_solve(&mut k_work, &f_f, nf) {
+        let u_indep = {
+            let mut k_work = k_s.clone();
+            match cholesky_solve(&mut k_work, &f_s, ns) {
                 Some(u) => u,
                 None => {
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f;
-                    lu_solve(&mut k_work, &mut f_work, nf)
+                    let mut k_work = k_s;
+                    let mut f_work = f_s;
+                    lu_solve(&mut k_work, &mut f_work, ns)
                         .ok_or("Singular stiffness in contact iteration")?
                 }
             }
+        };
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
         };
 
         for i in 0..nf {
@@ -508,6 +523,10 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_3d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+
     // Build lookup maps to avoid O(n) linear scans per element
     let node_by_id: HashMap<usize, &SolverNode3D> = input.solver.nodes.values().map(|n| (n.id, n)).collect();
     let elem_by_id: HashMap<usize, &SolverElement3D> = input.solver.elements.values().map(|e| (e.id, e)).collect();
@@ -611,18 +630,28 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
         let free_idx: Vec<usize> = (0..nf).collect();
         let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
         let f_f: Vec<f64> = asm.f[..nf].to_vec();
+        let (k_s, f_s) = if let Some(ref cs) = cs {
+            (cs.reduce_matrix(&k_ff), cs.reduce_vector(&f_f))
+        } else {
+            (k_ff, f_f)
+        };
 
-        let u_f = {
-            let mut k_work = k_ff.clone();
-            match cholesky_solve(&mut k_work, &f_f, nf) {
+        let u_indep = {
+            let mut k_work = k_s.clone();
+            match cholesky_solve(&mut k_work, &f_s, ns) {
                 Some(u) => u,
                 None => {
-                    let mut k_work = k_ff;
-                    let mut f_work = f_f;
-                    lu_solve(&mut k_work, &mut f_work, nf)
+                    let mut k_work = k_s;
+                    let mut f_work = f_s;
+                    lu_solve(&mut k_work, &mut f_work, ns)
                         .ok_or("Singular stiffness in 3D contact iteration")?
                 }
             }
+        };
+        let u_f = if let Some(ref cs) = cs {
+            cs.expand_solution(&u_indep)
+        } else {
+            u_indep
         };
 
         for i in 0..nf { u_full[i] = u_f[i]; }

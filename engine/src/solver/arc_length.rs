@@ -13,6 +13,7 @@ use crate::linalg::*;
 use super::dof::DofNumbering;
 use super::assembly;
 use super::corotational::assemble_corotational_public;
+use super::constraints::FreeConstraintSystem;
 
 /// Arc-length analysis input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,9 +118,18 @@ pub fn solve_arc_length(input: &ArcLengthInput) -> Result<ArcLengthResult, Strin
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+
     // Reference load vector
     let asm = assembly::assemble_2d(&input.solver, &dof_num);
     let f_ref: Vec<f64> = asm.f[..nf].to_vec();
+    let f_ref_s = if let Some(ref cs) = cs {
+        cs.reduce_vector(&f_ref)
+    } else {
+        f_ref.clone()
+    };
     let f_ref_norm = vec_norm(&f_ref);
     if f_ref_norm < 1e-15 {
         return Err("Zero reference load".into());
@@ -145,8 +155,10 @@ pub fn solve_arc_length(input: &ArcLengthInput) -> Result<ArcLengthResult, Strin
 
         let free_idx: Vec<usize> = (0..nf).collect();
         let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
+        let k_s = if let Some(ref cs) = cs { cs.reduce_matrix(&k_ff) } else { k_ff };
 
-        let du_hat = solve_system(&k_ff, &f_ref, nf)?;
+        let du_hat_s = solve_system(&k_s, &f_ref_s, ns)?;
+        let du_hat = if let Some(ref cs) = cs { cs.expand_solution(&du_hat_s) } else { du_hat_s };
 
         // Determine Δλ from arc-length constraint
         // ||Δu||² + Δλ² × ||f_ref||² = Δs²
@@ -200,8 +212,12 @@ pub fn solve_arc_length(input: &ArcLengthInput) -> Result<ArcLengthResult, Strin
             // K_T * δu_r = R   (residual correction)
             // K_T * δu_t = f_ref (tangent correction)
             let k_ff_new = extract_submatrix(&k_t_new, n, &free_idx, &free_idx);
-            let du_r = solve_system(&k_ff_new, &residual, nf)?;
-            let du_t = solve_system(&k_ff_new, &f_ref, nf)?;
+            let k_s_new = if let Some(ref cs) = cs { cs.reduce_matrix(&k_ff_new) } else { k_ff_new };
+            let residual_s = if let Some(ref cs) = cs { cs.reduce_vector(&residual) } else { residual.clone() };
+            let du_r_s = solve_system(&k_s_new, &residual_s, ns)?;
+            let du_t_s = solve_system(&k_s_new, &f_ref_s, ns)?;
+            let du_r = if let Some(ref cs) = cs { cs.expand_solution(&du_r_s) } else { du_r_s };
+            let du_t = if let Some(ref cs) = cs { cs.expand_solution(&du_t_s) } else { du_t_s };
 
             // Arc-length constraint: quadratic equation for δλ
             // a*δλ² + b*δλ + c = 0
@@ -304,6 +320,10 @@ pub fn solve_displacement_control(input: &DisplacementControlInput) -> Result<Di
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
 
+    // Build constraint system (if constraints present)
+    let cs_dc = FreeConstraintSystem::build_2d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns_dc = cs_dc.as_ref().map_or(nf, |c| c.n_free_indep);
+
     // Find global DOF index for control point
     let control_global = dof_num.map.get(&(input.control_node, input.control_dof))
         .ok_or("Control node/DOF not found in free DOFs")?;
@@ -315,6 +335,11 @@ pub fn solve_displacement_control(input: &DisplacementControlInput) -> Result<Di
     // Reference load
     let asm = assembly::assemble_2d(&input.solver, &dof_num);
     let f_ref: Vec<f64> = asm.f[..nf].to_vec();
+    let f_ref_s_dc = if let Some(ref cs) = cs_dc {
+        cs.reduce_vector(&f_ref)
+    } else {
+        f_ref.clone()
+    };
 
     let mut u_full = vec![0.0; n];
     let mut lambda = 0.0_f64;
@@ -363,8 +388,12 @@ pub fn solve_displacement_control(input: &DisplacementControlInput) -> Result<Di
             // K_T * δu_t = f_ref
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
-            let du_r = solve_system(&k_ff, &residual, nf)?;
-            let du_t = solve_system(&k_ff, &f_ref, nf)?;
+            let k_s_dc = if let Some(ref cs) = cs_dc { cs.reduce_matrix(&k_ff) } else { k_ff };
+            let residual_s = if let Some(ref cs) = cs_dc { cs.reduce_vector(&residual) } else { residual.clone() };
+            let du_r_s = solve_system(&k_s_dc, &residual_s, ns_dc)?;
+            let du_t_s = solve_system(&k_s_dc, &f_ref_s_dc, ns_dc)?;
+            let du_r = if let Some(ref cs) = cs_dc { cs.expand_solution(&du_r_s) } else { du_r_s };
+            let du_t = if let Some(ref cs) = cs_dc { cs.expand_solution(&du_t_s) } else { du_t_s };
 
             // Determine δλ from displacement constraint:
             // (u[ctrl] + δu_r[ctrl] + δλ * δu_t[ctrl]) = target_disp

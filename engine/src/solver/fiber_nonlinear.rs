@@ -14,6 +14,7 @@ use crate::element::fiber_beam::*;
 use crate::element::{frame_transform_2d, compute_local_axes_3d, frame_transform_3d};
 use super::dof::DofNumbering;
 use super::assembly;
+use super::constraints::FreeConstraintSystem;
 
 /// Fiber nonlinear analysis input.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +79,10 @@ pub fn solve_fiber_nonlinear_2d(input: &FiberNonlinearInput) -> Result<FiberNonl
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
     let n_ip = input.n_integration_points.max(2).min(7);
+
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
 
     // Reference load vector
     let asm = assembly::assemble_2d(&input.solver, &dof_num);
@@ -160,18 +165,28 @@ pub fn solve_fiber_nonlinear_2d(input: &FiberNonlinearInput) -> Result<FiberNonl
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
             let r_f: Vec<f64> = residual[..nf].to_vec();
+            let (k_s, r_s) = if let Some(ref cs) = cs {
+                (cs.reduce_matrix(&k_ff), cs.reduce_vector(&r_f))
+            } else {
+                (k_ff, r_f)
+            };
 
-            let delta_u_f = {
-                let mut k_work = k_ff.clone();
-                match cholesky_solve(&mut k_work, &r_f, nf) {
+            let delta_u_indep = {
+                let mut k_work = k_s.clone();
+                match cholesky_solve(&mut k_work, &r_s, ns) {
                     Some(u) => u,
                     None => {
-                        let mut k_work = k_ff;
-                        let mut f_work = r_f.clone();
-                        lu_solve(&mut k_work, &mut f_work, nf)
+                        let mut k_work = k_s;
+                        let mut f_work = r_s;
+                        lu_solve(&mut k_work, &mut f_work, ns)
                             .ok_or("Singular tangent stiffness in fiber N-R")?
                     }
                 }
+            };
+            let delta_u_f = if let Some(ref cs) = cs {
+                cs.expand_solution(&delta_u_indep)
+            } else {
+                delta_u_indep
             };
 
             for i in 0..nf {
@@ -462,6 +477,10 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
     let nf = dof_num.n_free;
     let n_ip = input.n_integration_points.max(2).min(7);
 
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_3d(&input.solver.constraints, &dof_num, &input.solver.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
+
     let asm = assembly::assemble_3d(&input.solver, &dof_num);
     let f_total = asm.f.clone();
 
@@ -534,18 +553,28 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
             let r_f: Vec<f64> = residual[..nf].to_vec();
+            let (k_s, r_s) = if let Some(ref cs) = cs {
+                (cs.reduce_matrix(&k_ff), cs.reduce_vector(&r_f))
+            } else {
+                (k_ff, r_f)
+            };
 
-            let delta_u_f = {
-                let mut k_work = k_ff.clone();
-                match cholesky_solve(&mut k_work, &r_f, nf) {
+            let delta_u_indep = {
+                let mut k_work = k_s.clone();
+                match cholesky_solve(&mut k_work, &r_s, ns) {
                     Some(u) => u,
                     None => {
-                        let mut k_work = k_ff;
-                        let mut f_work = r_f.clone();
-                        lu_solve(&mut k_work, &mut f_work, nf)
+                        let mut k_work = k_s;
+                        let mut f_work = r_s;
+                        lu_solve(&mut k_work, &mut f_work, ns)
                             .ok_or("Singular tangent stiffness in 3D fiber N-R")?
                     }
                 }
+            };
+            let delta_u_f = if let Some(ref cs) = cs {
+                cs.expand_solution(&delta_u_indep)
+            } else {
+                delta_u_indep
             };
 
             for i in 0..nf {

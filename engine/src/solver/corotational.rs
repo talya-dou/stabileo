@@ -3,6 +3,7 @@ use crate::linalg::*;
 use crate::element::*;
 use super::dof::DofNumbering;
 use super::assembly;
+use super::constraints::FreeConstraintSystem;
 
 /// Solve a 2D frame using co-rotational large displacement analysis.
 ///
@@ -23,6 +24,10 @@ pub fn solve_corotational_2d(
 
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
+
+    // Build constraint system (if constraints present)
+    let cs = FreeConstraintSystem::build_2d(&input.constraints, &dof_num, &input.nodes);
+    let ns = cs.as_ref().map_or(nf, |c| c.n_free_indep);
 
     // Get the full external load vector from linear assembly (reference load)
     let asm = assembly::assemble_2d(input, &dof_num);
@@ -86,8 +91,18 @@ pub fn solve_corotational_2d(
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
             let r_f: Vec<f64> = residual[..nf].to_vec();
+            let (k_s, r_s) = if let Some(ref cs) = cs {
+                (cs.reduce_matrix(&k_ff), cs.reduce_vector(&r_f))
+            } else {
+                (k_ff, r_f)
+            };
 
-            let delta_u_f = solve_free_dofs(&k_ff, &r_f, nf)?;
+            let delta_u_indep = solve_free_dofs(&k_s, &r_s, ns)?;
+            let delta_u_f = if let Some(ref cs) = cs {
+                cs.expand_solution(&delta_u_indep)
+            } else {
+                delta_u_indep
+            };
 
             // Update displacements (free DOFs only)
             for i in 0..nf {
