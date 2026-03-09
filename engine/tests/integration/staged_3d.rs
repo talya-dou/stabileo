@@ -71,6 +71,7 @@ fn make_staged_3d_base() -> StagedInput3D {
         supports,
         loads: vec![],
         stages: vec![],
+        constraints: vec![],
     }
 }
 
@@ -417,6 +418,7 @@ fn staged_3d_multistory_erection() {
 
     let input = StagedInput3D {
         nodes, materials, sections, elements, supports, loads, stages,
+        constraints: vec![],
     };
 
     let result = solve_staged_3d(&input).unwrap();

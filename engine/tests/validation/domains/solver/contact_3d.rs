@@ -52,6 +52,8 @@ fn make_contact_input_3d(
         tolerance,
         augmented_lagrangian,
         max_flips,
+        damping_coefficient: None,
+        al_max_iter: None,
     }
 }
 
@@ -284,6 +286,7 @@ fn validation_3d_gap_closes_under_z_load() {
         stiffness: 3000.0,
         friction: None,
         friction_direction: None,
+        friction_coefficient: None,
     };
 
     let input = make_contact_input_3d(
@@ -456,6 +459,7 @@ fn validation_3d_gap_with_friction() {
         stiffness: 4000.0,       // ~ 2x EA/L
         friction: Some(mu),
         friction_direction: Some(1), // Y (tangential)
+        friction_coefficient: None,
     };
 
     let input = make_contact_input_3d(
@@ -570,6 +574,7 @@ fn validation_3d_multiple_gaps_selective_closure() {
             stiffness: 4000.0,
             friction: None,
             friction_direction: None,
+            friction_coefficient: None,
         },
         GapElement {
             id: 2,
@@ -580,6 +585,7 @@ fn validation_3d_multiple_gaps_selective_closure() {
             stiffness: 4000.0,
             friction: None,
             friction_direction: None,
+            friction_coefficient: None,
         },
     ];
 
@@ -672,6 +678,7 @@ fn validation_3d_oscillation_damping() {
         stiffness: 3000.0,
         friction: None,
         friction_direction: None,
+        friction_coefficient: None,
     };
 
     let max_flips = 2;
@@ -754,6 +761,7 @@ fn validation_3d_augmented_lagrangian_reduces_penetration() {
             stiffness: 3000.0, // moderate penalty
             friction: None,
             friction_direction: None,
+            friction_coefficient: None,
         };
 
         let al = if al_factor > 0.0 { Some(al_factor) } else { None };
@@ -848,6 +856,7 @@ fn validation_3d_convergence_stable_problem() {
         stiffness: 4000.0,
         friction: None,
         friction_direction: None,
+        friction_coefficient: None,
     };
 
     let input = make_contact_input_3d(

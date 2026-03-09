@@ -97,6 +97,10 @@ fn test_tension_only_bar_goes_slack() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -143,6 +147,7 @@ fn test_gap_closes_under_compression() {
         stiffness: 5000.0,  // Comparable to EA/L = 2000
         friction: None,
         friction_direction: None,
+        friction_coefficient: None,
     };
 
     let input = ContactInput {
@@ -154,6 +159,10 @@ fn test_gap_closes_under_compression() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -204,6 +213,10 @@ fn test_compression_only_element() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -246,6 +259,7 @@ fn test_oscillation_damping() {
         stiffness: 1e6,
         friction: None,
         friction_direction: None,
+        friction_coefficient: None,
     };
 
     let input = ContactInput {
@@ -257,6 +271,10 @@ fn test_oscillation_damping() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: Some(3),
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -299,6 +317,7 @@ fn test_gap_friction_coulomb_limit() {
         stiffness: 5000.0,
         friction: Some(0.3),
         friction_direction: Some(0),
+        friction_coefficient: None,
     };
 
     let input = ContactInput {
@@ -310,6 +329,10 @@ fn test_gap_friction_coulomb_limit() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -363,12 +386,12 @@ fn test_multiple_gaps_mixed_states() {
         GapElement {
             id: 1, node_i: 2, node_j: 3,
             direction: 0, initial_gap: 0.001, stiffness: 5000.0,
-            friction: None, friction_direction: None,
+            friction: None, friction_direction: None, friction_coefficient: None,
         },
         GapElement {
             id: 2, node_i: 4, node_j: 5,
             direction: 0, initial_gap: 0.5, stiffness: 5000.0,
-            friction: None, friction_direction: None,
+            friction: None, friction_direction: None, friction_coefficient: None,
         },
     ];
 
@@ -381,6 +404,10 @@ fn test_multiple_gaps_mixed_states() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();
@@ -418,13 +445,17 @@ fn test_augmented_lagrangian_reduces_penetration() {
             gap_elements: vec![GapElement {
                 id: 1, node_i: 2, node_j: 3,
                 direction: 0, initial_gap: 0.001, stiffness: 1000.0,
-                friction: None, friction_direction: None,
+                friction: None, friction_direction: None, friction_coefficient: None,
             }],
             uplift_supports: vec![],
             max_iter: Some(30),
             tolerance: None,
             augmented_lagrangian: al,
             max_flips: None,
+            damping_coefficient: None,
+            al_max_iter: None,
+            contact_type: ContactType::default(),
+            node_to_surface_pairs: vec![],
         }
     };
 
@@ -483,6 +514,10 @@ fn test_convergence_stable_problem() {
         tolerance: None,
         augmented_lagrangian: None,
         max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
     };
 
     let result = solve_contact_2d(&input).unwrap();

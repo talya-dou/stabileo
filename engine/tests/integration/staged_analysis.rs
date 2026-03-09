@@ -80,6 +80,7 @@ fn single_stage_matches_normal_solve() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
 
     let staged_results = solve_staged_2d(&staged_input).unwrap();
@@ -137,6 +138,7 @@ fn two_stage_cantilever_then_span() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -225,6 +227,7 @@ fn prestress_straight_tendon_camber() {
                     kappa: None,
                 },
             ] }],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -324,6 +327,7 @@ fn prestress_parabolic_tendon() {
             supports_added: all_sup_ids,
             supports_removed: vec![],
             prestress_loads }],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -351,6 +355,7 @@ fn empty_stages_error() {
         nodes, materials, sections, elements, supports,
         loads: vec![],
         stages: vec![],
+        constraints: vec![],
     };
     assert!(solve_staged_2d(&staged_input).is_err());
 }
@@ -370,6 +375,7 @@ fn stage_with_no_elements() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -414,6 +420,7 @@ fn element_removal_increases_deflection() {
                 supports_removed: vec![2],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -475,6 +482,7 @@ fn three_stages_increasing_load() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -569,6 +577,7 @@ fn staged_braced_frame_matches_linear_results() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let staged = solve_staged_2d(&staged_input).unwrap();
     let stage = &staged.stages[0].results;

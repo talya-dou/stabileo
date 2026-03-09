@@ -156,6 +156,7 @@ fn validation_staged_1_two_phase_beam() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
     let staged_results = solve_staged_2d(&staged_input).unwrap();
 
@@ -171,6 +172,7 @@ fn validation_staged_1_two_phase_beam() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let single_results = solve_staged_2d(&single_input).unwrap();
 
@@ -253,6 +255,7 @@ fn validation_staged_2_support_addition() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -366,6 +369,7 @@ fn validation_staged_3_element_activation() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
     let staged_results = solve_staged_2d(&staged_input).unwrap();
 
@@ -381,6 +385,7 @@ fn validation_staged_3_element_activation() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let single_results = solve_staged_2d(&single_input).unwrap();
 
@@ -490,6 +495,7 @@ fn validation_staged_4_support_removal() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -608,6 +614,7 @@ fn validation_staged_5_staged_loading() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
     let staged_results = solve_staged_2d(&staged_input).unwrap();
 
@@ -632,6 +639,7 @@ fn validation_staged_5_staged_loading() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let single_results = solve_staged_2d(&single_input).unwrap();
 
@@ -732,6 +740,7 @@ fn validation_staged_6_self_weight() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();
@@ -762,6 +771,7 @@ fn validation_staged_6_self_weight() {
             supports_added: vec![1],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let ref_results = solve_staged_2d(&ref_staged_input).unwrap();
 
@@ -899,6 +909,7 @@ fn validation_staged_7_frame_erection() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
     let staged_results = solve_staged_2d(&staged_input).unwrap();
 
@@ -914,6 +925,7 @@ fn validation_staged_7_frame_erection() {
             supports_added: vec![1, 2],
             supports_removed: vec![],
             prestress_loads: vec![], }],
+        constraints: vec![],
     };
     let single_results = solve_staged_2d(&single_input).unwrap();
 
@@ -1039,6 +1051,7 @@ fn validation_staged_8_equilibrium_each_stage() {
                 supports_removed: vec![],
                 prestress_loads: vec![], },
         ],
+        constraints: vec![],
     };
 
     let results = solve_staged_2d(&staged_input).unwrap();

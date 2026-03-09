@@ -4,7 +4,8 @@ use crate::solver::dof::DofNumbering;
 use crate::solver::assembly::*;
 use crate::solver::linear::{build_displacements_2d, compute_internal_forces_2d,
                              build_reactions_2d, build_displacements_3d,
-                             compute_internal_forces_3d, build_reactions_3d};
+                             compute_internal_forces_3d, build_reactions_3d,
+                             compute_plate_stresses, compute_quad_stresses};
 use crate::linalg::*;
 use serde::{Deserialize, Serialize};
 use super::constraints::FreeConstraintSystem;
@@ -240,7 +241,9 @@ pub fn solve_winkler_3d(input: &WinklerInput3D) -> Result<AnalysisResults3D, Str
     element_forces.sort_by_key(|ef| ef.element_id);
 
     Ok(AnalysisResults3D {
-        displacements, reactions, element_forces, plate_stresses: vec![], quad_stresses: vec![],
+        displacements, reactions, element_forces,
+        plate_stresses: compute_plate_stresses(&input.solver, &dof_num, &u_full),
+        quad_stresses: compute_quad_stresses(&input.solver, &dof_num, &u_full),
     })
 }
 
