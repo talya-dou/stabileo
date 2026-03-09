@@ -53,6 +53,11 @@ jobs:
         working-directory: engine
         run: cargo test --test integration
 
+      - name: Acceptance gates (multi-feature models)
+        working-directory: engine
+        run: cargo test --test validation acceptance_ -- --test-threads=1
+        timeout-minutes: 2
+
       - name: Validation tests (includes benchmark gates)
         working-directory: engine
         run: cargo test --test validation

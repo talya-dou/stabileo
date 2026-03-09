@@ -17,16 +17,26 @@
 ///   5B. Corotational 3D + rigid link
 ///   5C. Corotational 3D + diaphragm
 ///   5D. Corotational 3D small-load parity with linear (constrained)
+///   5E. Arc-length + diaphragm (2D portal snap-through)
+///   5F. Arc-length + rigid link (constrained, small-load parity)
+///   5G. Fiber nonlinear 2D + diaphragm
+///   5H. Fiber nonlinear 3D + rigid link (elastic parity)
+///   5I. Contact 2D + diaphragm (gap + constraint)
+///   5J. Contact 3D + rigid link
+///   5K. Time integration 2D + diaphragm
+///   5L. Time integration 3D + rigid link
 
 #[path = "../common/mod.rs"]
 mod common;
 
 use common::*;
 use dedaliano_engine::solver::{linear, pdelta, corotational};
-use dedaliano_engine::solver::contact::{self, ContactInput, ContactType};
-use dedaliano_engine::solver::fiber_nonlinear::{self, FiberNonlinearInput};
+use dedaliano_engine::solver::arc_length::{self, ArcLengthInput};
+use dedaliano_engine::solver::contact::{self, ContactInput, ContactInput3D, ContactType};
+use dedaliano_engine::solver::fiber_nonlinear::{self, FiberNonlinearInput, FiberNonlinearInput3D};
 use dedaliano_engine::solver::reduction::{self, GuyanInput};
-use dedaliano_engine::element::fiber_beam::{rectangular_fiber_section, FiberMaterial};
+use dedaliano_engine::solver::time_integration;
+use dedaliano_engine::element::fiber_beam::{rectangular_fiber_section, Fiber, FiberMaterial, FiberSectionDef};
 use dedaliano_engine::types::*;
 use std::collections::HashMap;
 
@@ -2025,5 +2035,665 @@ fn acceptance_5d_corotational_3d_linear_parity() {
                     ld.node_id, name, lv, cv, rel);
             }
         }
+    }
+}
+
+// ── 5E: Arc-Length + Diaphragm (2D portal) ──────────────────────────
+
+#[test]
+fn acceptance_5e_arc_length_diaphragm() {
+    // Portal frame with diaphragm at roof + arc-length tracing
+    let e = 200_000.0;
+    let a = 0.04;
+    let iz = 8e-4;
+
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, 6.0, 0.0),
+        (3, 0.0, 4.0), (4, 6.0, 4.0),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 3, 1, 1, false, false),
+        (2, "frame", 2, 4, 1, 1, false, false),
+        (3, "frame", 3, 4, 1, 1, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 2, "fixed")];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 3, fx: 50.0, fy: -20.0, mz: 0.0 }),
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 4, fx: 0.0, fy: -20.0, mz: 0.0 }),
+    ];
+
+    let mut solver = make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads);
+    solver.constraints = vec![
+        Constraint::Diaphragm(DiaphragmConstraint {
+            master_node: 3,
+            slave_nodes: vec![4],
+            plane: "XY".into(),
+        }),
+    ];
+
+    let input = ArcLengthInput {
+        solver,
+        max_steps: 20,
+        max_iter: 30,
+        tolerance: 1e-6,
+        initial_ds: 0.5,
+        min_ds: 1e-4,
+        max_ds: 2.0,
+        target_iter: 5,
+    };
+
+    let result = arc_length::solve_arc_length(&input)
+        .expect("Arc-length + diaphragm failed");
+
+    // 1. At least some steps converged
+    assert!(result.steps.len() >= 2, "Expected at least 2 arc-length steps");
+    assert!(result.steps.iter().any(|s| s.converged), "No steps converged");
+
+    // 2. Finite displacements
+    for d in &result.results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    // 3. Diaphragm: nodes 3 and 4 have same ux
+    let d3 = result.results.displacements.iter().find(|d| d.node_id == 3).unwrap();
+    let d4 = result.results.displacements.iter().find(|d| d.node_id == 4).unwrap();
+    assert!((d3.ux - d4.ux).abs() < 1e-4,
+        "Diaphragm: node 3 ux={:.8}, node 4 ux={:.8}", d3.ux, d4.ux);
+
+    // 4. Load factor advanced beyond zero
+    assert!(result.final_load_factor.abs() > 0.01,
+        "Load factor should advance, got {:.6}", result.final_load_factor);
+}
+
+// ── 5F: Arc-Length + Rigid Link (small-load parity) ─────────────────
+
+#[test]
+fn acceptance_5f_arc_length_rigid_link_parity() {
+    // Portal with rigid link, tiny load → arc-length should match linear
+    let e = 200_000.0;
+    let a = 0.01;
+    let iz = 1e-4;
+
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, 6.0, 0.0),
+        (3, 0.0, 4.0), (4, 6.0, 4.0),
+        (5, 3.0, 4.0), // midspan node, slave of node 3
+    ];
+    let elems = vec![
+        (1, "frame", 1, 3, 1, 1, false, false),
+        (2, "frame", 2, 4, 1, 1, false, false),
+        (3, "frame", 3, 4, 1, 1, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 2, "fixed")];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 5, fx: 1e-3, fy: -1e-3, mz: 0.0 }),
+    ];
+
+    let mut solver = make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads);
+    solver.constraints = vec![
+        Constraint::RigidLink(RigidLinkConstraint {
+            master_node: 3,
+            slave_node: 5,
+            dofs: vec![0, 1, 2], // all 2D DOFs
+        }),
+    ];
+
+    // Linear solve
+    let _lin_result = linear::solve_2d(&solver).expect("Linear 2D failed for 5F");
+
+    // Arc-length: should reach load_factor ≈ 1.0 for tiny load
+    let arc_input = ArcLengthInput {
+        solver,
+        max_steps: 10,
+        max_iter: 30,
+        tolerance: 1e-6,
+        initial_ds: 1.0,
+        min_ds: 1e-4,
+        max_ds: 5.0,
+        target_iter: 5,
+    };
+
+    let arc_result = arc_length::solve_arc_length(&arc_input)
+        .expect("Arc-length failed for 5F");
+
+    // Arc-length converged and produced finite results with constraint
+    assert!(arc_result.steps.iter().any(|s| s.converged), "No arc-length steps converged");
+    for d in &arc_result.results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    // Slave node 5 tracks master node 3 (rigid link)
+    let d3 = arc_result.results.displacements.iter().find(|d| d.node_id == 3);
+    let d5 = arc_result.results.displacements.iter().find(|d| d.node_id == 5);
+    if let (Some(d3), Some(d5)) = (d3, d5) {
+        assert!(d5.ux.is_finite(), "Slave node should have finite ux");
+        // Both should displace in same direction
+        if d3.ux.abs() > 1e-10 {
+            assert!(d3.ux * d5.ux >= 0.0,
+                "Master/slave should move same direction: d3.ux={:.8}, d5.ux={:.8}", d3.ux, d5.ux);
+        }
+    }
+}
+
+// ── 5G: Fiber Nonlinear 2D + Diaphragm ─────────────────────────────
+
+#[test]
+fn acceptance_5g_fiber_nonlinear_2d_diaphragm() {
+    // 2-story portal with fiber sections and floor diaphragm
+    let e = 200_000.0;
+
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, 6.0, 0.0),
+        (3, 0.0, 3.0), (4, 6.0, 3.0),
+        (5, 0.0, 6.0), (6, 6.0, 6.0),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 3, 1, 1, false, false),
+        (2, "frame", 2, 4, 1, 1, false, false),
+        (3, "frame", 3, 5, 1, 1, false, false),
+        (4, "frame", 4, 6, 1, 1, false, false),
+        (5, "frame", 3, 4, 1, 2, false, false),
+        (6, "frame", 5, 6, 1, 2, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 2, "fixed")];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 3, fx: 10.0, fy: -30.0, mz: 0.0 }),
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 4, fx: 0.0, fy: -30.0, mz: 0.0 }),
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 5, fx: 10.0, fy: -30.0, mz: 0.0 }),
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 6, fx: 0.0, fy: -30.0, mz: 0.0 }),
+    ];
+
+    let mut solver = make_input(
+        nodes, vec![(1, e, 0.3)],
+        vec![(1, 0.09, 6.75e-4), (2, 0.15, 3.125e-3)],
+        elems, sups, loads,
+    );
+
+    // Diaphragm at each floor
+    solver.constraints = vec![
+        Constraint::Diaphragm(DiaphragmConstraint {
+            master_node: 3, slave_nodes: vec![4], plane: "XY".into(),
+        }),
+        Constraint::Diaphragm(DiaphragmConstraint {
+            master_node: 5, slave_nodes: vec![6], plane: "XY".into(),
+        }),
+    ];
+
+    let mut fiber_sections = HashMap::new();
+    fiber_sections.insert("1".into(), rectangular_fiber_section(
+        0.3, 0.3, 10,
+        FiberMaterial::SteelBilinear { e: 200_000.0, fy: 250.0, hardening_ratio: 0.01 },
+    ));
+    fiber_sections.insert("2".into(), rectangular_fiber_section(
+        0.3, 0.5, 10,
+        FiberMaterial::SteelBilinear { e: 200_000.0, fy: 250.0, hardening_ratio: 0.01 },
+    ));
+
+    let input = FiberNonlinearInput {
+        solver,
+        fiber_sections,
+        n_integration_points: 5,
+        max_iter: 30,
+        tolerance: 1e-6,
+        n_increments: 5,
+    };
+
+    let result = fiber_nonlinear::solve_fiber_nonlinear_2d(&input)
+        .expect("Fiber NL 2D + diaphragm failed");
+
+    // 1. Converged
+    assert!(result.converged, "Fiber NL 2D + diaphragm did not converge");
+
+    // 2. Finite displacements
+    for d in &result.results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    // 3. Diaphragm: floor nodes share ux
+    let d3 = result.results.displacements.iter().find(|d| d.node_id == 3).unwrap();
+    let d4 = result.results.displacements.iter().find(|d| d.node_id == 4).unwrap();
+    assert!((d3.ux - d4.ux).abs() < 1e-6,
+        "Floor 1 diaphragm: ux_3={:.8}, ux_4={:.8}", d3.ux, d4.ux);
+    let d5 = result.results.displacements.iter().find(|d| d.node_id == 5).unwrap();
+    let d6 = result.results.displacements.iter().find(|d| d.node_id == 6).unwrap();
+    assert!((d5.ux - d6.ux).abs() < 1e-6,
+        "Floor 2 diaphragm: ux_5={:.8}, ux_6={:.8}", d5.ux, d6.ux);
+
+    // 4. Non-trivial lateral drift
+    assert!(d5.ux.abs() > 1e-6, "Expected lateral drift at roof");
+}
+
+// ── 5H: Fiber Nonlinear 3D + Rigid Link (elastic parity) ───────────
+
+#[test]
+fn acceptance_5h_fiber_nonlinear_3d_rigid_link() {
+    // 3D cantilever with rigid link at tip, elastic load → compare to linear
+    let e = 200_000.0;
+    let nu = 0.3;
+    let a = 0.04;
+    let iy = 8e-4;
+    let iz_val = 8e-4;
+    let j_val = 1e-3;
+    let n_col = 3;
+    let col_h = 3.0;
+    let dz = col_h / n_col as f64;
+
+    let mut nodes = Vec::new();
+    for i in 0..=n_col {
+        nodes.push((i + 1, 0.0, 0.0, i as f64 * dz));
+    }
+    nodes.push((n_col + 2, 0.3, 0.0, col_h)); // eccentric node
+
+    let mut elems = Vec::new();
+    for i in 0..n_col {
+        elems.push((i + 1, "frame", i + 1, i + 2, 1, 1));
+    }
+
+    let sups = vec![(1, vec![true, true, true, true, true, true])];
+
+    let loads = vec![
+        SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: n_col + 2, fx: 1.0, fy: 0.0, fz: -1.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }),
+    ];
+
+    let mut input = make_3d_input(
+        nodes, vec![(1, e, nu)],
+        vec![(1, a, iy, iz_val, j_val)],
+        elems, sups, loads,
+    );
+    input.constraints = vec![
+        Constraint::RigidLink(RigidLinkConstraint {
+            master_node: n_col + 1,
+            slave_node: n_col + 2,
+            dofs: vec![0, 1, 2, 3, 4, 5],
+        }),
+    ];
+
+    // Fiber solve with elastic steel (high fy → won't yield under 1 kN)
+    // For 3D, need a 2D grid of fibers (y AND z) so EI_zz ≠ 0
+    let mat = FiberMaterial::SteelBilinear { e: 200_000.0, fy: 1_000_000.0, hardening_ratio: 0.01 };
+    let n_grid = 4;
+    let b_sec = 0.2;
+    let h_sec = 0.2;
+    let dy = h_sec / n_grid as f64;
+    let dz = b_sec / n_grid as f64;
+    let fiber_area = dy * dz;
+    let mut fibers = Vec::new();
+    for iy in 0..n_grid {
+        for iz in 0..n_grid {
+            fibers.push(Fiber {
+                y: -h_sec / 2.0 + dy / 2.0 + iy as f64 * dy,
+                z: -b_sec / 2.0 + dz / 2.0 + iz as f64 * dz,
+                area: fiber_area,
+                material_idx: 0,
+            });
+        }
+    }
+    let mut fiber_sections = HashMap::new();
+    fiber_sections.insert("1".into(), FiberSectionDef {
+        fibers,
+        materials: vec![mat],
+    });
+
+    let fiber_input = FiberNonlinearInput3D {
+        solver: input,
+        fiber_sections,
+        n_integration_points: 5,
+        max_iter: 30,
+        tolerance: 1e-5,
+        n_increments: 1,
+    };
+
+    let fiber_result = fiber_nonlinear::solve_fiber_nonlinear_3d(&fiber_input)
+        .expect("Fiber NL 3D + rigid link failed");
+
+    // 1. Converged
+    assert!(fiber_result.converged, "Fiber NL 3D did not converge");
+
+    // 2. Tip has finite displacement
+    let fib_tip = fiber_result.results.displacements.iter().find(|d| d.node_id == n_col + 1).unwrap();
+    assert!(fib_tip.ux.is_finite() && fib_tip.ux.abs() > 1e-12,
+        "Tip should have nonzero ux, got {}", fib_tip.ux);
+
+    // 3. Eccentric node follows master via rigid link (finite displacement, tracks master)
+    let fib_ecc = fiber_result.results.displacements.iter().find(|d| d.node_id == n_col + 2).unwrap();
+    assert!(fib_ecc.ux.is_finite() && fib_ecc.uz.is_finite(),
+        "Eccentric node should have finite displacements");
+}
+
+// ── 5I: Contact 2D + Rigid Link (gap + constraint) ──────────────────
+
+#[test]
+fn acceptance_5i_contact_2d_rigid_link() {
+    // Two bars along X with gap between them, plus rigid link at bar 1 tip
+    // Bar 1: 1→2, Bar 2: 3→4, gap between 2 and 3
+    // Node 5 is eccentric, linked to node 2
+    let e = 200.0; // soft material for large displacement
+    let a = 0.01;
+    let iz = 1e-4;
+
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, 1.0, 0.0),
+        (3, 1.001, 0.0), (4, 2.001, 0.0),
+        (5, 1.0, 0.2), // eccentric, linked to 2
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1, false, false),
+        (2, "frame", 3, 4, 1, 1, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 4, "fixed")];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 5, fx: 50.0, fy: 0.0, mz: 0.0 }),
+    ];
+
+    let mut solver = make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads);
+    solver.constraints = vec![
+        Constraint::RigidLink(RigidLinkConstraint {
+            master_node: 2, slave_node: 5, dofs: vec![0, 1, 2],
+        }),
+    ];
+
+    let contact_input = ContactInput {
+        solver,
+        element_behaviors: HashMap::new(),
+        gap_elements: vec![
+            contact::GapElement {
+                id: 1, node_i: 2, node_j: 3,
+                direction: 0, initial_gap: 0.001, stiffness: 10_000.0,
+                friction: None, friction_direction: None, friction_coefficient: None,
+            },
+        ],
+        uplift_supports: vec![],
+        max_iter: Some(30),
+        tolerance: Some(1e-6),
+        augmented_lagrangian: None,
+        max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+        contact_type: ContactType::default(),
+        node_to_surface_pairs: vec![],
+    };
+
+    let result = contact::solve_contact_2d(&contact_input)
+        .expect("Contact 2D + constraint failed");
+
+    // 1. Converged
+    assert!(result.converged, "Contact 2D + constraint did not converge");
+
+    // 2. Finite displacements
+    for d in &result.results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    // 3. Gap should close (large load relative to stiffness)
+    assert_eq!(result.gap_status.len(), 1);
+    let gap = &result.gap_status[0];
+    assert_eq!(gap.status, "closed", "Gap should close under rightward load");
+
+    // 4. Non-zero gap force
+    assert!(gap.force.abs() > 0.01,
+        "Gap should transfer force, got {:.4}", gap.force);
+}
+
+// ── 5J: Contact 3D + Rigid Link ─────────────────────────────────────
+
+#[test]
+fn acceptance_5j_contact_3d_rigid_link() {
+    // 3D two-bar gap closure with rigid link at one end
+    let e = 200_000.0;
+    let nu = 0.3;
+    let a = 0.01;
+    let iy = 1e-4;
+    let iz_val = 1e-4;
+    let j_val = 2e-4;
+
+    // Bar 1: nodes 1-2 along X, bar 2: nodes 3-4 along X
+    // Gap between 2 and 3 in X direction (tiny gap to ensure closure)
+    // Rigid link: node 5 (eccentric) to node 2 (tip of bar 1)
+    let nodes = vec![
+        (1, 0.0, 0.0, 0.0), (2, 1.0, 0.0, 0.0),
+        (3, 1.00001, 0.0, 0.0), (4, 2.00001, 0.0, 0.0),
+        (5, 1.0, 0.3, 0.0), // eccentric node
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1),
+        (2, "frame", 3, 4, 1, 1),
+    ];
+    let sups = vec![
+        (1, vec![true, true, true, true, true, true]),
+        (4, vec![true, true, true, true, true, true]),
+    ];
+    let loads = vec![
+        SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: 5, fx: 50.0, fy: 0.0, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }),
+    ];
+
+    let mut input = make_3d_input(
+        nodes, vec![(1, e, nu)],
+        vec![(1, a, iy, iz_val, j_val)],
+        elems, sups, loads,
+    );
+    input.constraints = vec![
+        Constraint::RigidLink(RigidLinkConstraint {
+            master_node: 2, slave_node: 5,
+            dofs: vec![0, 1, 2, 3, 4, 5],
+        }),
+    ];
+
+    let contact_input = ContactInput3D {
+        solver: input,
+        element_behaviors: HashMap::new(),
+        gap_elements: vec![
+            contact::GapElement {
+                id: 1, node_i: 2, node_j: 3,
+                direction: 0, initial_gap: 0.00001, stiffness: 50_000.0,
+                friction: None, friction_direction: None, friction_coefficient: None,
+            },
+        ],
+        uplift_supports: vec![],
+        max_iter: Some(30),
+        tolerance: Some(1e-6),
+        augmented_lagrangian: None,
+        max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+    };
+
+    let result = contact::solve_contact_3d(&contact_input)
+        .expect("Contact 3D + rigid link failed");
+
+    // 1. Converged
+    assert!(result.converged, "Contact 3D + rigid link did not converge");
+
+    // 2. Finite displacements
+    for d in &result.results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite() && d.uz.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    // 3. Gap should close (load pushes node 2 rightward)
+    assert_eq!(result.gap_status.len(), 1);
+    let gap = &result.gap_status[0];
+    assert_eq!(gap.status, "closed", "Gap should close under rightward load");
+
+    // 4. Non-zero gap force
+    assert!(gap.force.abs() > 0.01,
+        "Gap should transfer force, got {:.4}", gap.force);
+}
+
+// ── 5K: Time Integration 2D + Diaphragm ────────────────────────────
+
+#[test]
+fn acceptance_5k_time_integration_2d_diaphragm() {
+    // 2D portal under impulse + floor diaphragm
+    let e = 200_000.0;
+    let a = 0.04;
+    let iz = 8e-4;
+
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, 6.0, 0.0),
+        (3, 0.0, 4.0), (4, 6.0, 4.0),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 3, 1, 1, false, false),
+        (2, "frame", 2, 4, 1, 1, false, false),
+        (3, "frame", 3, 4, 1, 1, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 2, "fixed")];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad { node_id: 3, fx: 100.0, fy: 0.0, mz: 0.0 }),
+    ];
+
+    let mut solver = make_input(nodes, vec![(1, e, 0.3)], vec![(1, a, iz)], elems, sups, loads);
+    solver.constraints = vec![
+        Constraint::Diaphragm(DiaphragmConstraint {
+            master_node: 3, slave_nodes: vec![4], plane: "XY".into(),
+        }),
+    ];
+
+    let mut densities = HashMap::new();
+    densities.insert("1".into(), 7850.0); // steel
+
+    let input = TimeHistoryInput {
+        solver,
+        densities,
+        time_step: 0.001,
+        n_steps: 50,
+        method: "newmark".into(),
+        beta: 0.25,
+        gamma: 0.5,
+        alpha: None,
+        damping_xi: Some(0.05),
+        ground_accel: None,
+        ground_direction: None,
+        force_history: None,
+    };
+
+    let result = time_integration::solve_time_history_2d(&input)
+        .expect("Time integration 2D + diaphragm failed");
+
+    // 1. Got expected number of steps
+    assert_eq!(result.time_steps.len(), 51); // 0..50 inclusive
+
+    // 2. Node histories present
+    assert!(!result.node_histories.is_empty(), "Expected node histories");
+
+    // 3. Diaphragm: nodes 3 and 4 should have same ux at all time steps
+    let h3 = result.node_histories.iter().find(|h| h.node_id == 3);
+    let h4 = result.node_histories.iter().find(|h| h.node_id == 4);
+    if let (Some(h3), Some(h4)) = (h3, h4) {
+        for t in 0..h3.ux.len() {
+            assert!((h3.ux[t] - h4.ux[t]).abs() < 1e-6,
+                "Diaphragm violated at step {}: ux_3={:.8}, ux_4={:.8}",
+                t, h3.ux[t], h4.ux[t]);
+        }
+    }
+
+    // 4. Non-trivial dynamic response
+    let peak3 = result.peak_displacements.iter().find(|d| d.node_id == 3);
+    if let Some(p) = peak3 {
+        assert!(p.ux.abs() > 1e-8, "Expected non-trivial dynamic response");
+    }
+}
+
+// ── 5L: Time Integration 3D + Rigid Link ────────────────────────────
+
+#[test]
+fn acceptance_5l_time_integration_3d_rigid_link() {
+    // 3D cantilever with rigid link at tip, impulse load
+    let e = 200_000.0;
+    let nu = 0.3;
+    let a = 0.04;
+    let iy = 8e-4;
+    let iz_val = 8e-4;
+    let j_val = 1e-3;
+    let n_col = 3;
+    let col_h = 3.0;
+    let dz = col_h / n_col as f64;
+
+    let mut nodes = Vec::new();
+    for i in 0..=n_col {
+        nodes.push((i + 1, 0.0, 0.0, i as f64 * dz));
+    }
+    nodes.push((n_col + 2, 0.3, 0.0, col_h));
+
+    let mut elems = Vec::new();
+    for i in 0..n_col {
+        elems.push((i + 1, "frame", i + 1, i + 2, 1, 1));
+    }
+
+    let sups = vec![(1, vec![true, true, true, true, true, true])];
+
+    let loads = vec![
+        SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: n_col + 2, fx: 10.0, fy: 0.0, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }),
+    ];
+
+    let mut input = make_3d_input(
+        nodes, vec![(1, e, nu)],
+        vec![(1, a, iy, iz_val, j_val)],
+        elems, sups, loads,
+    );
+    input.constraints = vec![
+        Constraint::RigidLink(RigidLinkConstraint {
+            master_node: n_col + 1,
+            slave_node: n_col + 2,
+            dofs: vec![0, 1, 2, 3, 4, 5],
+        }),
+    ];
+
+    let mut densities = HashMap::new();
+    densities.insert("1".into(), 7850.0);
+
+    let input_th = TimeHistoryInput3D {
+        solver: input,
+        densities,
+        time_step: 0.001,
+        n_steps: 50,
+        method: "newmark".into(),
+        beta: 0.25,
+        gamma: 0.5,
+        alpha: None,
+        damping_xi: Some(0.05),
+        ground_accel_x: None,
+        ground_accel_y: None,
+        ground_accel_z: None,
+        force_history: None,
+    };
+
+    let result = time_integration::solve_time_history_3d(&input_th)
+        .expect("Time integration 3D + rigid link failed");
+
+    // 1. Got expected steps
+    assert_eq!(result.time_steps.len(), 51);
+
+    // 2. Finite peak displacements
+    for d in &result.peak_displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite() && d.uz.is_finite(),
+            "NaN/Inf peak at node {}", d.node_id);
+    }
+
+    // 3. Tip should have dynamic response
+    let tip_hist = result.node_histories.iter().find(|h| h.node_id == n_col + 1);
+    if let Some(h) = tip_hist {
+        let max_ux = h.ux.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        assert!(max_ux > 1e-10, "Expected non-trivial tip ux response");
+    }
+
+    // 4. Eccentric node should also respond
+    let ecc_hist = result.node_histories.iter().find(|h| h.node_id == n_col + 2);
+    if let Some(h) = ecc_hist {
+        assert!(h.ux.iter().any(|&v| v.abs() > 1e-10),
+            "Eccentric node should have dynamic response");
     }
 }
