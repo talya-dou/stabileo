@@ -45,20 +45,22 @@ This document should stay focused on the engine surface, analysis families, and 
 ## Running Tests
 
 ```bash
-cd engine && cargo test                # full suite
-cd engine && cargo test --test core    # core solver tests (92 tests)
-cd engine && cargo test --test property # differential fuzz tests (90 tests)
-cd engine && cargo test --test integration # integration tests (185 tests)
-cd engine && cargo test --test validation  # validation tests (5755+ tests)
+cd engine && cargo nextest run         # default full-suite runner
+cd engine && cargo test --test core    # core solver tests
+cd engine && cargo test --test property # differential fuzz tests
+cd engine && cargo test --test integration # integration tests
+cd engine && cargo test --test validation  # validation crate
 ```
+
+CI now runs `cargo nextest run --profile ci`, with engine-local nextest configuration and a Linux-only `mold` linker setup for faster test builds.
 
 ## Validation Test Suite
 
-Latest reported full-suite status: **5755+ passing tests, 0 failures**.
+Latest reported full-suite status: **6334 passing tests, 0 failures**.
 
 The engine is backed by:
 
-- a validation suite measured in the high `5000+` range
+- a validation suite measured in the low `6000+` range
 - `25` integration test files
 - dedicated property / differential fuzz coverage
 - benchmark-gate suites for constraints, contact, shells, reduction, and sparse / conditioning paths
@@ -148,8 +150,9 @@ See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md
 
 ### Current Engine Frontier
 
-Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, and performance architecture are all in place. The main remaining engine work is:
+Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, and shell benchmark hardening are all in place. The main remaining engine work is:
 
+- shell release-gating and shell-driven fixes from the newest benchmark/acceptance suites
 - real-model acceptance tests and full-workflow performance benchmarks
 - deeper shell maturity (mixed mesh, folded plates, convergence studies)
 - advanced contact variants (friction cycles, multi-gap mixed states)

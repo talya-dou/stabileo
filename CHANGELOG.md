@@ -4,7 +4,7 @@
 
 ### Solver quality milestone
 
-- latest reported full-suite status reached `5755` passing tests with `0` failures
+- latest reported full-suite status reached `6334` passing tests with `0` failures
 - fixed the staged fixed-end-force accumulation bug by tracking cumulative loads across stages
 - corrected four pre-existing TME validation expectations involving formulas, sign conventions, and a wrong midspan-node assumption
 
@@ -29,6 +29,7 @@
 - verified quad shell load vectors, mass, geometric stiffness, and quality metrics
 - verified mixed DKT and MITC4 assembly and beam-shell DOF interfacing
 - wired plate and quad stress recovery into the major nonlinear 3D solver families
+- added beam-shell mixed benchmarks, shell buckling benchmarks, shell thermal benchmarks, and shell acceptance models
 
 ### Performance and scale
 
@@ -36,3 +37,4 @@
 - added sparse triplet assembly infrastructure
 - added parallel element assembly behind the `parallel` feature flag
 - extended criterion benchmarks with larger-model assembly and dense-vs-sparse solve comparisons
+- switched CI and local default full-suite execution toward `cargo nextest`, with engine-local nextest config and Linux `mold` linker support

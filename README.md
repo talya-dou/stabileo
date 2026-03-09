@@ -60,9 +60,9 @@ Dedaliano is an `open-source structural solver` with a growing structural engine
 
 Latest reported milestone:
 
-- `5755` tests passing, `0` failures
+- `6334` tests passing, `0` failures
 - explicit benchmark-gate suites for constraints, contact, shells, reduction, and sparse / conditioning paths
-- major recent work in constraint-system unification, shell stress recovery, contact refinement, and performance architecture
+- major recent work in constraint-system unification, shell stress recovery, contact refinement, performance architecture, and shell benchmark hardening
 
 What exists today at a high level:
 
