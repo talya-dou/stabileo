@@ -9,6 +9,7 @@ mod contact_benchmark;
 mod corotational_benchmarks;
 mod corotational_benchmarks_extended;
 mod fiber_benchmark;
+mod imperfections_benchmark;
 mod material_nonlinear_benchmarks;
 mod nafems;
 mod nafems_additional;

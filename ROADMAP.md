@@ -65,46 +65,60 @@ This section is intentionally separate from the product and revenue roadmap belo
 
 If the goal is "best structural solver", the next solver-core work is now mostly hardening, scale, and the last high-value depth layers:
 
+The next solver program is best understood as four parallel tracks:
+
+1. `Reference benchmark validation`
+   Shells, contact, fiber 3D, SSI, and creep/shrinkage have now been pushed into real external-reference benchmark coverage; the remaining work is to keep those suites as release gates and expand them where new mechanics land.
+2. `Shell maturity`
+   Shell mechanics now exist; the next step is production-grade load vectors, mixed workflows, distortion tolerance, and downstream solver wiring.
+3. `Constraint deepening`
+   Constraint infrastructure is already broad, but deeper chained behavior, eccentric workflows, connector depth, and constraint-force output still matter.
+4. `Performance and scale`
+   Criterion baselines, sparse assembly, conditioning diagnostics, and parallel element work now need to produce full-model wins.
+
 #### 0-3 months
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 1 | Benchmark hardening on newest solver families | The newest solver modules now have gate suites; the next step is to expand them into release-quality benchmark discipline. |
-| 2 | Constraint-system reuse and workflow maturity | Reusable constrained reductions now exist; the next step is consistent use across the remaining solver families. |
-| 3 | Better shell reliability and workflow depth | Shell quality and mixed-model behavior are now a bigger differentiator than basic shell presence. |
+| 1 | Better shell reliability and workflow depth | Shell benchmark hardening is now in place; the next differentiator is production-grade shell workflow quality. |
+| 2 | Constraint-system reuse and workflow maturity | Reusable constrained reductions now exist; the next step is consistent use across the remaining solver families plus deeper constraint behavior. |
+| 3 | Verification hardening | Expand invariants, property-based tests, fuzzing, benchmark gates, and acceptance models around the newest solver families. |
 | 4 | Performance and scale engineering | Sparse assembly, conditioning diagnostics, and parallel paths now exist; the next step is full-model performance wins. |
 | 5 | Advanced contact variants | Basic contact exists; the next layer is richer unilateral/contact behavior and harder convergence cases. |
-| 6 | Verification hardening | Expand invariants, property-based tests, fuzzing, benchmark gates, and acceptance models around the newest solver families. |
+| 6 | Acceptance-model expansion | The acceptance suite is now real; the next step is to grow it carefully around the hardest workflows. |
 
 #### 3-6 months
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 7 | Model reduction / substructuring | Valuable once the core nonlinear and shell stack is hardened. |
-| 8 | Deeper prestress / staged time-dependent coupling | Prestress exists; long-term staged PT workflows still need more coupling depth. |
-| 9 | Specialized shell breadth | Curved shells, broader mixed interpolation, and production shell workflows remain a real solver program. |
-| 10 | Benchmark and acceptance-model expansion | Real-model acceptance cases should grow with the new solver surface. |
+| 7 | Remaining constraint deepening | Eccentric connection workflows, chained constraints, connector depth, and constraint-force output parity should be finished once the current constrained solver-family pass settles. |
+| 8 | Model reduction / substructuring | Valuable once the core nonlinear and shell stack is hardened. |
+| 9 | Deeper prestress / staged time-dependent coupling | Prestress exists; long-term staged PT workflows still need more coupling depth. |
+| 10 | Specialized shell breadth | Curved shells, broader mixed interpolation, and production shell workflows remain a real solver program. |
+| 11 | Reference benchmark expansion | Keep extending external-reference coverage as new solver paths and deeper shell/contact workflows land. |
 
 #### 12 months+
 
 | Priority | Topic | Why later |
 |---|---|---|
-| 11 | Fire / fatigue / specialized lifecycle domains | Important, but no longer core to claiming an elite mainstream structural solver. |
-| 12 | Membranes / cable nets / specialized tensile structures | Valuable for long-span specialty markets rather than mainstream parity. |
-| 13 | Bridge-specific advanced workflows | High-value specialization once the core solver is fully hardened. |
-| 14 | Broader domain expansion | Additional specialty areas should come after the mainstream structural core is clearly dominant. |
+| 12 | Fire / fatigue / specialized lifecycle domains | Important, but no longer core to claiming an elite mainstream structural solver. |
+| 13 | Membranes / cable nets / specialized tensile structures | Valuable for long-span specialty markets rather than mainstream parity. |
+| 14 | Bridge-specific advanced workflows | High-value specialization once the core solver is fully hardened. |
+| 15 | Broader domain expansion | Additional specialty areas should come after the mainstream structural core is clearly dominant. |
 
 #### Recommended implementation order
 
-1. Benchmark hardening on newest solver families
+1. Shell upgrade and shell workflow hardening
 2. Constraint-system reuse and workflow maturity
 3. Verification hardening: invariants, property-based tests, fuzzing, selective proof-oriented checks
-4. Shell upgrade and shell workflow hardening
-5. Performance and scale engineering
-6. Advanced contact variants
-7. Model reduction / substructuring
-8. Deeper prestress / staged time-dependent coupling
-9. Specialized domain expansion
+4. Performance and scale engineering
+5. Advanced contact variants
+6. Acceptance-model expansion
+7. Remaining constraint deepening
+8. Model reduction / substructuring
+9. Deeper prestress / staged time-dependent coupling
+10. Reference benchmark expansion
+11. Specialized domain expansion
 
 This order is not the easiest order. It is the order with the best solver-quality payoff per unit of engineering risk.
 
@@ -192,11 +206,11 @@ Dedaliano is a browser-native 2D and 3D structural analysis application with a b
 
 The current solver is much further along than the original product roadmap assumed. The main open work is now:
 
-- benchmark and verification hardening on the newest solver families
-- performance and scale
 - shell workflow maturity
-- advanced contact variants
 - broader constraint-system reuse across solver families
+- verification hardening and acceptance-model expansion
+- performance and scale
+- advanced contact variants
 - deeper staged / prestress / time-dependent coupling
 - reports, collaboration, and higher-value product layers on top of the solver
 
