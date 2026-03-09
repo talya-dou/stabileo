@@ -200,8 +200,13 @@ pub fn solve_arc_length(input: &ArcLengthInput) -> Result<ArcLengthResult, Strin
                 residual[i] = lambda * f_ref[i] - f_int_new[i];
             }
 
-            // Check convergence
-            let r_norm = vec_norm(&residual);
+            // Check convergence on independent (reduced) DOFs
+            let r_check = if let Some(ref cs) = cs {
+                cs.reduce_vector(&residual)
+            } else {
+                residual.clone()
+            };
+            let r_norm = vec_norm(&r_check);
             let f_ext_norm = (lambda.abs() * f_ref_norm).max(1e-15);
             if r_norm / f_ext_norm < input.tolerance {
                 step_converged = true;

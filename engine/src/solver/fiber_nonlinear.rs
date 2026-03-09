@@ -143,18 +143,22 @@ pub fn solve_fiber_nonlinear_2d(input: &FiberNonlinearInput) -> Result<FiberNonl
                 residual[i] = f_ext[i] - f_int[i];
             }
 
-            // Check convergence
-            let mut r_norm_sq = 0.0;
-            let mut f_norm_sq = 0.0;
-            for i in 0..nf {
-                r_norm_sq += residual[i] * residual[i];
-                f_norm_sq += f_ext[i] * f_ext[i];
-            }
-            let rel_error = if f_norm_sq > 1e-30 {
-                r_norm_sq.sqrt() / f_norm_sq.sqrt()
+            // Check convergence on independent (reduced) DOFs
+            let r_f: Vec<f64> = residual[..nf].to_vec();
+            let r_check = if let Some(ref cs) = cs {
+                cs.reduce_vector(&r_f)
             } else {
-                r_norm_sq.sqrt()
+                r_f.clone()
             };
+            let f_ext_f: Vec<f64> = f_ext[..nf].to_vec();
+            let f_check = if let Some(ref cs) = cs {
+                cs.reduce_vector(&f_ext_f)
+            } else {
+                f_ext_f
+            };
+            let r_norm: f64 = r_check.iter().map(|v| v * v).sum::<f64>().sqrt();
+            let f_norm: f64 = f_check.iter().map(|v| v * v).sum::<f64>().sqrt();
+            let rel_error = if f_norm > 1e-30 { r_norm / f_norm } else { r_norm };
 
             if rel_error < input.tolerance {
                 nr_converged = true;
@@ -164,7 +168,6 @@ pub fn solve_fiber_nonlinear_2d(input: &FiberNonlinearInput) -> Result<FiberNonl
             // Solve
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
-            let r_f: Vec<f64> = residual[..nf].to_vec();
             let (k_s, r_s) = if let Some(ref cs) = cs {
                 (cs.reduce_matrix(&k_ff), cs.reduce_vector(&r_f))
             } else {
@@ -534,17 +537,22 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
                 residual[i] = f_ext[i] - f_int[i];
             }
 
-            let mut r_norm_sq = 0.0;
-            let mut f_norm_sq = 0.0;
-            for i in 0..nf {
-                r_norm_sq += residual[i] * residual[i];
-                f_norm_sq += f_ext[i] * f_ext[i];
-            }
-            let rel_error = if f_norm_sq > 1e-30 {
-                r_norm_sq.sqrt() / f_norm_sq.sqrt()
+            // Check convergence on independent (reduced) DOFs
+            let r_f: Vec<f64> = residual[..nf].to_vec();
+            let r_check = if let Some(ref cs) = cs {
+                cs.reduce_vector(&r_f)
             } else {
-                r_norm_sq.sqrt()
+                r_f.clone()
             };
+            let f_ext_f: Vec<f64> = f_ext[..nf].to_vec();
+            let f_check = if let Some(ref cs) = cs {
+                cs.reduce_vector(&f_ext_f)
+            } else {
+                f_ext_f
+            };
+            let r_norm: f64 = r_check.iter().map(|v| v * v).sum::<f64>().sqrt();
+            let f_norm: f64 = f_check.iter().map(|v| v * v).sum::<f64>().sqrt();
+            let rel_error = if f_norm > 1e-30 { r_norm / f_norm } else { r_norm };
 
             if rel_error < input.tolerance {
                 nr_converged = true;
@@ -553,7 +561,6 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
 
             let free_idx: Vec<usize> = (0..nf).collect();
             let k_ff = extract_submatrix(&k_t, n, &free_idx, &free_idx);
-            let r_f: Vec<f64> = residual[..nf].to_vec();
             let (k_s, r_s) = if let Some(ref cs) = cs {
                 (cs.reduce_matrix(&k_ff), cs.reduce_vector(&r_f))
             } else {
