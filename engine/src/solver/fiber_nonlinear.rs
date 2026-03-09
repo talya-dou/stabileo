@@ -234,12 +234,37 @@ pub fn solve_fiber_nonlinear_2d(input: &FiberNonlinearInput) -> Result<FiberNonl
         }
     }
 
+    // Compute constraint forces if constraints are active
+    let constraint_forces = if let Some(ref fcs) = cs {
+        // Rebuild final tangent stiffness for constraint force computation
+        let mut f_int_final = vec![0.0; n];
+        let mut k_t_final = vec![0.0; n * n];
+        let mut elem_states_copy = elem_states;
+        assemble_fiber_elements(
+            &input.solver, &input.fiber_sections, &dof_num,
+            &u_full, &mut elem_states_copy, n_ip,
+            &mut f_int_final, &mut k_t_final,
+        );
+        assemble_elastic_elements(
+            &input.solver, &input.fiber_sections, &dof_num,
+            &u_full, &mut f_int_final, &mut k_t_final,
+        );
+        add_springs(&input.solver, &dof_num, &u_full, &mut f_int_final, &mut k_t_final);
+        let free_idx: Vec<usize> = (0..nf).collect();
+        let k_ff = extract_submatrix(&k_t_final, n, &free_idx, &free_idx);
+        let raw = fcs.compute_constraint_forces(&k_ff, &u_full[..nf], &f_total[..nf]);
+        super::constraints::map_dof_forces_to_constraint_forces(&raw, &dof_num)
+    } else {
+        vec![]
+    };
+
     Ok(FiberNonlinearResult {
         results: AnalysisResults {
             displacements,
             reactions: vec![],
             element_forces,
-            constraint_forces: vec![],
+            constraint_forces,
+            diagnostics: vec![],
         },
         iterations: total_iters,
         converged,
@@ -624,6 +649,28 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
         }
     }
 
+    // Compute constraint forces if constraints are active
+    let constraint_forces = if let Some(ref fcs) = cs {
+        let mut f_int_final = vec![0.0; n];
+        let mut k_t_final = vec![0.0; n * n];
+        let mut elem_states_copy = elem_states;
+        assemble_fiber_elements_3d(
+            &input.solver, &input.fiber_sections, &dof_num,
+            &u_full, &mut elem_states_copy, n_ip,
+            &mut f_int_final, &mut k_t_final,
+        );
+        assemble_elastic_elements_3d(
+            &input.solver, &input.fiber_sections, &dof_num,
+            &u_full, &mut f_int_final, &mut k_t_final,
+        );
+        let free_idx: Vec<usize> = (0..nf).collect();
+        let k_ff = extract_submatrix(&k_t_final, n, &free_idx, &free_idx);
+        let raw = fcs.compute_constraint_forces(&k_ff, &u_full[..nf], &f_total[..nf]);
+        super::constraints::map_dof_forces_to_constraint_forces(&raw, &dof_num)
+    } else {
+        vec![]
+    };
+
     Ok(FiberNonlinearResult3D {
         results: AnalysisResults3D {
             displacements,
@@ -631,7 +678,9 @@ pub fn solve_fiber_nonlinear_3d(input: &FiberNonlinearInput3D) -> Result<FiberNo
             element_forces,
             plate_stresses: super::linear::compute_plate_stresses(&input.solver, &dof_num, &u_full),
             quad_stresses: super::linear::compute_quad_stresses(&input.solver, &dof_num, &u_full),
-            constraint_forces: vec![],
+            quad_nodal_stresses: vec![],
+            constraint_forces,
+            diagnostics: vec![],
         },
         iterations: total_iters,
         converged,

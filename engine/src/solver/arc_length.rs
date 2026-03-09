@@ -302,12 +302,23 @@ pub fn solve_arc_length(input: &ArcLengthInput) -> Result<ArcLengthResult, Strin
     let displacements = super::linear::build_displacements_2d(&dof_num, &u_full);
     let element_forces = super::linear::compute_internal_forces_2d(&input.solver, &dof_num, &u_full);
 
+    // Compute constraint forces if constraints are active
+    let constraint_forces = if let Some(ref fcs) = cs {
+        let free_idx: Vec<usize> = (0..nf).collect();
+        let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
+        let raw = fcs.compute_constraint_forces(&k_ff, &u_full[..nf], &asm.f[..nf]);
+        super::constraints::map_dof_forces_to_constraint_forces(&raw, &dof_num)
+    } else {
+        vec![]
+    };
+
     Ok(ArcLengthResult {
         results: AnalysisResults {
             displacements,
             reactions: vec![],
             element_forces,
-            constraint_forces: vec![],
+            constraint_forces,
+            diagnostics: vec![],
         },
         steps,
         final_load_factor: lambda,
@@ -434,12 +445,23 @@ pub fn solve_displacement_control(input: &DisplacementControlInput) -> Result<Di
     let displacements = super::linear::build_displacements_2d(&dof_num, &u_full);
     let element_forces = super::linear::compute_internal_forces_2d(&input.solver, &dof_num, &u_full);
 
+    // Compute constraint forces if constraints are active
+    let constraint_forces = if let Some(ref fcs) = cs_dc {
+        let free_idx: Vec<usize> = (0..nf).collect();
+        let k_ff = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
+        let raw = fcs.compute_constraint_forces(&k_ff, &u_full[..nf], &asm.f[..nf]);
+        super::constraints::map_dof_forces_to_constraint_forces(&raw, &dof_num)
+    } else {
+        vec![]
+    };
+
     Ok(DisplacementControlResult {
         results: AnalysisResults {
             displacements,
             reactions: vec![],
             element_forces,
-            constraint_forces: vec![],
+            constraint_forces,
+            diagnostics: vec![],
         },
         steps,
         final_load_factor: lambda,

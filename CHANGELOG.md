@@ -4,7 +4,7 @@
 
 ### Solver quality milestone
 
-- latest reported full-suite status reached `6334` passing tests with `0` failures
+- latest reported full-suite status reached `6336` passing tests with `0` failures
 - fixed the staged fixed-end-force accumulation bug by tracking cumulative loads across stages
 - corrected four pre-existing TME validation expectations involving formulas, sign conventions, and a wrong midspan-node assumption
 
@@ -23,6 +23,7 @@
   - shells
   - reduction
   - sparse and conditioning paths
+- added explicit CI gate steps for shell benchmarks, shell acceptance models, and constraint benchmarks before the full suite
 
 ### Shell and nonlinear 3D workflows
 
@@ -30,6 +31,14 @@
 - verified mixed DKT and MITC4 assembly and beam-shell DOF interfacing
 - wired plate and quad stress recovery into the major nonlinear 3D solver families
 - added beam-shell mixed benchmarks, shell buckling benchmarks, shell thermal benchmarks, and shell acceptance models
+- added plate geometric stiffness contribution in 3D buckling
+- added assembly diagnostics for distorted/low-quality plate and quad meshes
+- added full nodal stress tensor recovery for MITC4 quads
+
+### Constraint deepening
+
+- propagated constraint-force output into plastic and fiber nonlinear solver paths
+- added cross-solver constraint-force parity coverage
 
 ### Performance and scale
 

@@ -488,3 +488,168 @@ fn benchmark_contact_friction_limit() {
     // Normal force should be significant
     assert!(f_n > 10.0, "Normal force should be significant, got {:.4}", f_n);
 }
+
+// ================================================================
+// 6. 3D Gap Closure: Two Beams with Axial Contact
+// ================================================================
+//
+// Two 3D beams aligned along X, with a gap between them.
+// Node 1 (fixed) ---[beam 1]--- Node 2 <gap> Node 3 ---[beam 2]--- Node 4 (fixed)
+// Axial load pushes them together. Verify gap closure and contact force.
+
+#[test]
+fn benchmark_contact_3d_gap_closure() {
+    use dedaliano_engine::solver::contact::{solve_contact_3d, ContactInput3D};
+
+    let gap = 0.002;
+    let force = 500.0;
+    let k_gap = 5000.0;
+    let e_mpa = 200.0; // 200 MPa -> 200,000 kN/m^2
+    let a = 0.01;
+    let iy = 1e-4;
+    let iz = 1e-4;
+    let j = 1e-4;
+
+    let mut nodes_map = HashMap::new();
+    nodes_map.insert("1".to_string(), dedaliano_engine::types::SolverNode3D { id: 1, x: 0.0, y: 0.0, z: 0.0 });
+    nodes_map.insert("2".to_string(), dedaliano_engine::types::SolverNode3D { id: 2, x: 1.0, y: 0.0, z: 0.0 });
+    nodes_map.insert("3".to_string(), dedaliano_engine::types::SolverNode3D { id: 3, x: 1.0 + gap, y: 0.0, z: 0.0 });
+    nodes_map.insert("4".to_string(), dedaliano_engine::types::SolverNode3D { id: 4, x: 2.0 + gap, y: 0.0, z: 0.0 });
+
+    let mut mats_map = HashMap::new();
+    mats_map.insert("1".to_string(), dedaliano_engine::types::SolverMaterial { id: 1, e: e_mpa, nu: 0.3 });
+
+    let mut secs_map = HashMap::new();
+    secs_map.insert("1".to_string(), dedaliano_engine::types::SolverSection3D {
+        id: 1, name: None, a, iy, iz, j, cw: None, as_y: None, as_z: None,
+    });
+
+    let mut elems_map = HashMap::new();
+    elems_map.insert("1".to_string(), dedaliano_engine::types::SolverElement3D {
+        id: 1, elem_type: "frame".to_string(), node_i: 1, node_j: 2,
+        material_id: 1, section_id: 1,
+        hinge_start: false, hinge_end: false,
+        local_yx: None, local_yy: None, local_yz: None, roll_angle: None,
+    });
+    elems_map.insert("2".to_string(), dedaliano_engine::types::SolverElement3D {
+        id: 2, elem_type: "frame".to_string(), node_i: 3, node_j: 4,
+        material_id: 1, section_id: 1,
+        hinge_start: false, hinge_end: false,
+        local_yx: None, local_yy: None, local_yz: None, roll_angle: None,
+    });
+
+    let mut sups_map = HashMap::new();
+    // Fixed at node 1
+    sups_map.insert("1".to_string(), dedaliano_engine::types::SolverSupport3D {
+        node_id: 1,
+        rx: true, ry: true, rz: true, rrx: true, rry: true, rrz: true,
+        kx: None, ky: None, kz: None,
+        krx: None, kry: None, krz: None,
+        dx: None, dy: None, dz: None,
+        drx: None, dry: None, drz: None,
+        normal_x: None, normal_y: None, normal_z: None,
+        is_inclined: None, rw: None, kw: None,
+    });
+    // Fixed at node 4
+    sups_map.insert("2".to_string(), dedaliano_engine::types::SolverSupport3D {
+        node_id: 4,
+        rx: true, ry: true, rz: true, rrx: true, rry: true, rrz: true,
+        kx: None, ky: None, kz: None,
+        krx: None, kry: None, krz: None,
+        dx: None, dy: None, dz: None,
+        drx: None, dry: None, drz: None,
+        normal_x: None, normal_y: None, normal_z: None,
+        is_inclined: None, rw: None, kw: None,
+    });
+
+    let solver_3d = dedaliano_engine::types::SolverInput3D {
+        nodes: nodes_map,
+        materials: mats_map,
+        sections: secs_map,
+        elements: elems_map,
+        supports: sups_map,
+        loads: vec![
+            dedaliano_engine::types::SolverLoad3D::Nodal(dedaliano_engine::types::SolverNodalLoad3D {
+                node_id: 2,
+                fx: force, fy: 0.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            }),
+        ],
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let input = ContactInput3D {
+        solver: solver_3d,
+        element_behaviors: HashMap::new(),
+        gap_elements: vec![
+            GapElement {
+                id: 1,
+                node_i: 2,
+                node_j: 3,
+                direction: 0, // X-direction
+                initial_gap: gap,
+                stiffness: k_gap,
+                friction: None,
+                friction_direction: None,
+                friction_coefficient: None,
+            },
+        ],
+        uplift_supports: vec![],
+        max_iter: Some(50),
+        tolerance: None,
+        augmented_lagrangian: None,
+        max_flips: None,
+        damping_coefficient: None,
+        al_max_iter: None,
+    };
+
+    let result = solve_contact_3d(&input).unwrap();
+    assert!(result.converged, "3D gap closure should converge");
+    assert!(!result.gap_status.is_empty(), "Should have gap status");
+
+    let gs = &result.gap_status[0];
+    assert_eq!(gs.status, "closed", "Gap should be closed under axial load");
+
+    // Contact force should be significant (load > gap closure threshold)
+    assert!(
+        gs.force.abs() > 1.0,
+        "3D contact force should be significant, got {:.4}",
+        gs.force
+    );
+
+    // Penetration should be finite when closed
+    assert!(
+        gs.penetration.is_finite(),
+        "3D penetration should be finite, got {:.6e}", gs.penetration
+    );
+
+    // Displacement should be finite
+    assert!(
+        gs.displacement.is_finite(),
+        "3D gap displacement should be finite, got {:.6e}", gs.displacement
+    );
+
+    // Verify displacements exist and are finite
+    assert!(
+        !result.results.displacements.is_empty(),
+        "3D contact result should have displacements"
+    );
+    let d2 = result.results.displacements.iter()
+        .find(|d| d.node_id == 2);
+    if let Some(d) = d2 {
+        assert!(
+            d.ux.abs() > 1e-10,
+            "Loaded node should deflect in X, got ux={:.6e}", d.ux
+        );
+    }
+
+    eprintln!(
+        "3D gap closure: force={:.4}, penetration={:.6e}, displacement={:.6e}, status={}",
+        gs.force, gs.penetration, gs.displacement, gs.status
+    );
+}

@@ -9,6 +9,9 @@
 
 use dedaliano_engine::solver::linear;
 use dedaliano_engine::solver::corotational;
+use dedaliano_engine::solver::plastic;
+use dedaliano_engine::solver::fiber_nonlinear;
+use dedaliano_engine::element::fiber_beam::{FiberSectionDef, Fiber, FiberMaterial};
 use dedaliano_engine::types::*;
 use crate::common::*;
 
@@ -744,4 +747,169 @@ fn benchmark_corotational_constraint_forces() {
     // Displacements should be nonzero (structure responds to lateral load)
     let d2 = result.results.displacements.iter().find(|d| d.node_id == 2).unwrap();
     assert!(d2.ux.abs() > 1e-10, "Floor node should sway laterally");
+}
+
+// ================================================================
+// Cross-solver constraint force parity
+// ================================================================
+//
+// Run the same constrained 2D portal frame through corotational and
+// fiber_nonlinear solvers. Both should produce matching constraint forces
+// (within tolerance) since the load is small enough to stay elastic.
+//
+// The plastic solver propagates constraint forces from its internal
+// linear solve; the fiber solver computes them independently.
+
+#[test]
+fn benchmark_constraint_force_parity_across_solvers() {
+    let h = 3.0;
+    let b_w = 0.3; // section width
+    let d_h = 0.5; // section depth
+
+    let nodes = vec![
+        (1, 3.0, h),   // master (center of floor)
+        (2, 0.0, h),   // slave left
+        (3, 6.0, h),   // slave right
+        (4, 0.0, 0.0), // base left
+        (5, 6.0, 0.0), // base right
+    ];
+    let elems = vec![
+        (1, "frame", 4, 2, 1, 1, false, false),
+        (2, "frame", 5, 3, 1, 1, false, false),
+    ];
+    let sups = vec![
+        (1, 4, "fixed"),
+        (2, 5, "fixed"),
+    ];
+    let loads = vec![
+        SolverLoad::Nodal(SolverNodalLoad {
+            node_id: 1, fx: 10.0, fy: 0.0, mz: 0.0,
+        }),
+    ];
+
+    let mut solver_input = make_input(
+        nodes, vec![(1, E, 0.3)], vec![(1, A, IZ)], elems, sups, loads,
+    );
+    solver_input.constraints.push(Constraint::Diaphragm(DiaphragmConstraint {
+        master_node: 1,
+        slave_nodes: vec![2, 3],
+        plane: "XY".to_string(),
+    }));
+
+    // 1. Linear (delegates to solve_constrained_2d)
+    let linear_result = linear::solve_2d(&solver_input).expect("Linear solve failed");
+
+    // 2. Corotational (small load → matches linear)
+    let corot_result = corotational::solve_corotational_2d(&solver_input, 10, 1e-8, 5)
+        .expect("Corotational solve failed");
+    assert!(corot_result.converged);
+    let corot_cf = &corot_result.results.constraint_forces;
+
+    // 3. Plastic (with very high Mp → stays elastic)
+    let mut plastic_sections = std::collections::HashMap::new();
+    plastic_sections.insert("1".to_string(), PlasticSectionData {
+        a: A, iz: IZ, material_id: 1,
+        b: Some(b_w), h: Some(d_h),
+    });
+    let mut plastic_materials = std::collections::HashMap::new();
+    plastic_materials.insert("1".to_string(), PlasticMaterialData { fy: Some(1e6) });
+    let plastic_input = PlasticInput {
+        solver: solver_input.clone(),
+        sections: plastic_sections,
+        materials: plastic_materials,
+        max_hinges: Some(5),
+        mp_overrides: None,
+    };
+    let plastic_result = plastic::solve_plastic_2d(&plastic_input).expect("Plastic solve failed");
+    let plastic_cf = if !plastic_result.steps.is_empty() {
+        plastic_result.steps.last().unwrap().results.constraint_forces.clone()
+    } else {
+        vec![]
+    };
+
+    // 4. Fiber nonlinear (elastic fibers → matches linear)
+    let fiber_section = FiberSectionDef {
+        fibers: vec![
+            Fiber { y: -d_h / 4.0, z: 0.0, area: A / 2.0, material_idx: 0 },
+            Fiber { y:  d_h / 4.0, z: 0.0, area: A / 2.0, material_idx: 0 },
+        ],
+        materials: vec![
+            FiberMaterial::Elastic { e: E },
+        ],
+    };
+    let mut fiber_sections = std::collections::HashMap::new();
+    fiber_sections.insert("1".to_string(), fiber_section);
+    let fiber_input = fiber_nonlinear::FiberNonlinearInput {
+        solver: solver_input.clone(),
+        fiber_sections,
+        n_integration_points: 5,
+        max_iter: 30,
+        tolerance: 1e-8,
+        n_increments: 1,
+    };
+    let fiber_result = fiber_nonlinear::solve_fiber_nonlinear_2d(&fiber_input)
+        .expect("Fiber nonlinear solve failed");
+    assert!(fiber_result.converged);
+    let fiber_cf = &fiber_result.results.constraint_forces;
+
+    // Report
+    eprintln!("Linear constraint forces: {:?}", linear_result.constraint_forces);
+    eprintln!("Corotational constraint forces: {:?}", corot_cf);
+    eprintln!("Plastic constraint forces: {:?}", plastic_cf);
+    eprintln!("Fiber NL constraint forces: {:?}", fiber_cf);
+
+    // Corotational should always have constraint forces
+    assert!(!corot_cf.is_empty(), "Corotational should have constraint forces");
+
+    // All forces should be finite
+    for cf in corot_cf {
+        assert!(cf.force.is_finite(), "Corot constraint force should be finite: {:?}", cf);
+    }
+    for cf in &plastic_cf {
+        assert!(cf.force.is_finite(), "Plastic constraint force should be finite: {:?}", cf);
+    }
+    for cf in fiber_cf {
+        assert!(cf.force.is_finite(), "Fiber constraint force should be finite: {:?}", cf);
+    }
+
+    // If fiber produces constraint forces, compare with corotational
+    if !fiber_cf.is_empty() && !corot_cf.is_empty() {
+        for fcf in fiber_cf {
+            if let Some(ccf) = corot_cf.iter().find(|c| c.node_id == fcf.node_id && c.dof == fcf.dof) {
+                let diff = (fcf.force - ccf.force).abs();
+                let denom = ccf.force.abs().max(1.0);
+                eprintln!(
+                    "  node={} dof={}: corot={:.6} fiber={:.6} diff={:.6}",
+                    fcf.node_id, fcf.dof, ccf.force, fcf.force, diff
+                );
+                // Fiber uses approximate section (2 fibers vs exact I), so relax to 50%
+                assert!(
+                    diff / denom < 0.50,
+                    "Corot vs Fiber constraint force mismatch: node={} dof={} corot={:.6} fiber={:.6}",
+                    fcf.node_id, fcf.dof, ccf.force, fcf.force
+                );
+            }
+        }
+    }
+
+    // If plastic produces constraint forces, they should be finite and consistent
+    if !plastic_cf.is_empty() && !corot_cf.is_empty() {
+        let lf = plastic_result.steps.last().unwrap().load_factor;
+        for pcf in &plastic_cf {
+            if let Some(ccf) = corot_cf.iter().find(|c| c.node_id == pcf.node_id && c.dof == pcf.dof) {
+                let expected = ccf.force * lf;
+                let diff = (pcf.force - expected).abs();
+                let denom = expected.abs().max(1.0);
+                assert!(
+                    diff / denom < 0.50,
+                    "Corot vs Plastic constraint force mismatch: node={} dof={} plastic={:.6} expected={:.6}",
+                    pcf.node_id, pcf.dof, pcf.force, expected
+                );
+            }
+        }
+    }
+
+    // Verify displacements are reasonable (structure responds to load)
+    let d1 = corot_result.results.displacements.iter().find(|d| d.node_id == 1).unwrap();
+    assert!(d1.ux.abs() > 1e-10, "Master node should sway laterally");
 }

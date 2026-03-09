@@ -13,10 +13,11 @@ The benchmark ledger below is curated. It is narrower than the full automated te
 
 Current measured inventory:
 
-- latest reported full-suite status: `6334` passing tests, `0` failures
+- latest reported full-suite status: `6336` passing tests, `0` failures
 - `25` integration test files (`182` integration test functions)
 - dedicated property / differential fuzz coverage (`90` passing tests)
 - explicit benchmark-gate suites for constraints, contact, shells, reduction, and sparse / conditioning paths
+- explicit CI gate stages for shell benchmarks, shell acceptance models, and constraint benchmarks
 - the benchmark ledger below is curated and intentionally narrower than the full automated suite
 
 ## How to Read This File
@@ -154,7 +155,7 @@ Status definitions used here:
 | 2D frame / truss elements | Strong | `element/frame.rs`, `element/truss` behavior via linear solver/tests | Mostly shear deformation and nonlinear upgrades |
 | 3D frame / truss elements | Strong | `element/frame.rs`, broad `validation_3d_*` coverage | More difficult mixed nonlinear / shell-coupled cases and warping hardening |
 | Plate / shell triangles | Good | `element/plate.rs`, `validation_plates.rs`, `validation_scordelis_lo.rs`, recent drilling/nodal-stress/thermal upgrades | Higher fidelity shell behavior, convergence quality, and more benchmark depth |
-| MITC4 quadrilateral shell element | Good | `element/quad.rs`, integrated through standard input and assembly, nonlinear 3D stress recovery wired through the major shell-capable solver families | Needs benchmark depth, shell workflow hardening, and broader mixed-model validation |
+| MITC4 quadrilateral shell element | Good | `element/quad.rs`, integrated through standard input and assembly, nonlinear 3D stress recovery wired through the major shell-capable solver families, full nodal stress tensor recovery, and shell-quality diagnostics in assembly | Needs broader workflow hardening, mixed-model validation, and continued release-gated benchmark depth |
 | Curved beams | Partial | `element/curved_beam.rs`, `validation_curved_beams.rs` | Current approach is segmented expansion, not native high-end formulation |
 | Timoshenko beam / shear deformation | Good | `element/frame.rs`, shear-area fields in `types/input.rs`, `validation_timoshenko_solver.rs` | Needs broader production validation across all solver modes |
 | Cable / catenary element | Good | `element/cable.rs`, `solver/cable.rs`, `integration_cable_solver.rs` | Needs broader bridge/cable-net/staged benchmark depth |
@@ -162,7 +163,7 @@ Status definitions used here:
 | Thermal loads / settlements / springs | Strong | `validation_thermal_*`, `validation_prescribed_*`, `validation_spring_supports.rs` | More coupled / 3D edge cases |
 | Winkler foundation solvers (2D/3D) | Good | `solver/winkler.rs`, `integration_winkler.rs`, `validation_foundation_interaction.rs` | Broader SSI families beyond Winkler and tougher benchmark parity |
 | Nonlinear SSI beyond Winkler | Good | `solver/ssi.rs`, `solver/soil_curves.rs` | Needs broader workflow integration, benchmark depth, and stronger mixed-model coupling |
-| Constraint technology | Good | `solver/constraints.rs`, constraint types in `types/input.rs`, base solver integration, reusable `FreeConstraintSystem` for reduced/expanded constrained solves, connector/eccentric coverage, and constraint-force output | Needs broader solver-family unification, chained-constraint maturity, and workflow hardening |
+| Constraint technology | Good | `solver/constraints.rs`, constraint types in `types/input.rs`, base solver integration, reusable `FreeConstraintSystem` for reduced/expanded constrained solves, connector/eccentric coverage, and broader constraint-force output parity | Needs broader solver-family unification, chained-constraint maturity, and workflow hardening |
 | Contact / gap / unilateral support behavior | Good | `solver/contact.rs`, benchmark-gate coverage, damping / augmented-Lagrangian / friction support | 2D and 3D support exist; the remaining gap is harder contact variants and hardening |
 | Nonlinear solution controls | Good | `solver/line_search.rs`, `solver/adaptive_stepping.rs`, `solver/arc_length.rs` | Controls exist, but they still need broader integration, benchmark depth, and harder-path validation |
 | Fiber / section-based beam-column elements | Good | `element/fiber_beam.rs`, `solver/fiber_nonlinear.rs` | 2D and 3D distributed plasticity exist; the remaining gap is benchmark depth and workflow hardening |

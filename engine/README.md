@@ -53,10 +53,11 @@ cd engine && cargo test --test validation  # validation crate
 ```
 
 CI now runs `cargo nextest run --profile ci`, with engine-local nextest configuration and a Linux-only `mold` linker setup for faster test builds.
+It also runs explicit gate steps for shell benchmarks, shell acceptance models, and constraint benchmarks before the full suite.
 
 ## Validation Test Suite
 
-Latest reported full-suite status: **6334 passing tests, 0 failures**.
+Latest reported full-suite status: **6336 passing tests, 0 failures**.
 
 The engine is backed by:
 
@@ -64,6 +65,7 @@ The engine is backed by:
 - `25` integration test files
 - dedicated property / differential fuzz coverage
 - benchmark-gate suites for constraints, contact, shells, reduction, and sparse / conditioning paths
+- explicit CI gate stages for shell benchmarks, shell acceptance models, and constraint benchmarks
 
 See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md) for detailed status of each benchmark family and current maturity.
 
@@ -150,7 +152,7 @@ See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md
 
 ### Current Engine Frontier
 
-Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, and shell benchmark hardening are all in place. The main remaining engine work is:
+Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, shell benchmark hardening, shell diagnostics, and quad nodal stress recovery are all in place. The main remaining engine work is:
 
 - shell release-gating and shell-driven fixes from the newest benchmark/acceptance suites
 - real-model acceptance tests and full-workflow performance benchmarks

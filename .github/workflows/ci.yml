@@ -42,6 +42,18 @@ jobs:
 
       - uses: taiki-e/install-action@nextest
 
+      - name: Shell benchmarks gate
+        working-directory: engine
+        run: cargo nextest run --profile ci -E 'test(/benchmark_shell/) + test(/benchmark_beam_shell/)'
+
+      - name: Shell acceptance gate
+        working-directory: engine
+        run: cargo nextest run --profile ci -E 'test(/acceptance_.*shell/) + test(/acceptance_.*diaphragm/)'
+
+      - name: Constraint benchmarks gate
+        working-directory: engine
+        run: cargo nextest run --profile ci -E 'test(/benchmark_.*constraint/)'
+
       - name: Run all tests
         working-directory: engine
         run: cargo nextest run --profile ci

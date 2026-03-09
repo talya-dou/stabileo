@@ -765,6 +765,7 @@ pub fn solve_contact_2d(input: &ContactInput) -> Result<ContactResult, String> {
             reactions: vec![],
             element_forces: linear::compute_internal_forces_2d(&input.solver, &dof_num, &u_full),
             constraint_forces: vec![],
+            diagnostics: vec![],
         }
     });
 
@@ -1203,7 +1204,9 @@ pub fn solve_contact_3d(input: &ContactInput3D) -> Result<ContactResult3D, Strin
         element_forces,
         plate_stresses: linear::compute_plate_stresses(&input.solver, &dof_num, &u_full),
         quad_stresses: linear::compute_quad_stresses(&input.solver, &dof_num, &u_full),
+        quad_nodal_stresses: vec![],
         constraint_forces: vec![],
+        diagnostics: vec![],
     };
 
     let element_status_info: Vec<ElementContactInfo> = input.element_behaviors.iter()

@@ -471,3 +471,121 @@ fn benchmark_ssi_curve_shape_unit_checks() {
 
     eprintln!("All curve shape unit checks passed");
 }
+
+// ================================================================
+// 4E. Vertical Pile Capacity (t-z along shaft, axial loading)
+// ================================================================
+//
+// Single pile under vertical (axial) load with t-z springs along shaft.
+// Pile: 10m long, vertical (along Y-axis), fixed at base.
+// t-z bilinear springs along the shaft model soil friction.
+// Verify: solution converges, pile settles, settlement is reasonable.
+
+#[test]
+fn benchmark_ssi_vertical_pile_capacity() {
+    let d_pile: f64 = 0.6; // diameter
+    let length = 10.0;
+    let n_elem = 10;
+    let t_ult = 60.0; // kPa ultimate shaft friction
+    let z_ult = 0.008; // m displacement at ultimate
+    let axial_load = -300.0; // kN, compression (downward)
+
+    let a: f64 = std::f64::consts::PI * d_pile * d_pile / 4.0;
+    let iz: f64 = std::f64::consts::PI * d_pile.powi(4) / 64.0;
+    let e_mpa: f64 = 30_000.0; // concrete pile
+
+    let mut solver = build_pile_2d(n_elem, length, e_mpa, a, iz);
+
+    // Axial load at top node
+    solver.loads.push(SolverLoad::Nodal(SolverNodalLoad {
+        node_id: 1,
+        fx: 0.0,
+        fy: axial_load,
+        mz: 0.0,
+    }));
+
+    let dy = length / n_elem as f64;
+    let perimeter = std::f64::consts::PI * d_pile;
+
+    // t-z springs along the shaft (vertical direction = 1 in 2D)
+    let mut soil_springs = Vec::new();
+    for i in 1..n_elem {
+        let node_id = i + 1;
+        soil_springs.push(SoilSpring {
+            node_id,
+            direction: 1, // Y-direction (axial for vertical pile)
+            curve: SoilCurve::Tz { t_ult, z_ult },
+            tributary_length: dy * perimeter, // tributary area = length segment * perimeter
+        });
+    }
+
+    let input = SSIInput {
+        solver,
+        soil_springs,
+        max_iter: 50,
+        tolerance: 1e-4,
+    };
+
+    let result = solve_ssi_2d(&input).expect("Vertical pile SSI solve failed");
+    assert!(result.converged, "Vertical pile SSI should converge");
+
+    // Top node should settle (negative uy = downward)
+    let d_top = result.results.displacements.iter()
+        .find(|d| d.node_id == 1)
+        .expect("Top node displacement not found");
+    assert!(
+        d_top.uy.abs() > 1e-8,
+        "Pile top should settle, got uy={:.6e}", d_top.uy
+    );
+
+    // Settlement should be reasonable (not infinite, not zero)
+    assert!(
+        d_top.uy.abs() < 1.0,
+        "Pile settlement should be reasonable (<1m), got uy={:.6e}", d_top.uy
+    );
+    assert!(
+        d_top.uy.is_finite(),
+        "Pile settlement should be finite, got uy={:.6e}", d_top.uy
+    );
+
+    // Spring reactions should be nonzero (load is transferred to soil)
+    let axial_springs: Vec<&SpringResult> = result.spring_results.iter()
+        .filter(|s| s.direction == 1)
+        .collect();
+
+    assert!(
+        !axial_springs.is_empty(),
+        "Should have axial soil spring results"
+    );
+
+    let total_spring_reaction: f64 = axial_springs.iter()
+        .map(|s| s.reaction)
+        .sum();
+
+    // Total spring reaction + base reaction should balance the applied load
+    // (at least the springs should carry some load)
+    assert!(
+        total_spring_reaction.abs() > 1.0,
+        "Soil springs should carry load, total reaction={:.4}",
+        total_spring_reaction
+    );
+
+    eprintln!(
+        "Vertical pile: top_uy={:.6e}, total_spring_reaction={:.4}, iterations={}",
+        d_top.uy, total_spring_reaction, result.iterations
+    );
+
+    // Verify displacement profile is monotonically decreasing with depth
+    // (top settles more than bottom since load comes from top)
+    let top_settlement = d_top.uy.abs();
+    let mid_node = n_elem / 2 + 1;
+    let d_mid = result.results.displacements.iter()
+        .find(|d| d.node_id == mid_node);
+    if let Some(dm) = d_mid {
+        assert!(
+            top_settlement >= dm.uy.abs() * 0.5,
+            "Top should settle at least as much as mid: top={:.6e}, mid={:.6e}",
+            top_settlement, dm.uy.abs()
+        );
+    }
+}

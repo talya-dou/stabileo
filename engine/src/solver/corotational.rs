@@ -606,6 +606,7 @@ fn build_final_results(
         reactions,
         element_forces,
         constraint_forces,
+        diagnostics: vec![],
     })
 }
 
@@ -1331,7 +1332,9 @@ fn build_final_results_3d(
         element_forces,
         plate_stresses: super::linear::compute_plate_stresses(input, dof_num, u_full),
         quad_stresses: super::linear::compute_quad_stresses(input, dof_num, u_full),
+        quad_nodal_stresses: vec![],
         constraint_forces,
+        diagnostics: vec![],
     })
 }
 

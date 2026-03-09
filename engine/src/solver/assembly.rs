@@ -14,6 +14,7 @@ pub struct AssemblyResult {
     pub max_diag_k: f64,   // Maximum diagonal element (for artificial stiffness)
     pub artificial_dofs: Vec<usize>, // DOFs with artificial stiffness added
     pub inclined_transforms: Vec<InclinedTransformData>, // Data for reversing inclined support rotations
+    pub diagnostics: Vec<crate::types::AssemblyDiagnostic>, // Element quality warnings
 }
 
 /// Data needed to reverse the inclined support rotation after solving.
@@ -287,6 +288,7 @@ pub fn assemble_2d(input: &SolverInput, dof_num: &DofNumbering) -> AssemblyResul
         max_diag_k: max_diag,
         artificial_dofs,
         inclined_transforms: Vec::new(),
+        diagnostics: Vec::new(),
     }
 }
 
@@ -762,12 +764,92 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
     }
 
+    // Element quality diagnostics
+    let mut diagnostics = Vec::new();
+
+    for plate in input.plates.values() {
+        let n0 = node_map[&plate.nodes[0]];
+        let n1 = node_map[&plate.nodes[1]];
+        let n2 = node_map[&plate.nodes[2]];
+        let coords = [
+            [n0.x, n0.y, n0.z],
+            [n1.x, n1.y, n1.z],
+            [n2.x, n2.y, n2.z],
+        ];
+        let (aspect_ratio, _skew, min_angle) = crate::element::plate_element_quality(&coords);
+        if aspect_ratio > 10.0 {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: plate.id,
+                element_type: "plate".into(),
+                metric: "aspect_ratio".into(),
+                value: aspect_ratio,
+                threshold: 10.0,
+                message: format!("Plate {} aspect ratio {:.1} exceeds 10", plate.id, aspect_ratio),
+            });
+        }
+        if min_angle < 10.0 {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: plate.id,
+                element_type: "plate".into(),
+                metric: "min_angle".into(),
+                value: min_angle,
+                threshold: 10.0,
+                message: format!("Plate {} min angle {:.1}° below 10°", plate.id, min_angle),
+            });
+        }
+    }
+
+    for quad in input.quads.values() {
+        let qn0 = node_map[&quad.nodes[0]];
+        let qn1 = node_map[&quad.nodes[1]];
+        let qn2 = node_map[&quad.nodes[2]];
+        let qn3 = node_map[&quad.nodes[3]];
+        let coords = [
+            [qn0.x, qn0.y, qn0.z],
+            [qn1.x, qn1.y, qn1.z],
+            [qn2.x, qn2.y, qn2.z],
+            [qn3.x, qn3.y, qn3.z],
+        ];
+        let qm = crate::element::quad::quad_quality_metrics(&coords);
+        if qm.aspect_ratio > 10.0 {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: quad.id,
+                element_type: "quad".into(),
+                metric: "aspect_ratio".into(),
+                value: qm.aspect_ratio,
+                threshold: 10.0,
+                message: format!("Quad {} aspect ratio {:.1} exceeds 10", quad.id, qm.aspect_ratio),
+            });
+        }
+        if qm.warping > 0.1 {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: quad.id,
+                element_type: "quad".into(),
+                metric: "warping".into(),
+                value: qm.warping,
+                threshold: 0.1,
+                message: format!("Quad {} warping {:.3} exceeds 0.1", quad.id, qm.warping),
+            });
+        }
+        if qm.jacobian_ratio < 0.1 {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: quad.id,
+                element_type: "quad".into(),
+                metric: "jacobian_ratio".into(),
+                value: qm.jacobian_ratio,
+                threshold: 0.1,
+                message: format!("Quad {} jacobian ratio {:.3} below 0.1", quad.id, qm.jacobian_ratio),
+            });
+        }
+    }
+
     AssemblyResult {
         k: k_global,
         f: f_global,
         max_diag_k: max_diag,
         artificial_dofs: artificial_dofs_3d,
         inclined_transforms,
+        diagnostics,
     }
 }
 

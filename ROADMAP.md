@@ -96,41 +96,44 @@ There is also a cross-cutting `solver quality` layer that can make the engine fe
 
 The current sequence after the latest shell benchmark batches is:
 
-1. `Shell benchmark and acceptance gates`
+1. `Linear constraint-force parity`
+   Close the quick-win gap where the most-used linear solver path still returns empty constraint forces.
+2. `Shell benchmark and acceptance gates`
    Make beam-shell, shell buckling, shell thermal, and shell acceptance suites explicit release gates.
-2. `Shell-driven mechanics fixes`
-   Use those gates to drive targeted load-vector, modal/buckling, distortion-tolerance, and stress-recovery fixes.
-3. `Remaining constraint deepening`
-   Finish chained constraints, eccentric workflows, connector depth, and constraint-force output parity.
-4. `Reference benchmark expansion`
+3. `Shell-driven mechanics fixes`
+   Use those gates to drive targeted shell load-vector, modal/buckling, distortion-tolerance, mixed-mesh, and stress-recovery fixes.
+4. `Remaining constraint deepening`
+   Finish eccentric workflows, connector depth, and chained-constraint behavior after the linear parity gap is closed.
+5. `Reference benchmark expansion`
    Continue contact, fiber 3D, SSI, and creep/shrinkage benchmark growth as deeper mechanics land.
-5. `Full-model performance work`
+6. `Full-model performance work`
    Use acceptance models and workflow benchmarks to drive sparse, parallel, and conditioning improvements on representative models.
 
 #### 0-3 months
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 1 | Shell release gates and workflow hardening | Shell benchmark hardening is materially complete; the next step is to make those suites release-grade and use them to drive targeted shell fixes and broader workflow maturity. |
-| 2 | Constraint-system reuse and workflow maturity | Reusable constrained reductions now exist; the next step is consistent use across the remaining solver families plus deeper constraint behavior. |
-| 3 | Verification hardening | Expand invariants, property-based tests, fuzzing, benchmark gates, and acceptance models around the newest solver families. |
-| 4 | Performance and scale engineering | Sparse assembly, conditioning diagnostics, and parallel paths now exist; the next step is full-model performance wins. |
-| 5 | Advanced contact variants | Basic contact exists; the next layer is richer unilateral/contact behavior and harder convergence cases. |
-| 6 | Acceptance-model expansion | The acceptance suite is now real; the next step is to grow it carefully around the hardest workflows. |
-| 7 | Failure diagnostics and model health checks | Better error messages, pre-solve checks, and conditioning/reporting can make the solver feel dramatically more mature in practice. |
+| 1 | Linear constraint-force parity | The linear solver is still the most-used path, so closing its constraint-force gap is the fastest high-value consistency win. |
+| 2 | Shell release gates and workflow hardening | Shell benchmark hardening is materially complete; the next step is to make those suites release-grade and use them to drive targeted shell fixes and broader workflow maturity. |
+| 3 | Constraint-system reuse and workflow maturity | Reusable constrained reductions now exist; the next step is consistent use across the remaining solver families plus deeper constraint behavior. |
+| 4 | Verification hardening | Expand invariants, property-based tests, fuzzing, benchmark gates, and acceptance models around the newest solver families. |
+| 5 | Performance and scale engineering | Sparse assembly, conditioning diagnostics, and parallel paths now exist; the next step is full-model performance wins. |
+| 6 | Advanced contact variants | Basic contact exists; the next layer is richer unilateral/contact behavior and harder convergence cases. |
+| 7 | Acceptance-model expansion | The acceptance suite is now real; the next step is to grow it carefully around the hardest workflows. |
+| 8 | Failure diagnostics and model health checks | Better error messages, pre-solve checks, and conditioning/reporting can make the solver feel dramatically more mature in practice. |
 
 #### 3-6 months
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 7 | Remaining constraint deepening | Eccentric connection workflows, chained constraints, connector depth, and constraint-force output parity should be finished once the shell-driven stabilization pass settles. |
-| 8 | Reference benchmark expansion | Keep extending external-reference coverage as new solver paths and deeper shell/contact/fiber/SSI workflows land. |
-| 9 | Model reduction / substructuring | Valuable once the core nonlinear and shell stack is hardened. |
-| 10 | Deeper prestress / staged time-dependent coupling | Prestress exists; long-term staged PT workflows still need more coupling depth. |
-| 11 | Specialized shell breadth | Curved shells, broader mixed interpolation, folded-plate style workflows, and wider production shell coverage remain a real solver program after the current shell stabilization pass. |
-| 12 | Deterministic behavior and numerical robustness policy | Convergence criteria, warnings, fallback behavior, and solver-path consistency should become standardized across the engine. |
-| 13 | Result explainability and solve progress | Engineers need clearer iteration/progress visibility, active-set/yield reporting, and balance diagnostics on hard models. |
-| 14 | Golden acceptance-model suite | A very small flagship set of public must-pass models should become part of the trust story. |
+| 9 | Remaining constraint deepening | Eccentric connection workflows, chained constraints, connector depth, and broader constraint-force output parity should be finished once the shell-driven stabilization pass settles. |
+| 10 | Reference benchmark expansion | Keep extending external-reference coverage as new solver paths and deeper shell/contact/fiber/SSI workflows land. |
+| 11 | Model reduction / substructuring | Valuable once the core nonlinear and shell stack is hardened. |
+| 12 | Deeper prestress / staged time-dependent coupling | Prestress exists; long-term staged PT workflows still need more coupling depth. |
+| 13 | Specialized shell breadth | Curved shells, broader mixed interpolation, folded-plate style workflows, and wider production shell coverage remain a real solver program after the current shell stabilization pass. |
+| 14 | Deterministic behavior and numerical robustness policy | Convergence criteria, warnings, fallback behavior, and solver-path consistency should become standardized across the engine. |
+| 15 | Result explainability and solve progress | Engineers need clearer iteration/progress visibility, active-set/yield reporting, and balance diagnostics on hard models. |
+| 16 | Golden acceptance-model suite | A very small flagship set of public must-pass models should become part of the trust story. |
 
 #### 12 months+
 

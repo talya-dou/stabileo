@@ -573,3 +573,213 @@ fn benchmark_fiber_3d_biaxial_symmetry() {
         uy, uz, diff * 100.0
     );
 }
+
+// ================================================================
+// 3E. Confined Concrete Column (Elastic Approximation)
+// ================================================================
+//
+// Short RC column under pure axial load. Compare two fiber sections:
+//   - "Unconfined": lower E for outer fibers (simulating spalling)
+//   - "Confined": higher E for all fibers (simulating confinement effect)
+// Both should converge; confined column should have less displacement.
+
+#[test]
+fn benchmark_fiber_3d_confined_concrete_column() {
+    let b = 0.3;
+    let h = 0.3;
+    let length = 3.0;
+    let axial_load = -1000.0; // kN compression
+
+    let a = b * h;
+    let iz = b * h * h * h / 12.0;
+    let iy = h * b * b * b / 12.0;
+
+    // Confined: all fibers at E = 30,000 MPa (high-strength confined concrete)
+    let section_confined = rectangular_2d_fiber_grid(
+        b, h, 8, 8,
+        FiberMaterial::Elastic { e: 30_000.0 },
+    );
+
+    // Unconfined: lower E = 20,000 MPa (lower stiffness, simulating unconfined concrete)
+    let section_unconfined = rectangular_2d_fiber_grid(
+        b, h, 8, 8,
+        FiberMaterial::Elastic { e: 20_000.0 },
+    );
+
+    // Solve confined column
+    let disp_confined = {
+        let n_elem = 4;
+        let tip_node = n_elem + 1;
+        let input = cantilever_3d(
+            n_elem, length, 30_000.0, a, iy, iz, 1e-4,
+            vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: tip_node,
+                fx: axial_load, fy: 0.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            })],
+        );
+
+        let mut fiber_sections = HashMap::new();
+        fiber_sections.insert("1".into(), section_confined);
+
+        let fiber_input = FiberNonlinearInput3D {
+            solver: input,
+            fiber_sections,
+            n_integration_points: 5,
+            max_iter: 30,
+            tolerance: 1e-6,
+            n_increments: 1,
+        };
+
+        let result = solve_fiber_nonlinear_3d(&fiber_input)
+            .expect("Confined column solve failed");
+        assert!(result.converged, "Confined column should converge");
+
+        let d_tip = result.results.displacements.iter()
+            .find(|d| d.node_id == tip_node)
+            .expect("Tip displacement not found");
+        let disp = d_tip.ux.abs();
+
+        assert!(
+            disp.is_finite() && disp > 0.0,
+            "Confined column should have finite nonzero axial displacement, got {:.6e}",
+            disp
+        );
+        disp
+    };
+
+    // Solve unconfined column
+    let disp_unconfined = {
+        let n_elem = 4;
+        let tip_node = n_elem + 1;
+        let input = cantilever_3d(
+            n_elem, length, 20_000.0, a, iy, iz, 1e-4,
+            vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: tip_node,
+                fx: axial_load, fy: 0.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            })],
+        );
+
+        let mut fiber_sections = HashMap::new();
+        fiber_sections.insert("1".into(), section_unconfined);
+
+        let fiber_input = FiberNonlinearInput3D {
+            solver: input,
+            fiber_sections,
+            n_integration_points: 5,
+            max_iter: 30,
+            tolerance: 1e-6,
+            n_increments: 1,
+        };
+
+        let result = solve_fiber_nonlinear_3d(&fiber_input)
+            .expect("Unconfined column solve failed");
+        assert!(result.converged, "Unconfined column should converge");
+
+        let d_tip = result.results.displacements.iter()
+            .find(|d| d.node_id == tip_node)
+            .expect("Tip displacement not found");
+        let disp = d_tip.ux.abs();
+
+        assert!(
+            disp.is_finite() && disp > 0.0,
+            "Unconfined column should have finite nonzero axial displacement, got {:.6e}",
+            disp
+        );
+        disp
+    };
+
+    // Confined column (higher E) should have LESS displacement for the same load
+    assert!(
+        disp_confined < disp_unconfined,
+        "Confined column should be stiffer: disp_confined={:.6e} < disp_unconfined={:.6e}",
+        disp_confined, disp_unconfined
+    );
+
+    eprintln!(
+        "Confined vs unconfined: disp_conf={:.6e}, disp_unconf={:.6e}, ratio={:.3}",
+        disp_confined, disp_unconfined, disp_unconfined / disp_confined
+    );
+}
+
+// ================================================================
+// 3F. Beam-Column Interaction (Combined Axial + Bending)
+// ================================================================
+//
+// Cantilever column, 3.0m tall, fiber section.
+// Apply both axial compression (fx = -100) and lateral load (fy = 10) at tip.
+// Verify: both lateral and axial displacements are nonzero,
+// and P-delta effect in the fiber model amplifies lateral displacement.
+
+#[test]
+fn benchmark_fiber_3d_beam_column_interaction() {
+    let b = 0.3;
+    let h = 0.3;
+    let length = 3.0;
+    let e_mpa = 200_000.0;
+
+    let a = b * h;
+    let iz = b * h * h * h / 12.0;
+    let iy = h * b * b * b / 12.0;
+
+    let section = rectangular_2d_fiber_grid(
+        b, h, 8, 8,
+        FiberMaterial::Elastic { e: e_mpa },
+    );
+
+    let n_elem = 4;
+    let tip_node = n_elem + 1;
+
+    // Combined axial + lateral load
+    let input = cantilever_3d(
+        n_elem, length, e_mpa, a, iy, iz, 1e-4,
+        vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: tip_node,
+            fx: -100.0, // axial compression
+            fy: 10.0,   // lateral load
+            fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        })],
+    );
+
+    let mut fiber_sections = HashMap::new();
+    fiber_sections.insert("1".into(), section);
+
+    let fiber_input = FiberNonlinearInput3D {
+        solver: input,
+        fiber_sections,
+        n_integration_points: 5,
+        max_iter: 50,
+        tolerance: 1e-6,
+        n_increments: 5,
+    };
+
+    let result = solve_fiber_nonlinear_3d(&fiber_input)
+        .expect("Beam-column interaction solve failed");
+    assert!(result.converged, "Beam-column interaction should converge");
+
+    let d_tip = result.results.displacements.iter()
+        .find(|d| d.node_id == tip_node)
+        .expect("Tip displacement not found");
+
+    // Both axial and lateral displacements should be nonzero
+    assert!(
+        d_tip.ux.abs() > 1e-10,
+        "Axial displacement should be nonzero, got ux={:.6e}", d_tip.ux
+    );
+    assert!(
+        d_tip.uy.abs() > 1e-10,
+        "Lateral displacement should be nonzero, got uy={:.6e}", d_tip.uy
+    );
+
+    // All results should be finite
+    assert!(d_tip.ux.is_finite(), "ux should be finite");
+    assert!(d_tip.uy.is_finite(), "uy should be finite");
+    assert!(d_tip.uz.is_finite(), "uz should be finite");
+
+    eprintln!(
+        "Beam-column interaction: ux={:.6e} (axial), uy={:.6e} (lateral), uz={:.6e}",
+        d_tip.ux, d_tip.uy, d_tip.uz
+    );
+}

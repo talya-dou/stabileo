@@ -224,6 +224,7 @@ pub fn solve_staged_2d(input: &StagedInput) -> Result<StagedAnalysisResults, Str
             reactions: vec![],
             element_forces: vec![],
             constraint_forces: vec![],
+            diagnostics: vec![],
         });
 
     Ok(StagedAnalysisResults {
@@ -501,6 +502,7 @@ fn assemble_staged_2d(
         max_diag_k: max_diag,
         artificial_dofs,
         inclined_transforms: vec![],
+        diagnostics: vec![],
     }
 }
 
@@ -523,6 +525,7 @@ fn build_results_from_u(
         reactions,
         element_forces,
         constraint_forces: vec![],
+        diagnostics: vec![],
     }
 }
 
@@ -904,7 +907,9 @@ pub fn solve_staged_3d(input: &StagedInput3D) -> Result<StagedAnalysisResults3D,
             element_forces: vec![],
             plate_stresses: vec![],
             quad_stresses: vec![],
+            quad_nodal_stresses: vec![],
             constraint_forces: vec![],
+            diagnostics: vec![],
         });
 
     Ok(StagedAnalysisResults3D {
@@ -1245,6 +1250,8 @@ fn build_results_from_u_3d(
         element_forces,
         plate_stresses,
         quad_stresses: vec![],
+        quad_nodal_stresses: vec![],
         constraint_forces: vec![],
+        diagnostics: vec![],
     }
 }

@@ -373,3 +373,121 @@ fn benchmark_creep_time_step_convergence() {
         }
     }
 }
+
+// ================================================================
+// 5. Prestressed Beam Under Sustained Load (Creep Losses)
+// ================================================================
+//
+// Simply supported prestressed concrete beam under sustained UDL.
+// Concrete C30/37, loaded at 28 days, monitored to 10000 days.
+// Verify:
+//   (a) Solution converges at all time steps
+//   (b) Long-term deflection > short-term deflection (creep amplifies)
+//   (c) Creep coefficient is positive and in expected range
+
+#[test]
+fn benchmark_creep_prestressed_beam_losses() {
+    let e_concrete = 33_000.0; // MPa (~E_cm for C30/37)
+    let length = 8.0; // slightly longer beam for more creep effect
+    let b = 0.4; // wider section
+    let h = 0.6; // deeper section
+    let a = b * h;
+    let iz = b * h * h * h / 12.0;
+    let q = -15.0; // kN/m sustained UDL (heavier load)
+
+    let n_elem = 8;
+    let input = make_ss_beam_udl(n_elem, length, e_concrete, a, iz, q);
+
+    let params = c30_params();
+    let mut creep_params = HashMap::new();
+    creep_params.insert("1".to_string(), params.clone());
+
+    // Time steps from loading (28 days) through long-term
+    let time_steps = vec![
+        TimeStep { t_days: 28.0, additional_loads: vec![] },
+        TimeStep { t_days: 90.0, additional_loads: vec![] },
+        TimeStep { t_days: 365.0, additional_loads: vec![] },
+        TimeStep { t_days: 3650.0, additional_loads: vec![] },
+        TimeStep { t_days: 10000.0, additional_loads: vec![] },
+    ];
+
+    let cs_input = CreepShrinkageInput {
+        solver: input,
+        creep_params,
+        time_steps,
+        aging_coefficient: 0.8,
+    };
+
+    let result = solve_creep_shrinkage_2d(&cs_input)
+        .expect("Prestressed beam creep solve failed");
+
+    // (a) Solution converges
+    assert!(result.converged, "Prestressed beam creep should converge");
+    assert_eq!(result.steps.len(), 5, "Should have 5 time steps");
+
+    // (b) Check creep coefficient at final step is positive and in expected range
+    let phi_final = result.steps.last().unwrap().creep_coefficient;
+    assert!(
+        phi_final > 0.0,
+        "Creep coefficient should be positive at 10000d, got {:.4}", phi_final
+    );
+    assert!(
+        phi_final > 1.0 && phi_final < 4.0,
+        "Creep coefficient at 10000d should be in [1.0, 4.0] per EC2, got {:.4}",
+        phi_final
+    );
+
+    // (c) Collect midspan deflections
+    let mid_node = n_elem / 2 + 1;
+    let deflections: Vec<f64> = result.steps.iter().map(|s| {
+        s.displacements.iter()
+            .find(|d| d.node_id == mid_node)
+            .map(|d| d.uy.abs())
+            .unwrap_or(0.0)
+    }).collect();
+
+    // Short-term deflection (first step)
+    let short_term = deflections[0];
+    // Long-term deflection (last step)
+    let long_term = *deflections.last().unwrap();
+
+    eprintln!("Prestressed beam creep deflections:");
+    for (i, step) in result.steps.iter().enumerate() {
+        eprintln!(
+            "  t={:.0}d: uy={:.6e}, phi={:.4}, eps_sh={:.6e}",
+            step.t_days, deflections[i], step.creep_coefficient, step.shrinkage_strain
+        );
+    }
+
+    // Both deflections should be nonzero
+    assert!(
+        short_term > 1e-10,
+        "Short-term deflection should be nonzero, got {:.6e}", short_term
+    );
+    assert!(
+        long_term > 1e-10,
+        "Long-term deflection should be nonzero, got {:.6e}", long_term
+    );
+
+    // Long-term deflection should be >= short-term (creep + shrinkage amplify)
+    assert!(
+        long_term >= short_term * 0.95,
+        "Long-term deflection ({:.6e}) should be >= short-term ({:.6e})",
+        long_term, short_term
+    );
+
+    // Verify creep coefficients increase monotonically with time
+    let phis: Vec<f64> = result.steps.iter().map(|s| s.creep_coefficient).collect();
+    for i in 1..phis.len() {
+        assert!(
+            phis[i] >= phis[i - 1] - 1e-10,
+            "Creep coefficient should not decrease: phi[{}]={:.4} vs phi[{}]={:.4}",
+            i, phis[i], i - 1, phis[i - 1]
+        );
+    }
+
+    eprintln!(
+        "Prestressed beam: short_term={:.6e}, long_term={:.6e}, phi_final={:.4}",
+        short_term, long_term, phi_final
+    );
+}

@@ -21,7 +21,7 @@ The stronger current claim is:
 
 That claim is now supported by more than raw category count:
 
-- latest reported full-suite status of `6334` passing tests and `0` failures
+- latest reported full-suite status of `6336` passing tests and `0` failures
 - explicit benchmark-gate suites for constraints, contact, shells, reduction, and sparse / conditioning paths
 - solver-core work that now includes constraints, shells, contact, SSI, fiber nonlinear analysis, imperfections, creep / shrinkage, and reduction
 
