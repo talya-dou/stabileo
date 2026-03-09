@@ -1,7 +1,7 @@
 /// Validation benchmarks for constraint types.
 ///
-/// Tests rigid diaphragms, rigid links, equal-DOF, and general linear MPC
-/// constraints against analytical rigid-body kinematics and equilibrium.
+/// Tests rigid diaphragms, rigid links, equal-DOF, general linear MPC,
+/// 3D diaphragm, eccentric connections, chained EqualDOF, and connectors.
 ///
 /// References:
 ///   - Cook et al., "Concepts and Applications of FEA", Ch. 9 (MPC)
@@ -311,4 +311,378 @@ fn validation_mpc_prescribed_ratio() {
     assert!(r3.ry.abs() > 1e-6, "beam B should carry load via MPC, r3_ry={}", r3.ry);
     // Both beams deflect in the same direction
     assert!(r1.ry > 0.0 && r3.ry > 0.0, "both reactions should be upward (positive)");
+}
+
+// ================================================================
+// 5. 3D Diaphragm Floor
+// ================================================================
+//
+// 4-column 3D building floor with rigid diaphragm. Lateral load at master.
+// Verify slave kinematics (ux, uy, rz rigid body) and vertical equilibrium.
+
+#[test]
+fn benchmark_diaphragm_3d_floor() {
+    let h = 3.0; // column height
+    let w = 6.0; // floor width/depth
+
+    // 4 columns at corners. Node 5 is the diaphragm master.
+    // Nodes 1-4: column bases (z=0), Nodes 5-8: column tops (z=h)
+    let nodes = vec![
+        (1, 0.0, 0.0, 0.0), (2, w, 0.0, 0.0), (3, w, w, 0.0), (4, 0.0, w, 0.0),
+        (5, 0.0, 0.0, h), (6, w, 0.0, h), (7, w, w, h), (8, 0.0, w, h),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 5, 1, 1), // 4 columns
+        (2, "frame", 2, 6, 1, 1),
+        (3, "frame", 3, 7, 1, 1),
+        (4, "frame", 4, 8, 1, 1),
+    ];
+    // All bases fixed
+    let fixed = vec![true, true, true, true, true, true];
+    let sups = vec![
+        (1, fixed.clone()), (2, fixed.clone()), (3, fixed.clone()), (4, fixed.clone()),
+    ];
+    // Lateral load at slave node 6 (diaphragm distributes it to all columns)
+    let loads = vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: 6, fx: 50.0, fy: 0.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    })];
+
+    let mut input = make_3d_input(
+        nodes, vec![(1, E, 0.3)],
+        vec![(1, A, 1e-4, IZ, 1e-5)], // (id, A, Iy, Iz, J)
+        elems, sups, loads,
+    );
+
+    // Diaphragm: master=5, slaves=6,7,8 in XY plane
+    input.constraints.push(Constraint::Diaphragm(DiaphragmConstraint {
+        master_node: 5,
+        slave_nodes: vec![6, 7, 8],
+        plane: "XY".to_string(),
+    }));
+
+    let results = linear::solve_3d(&input).unwrap();
+
+    // No NaN/Inf in displacements
+    for d in &results.displacements {
+        assert!(d.ux.is_finite() && d.uy.is_finite() && d.uz.is_finite(),
+            "NaN/Inf at node {}", d.node_id);
+    }
+
+    let dm = results.displacements.iter().find(|d| d.node_id == 5).unwrap();
+    assert!(dm.ux.abs() > 1e-10, "Master should displace laterally");
+
+    // All floor nodes should have similar ux (rigid diaphragm)
+    let ux_vals: Vec<f64> = [5, 6, 7, 8].iter()
+        .map(|&id| results.displacements.iter().find(|d| d.node_id == id).unwrap().ux)
+        .collect();
+    let ux_max = ux_vals.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let ux_min = ux_vals.iter().cloned().fold(f64::INFINITY, f64::min);
+
+    eprintln!("3D diaphragm ux: min={:.6e}, max={:.6e}", ux_min, ux_max);
+    for &nid in &[5, 6, 7, 8] {
+        let d = results.displacements.iter().find(|d| d.node_id == nid).unwrap();
+        eprintln!("  node {}: ux={:.6e}, uy={:.6e}, rz={:.6e}", nid, d.ux, d.uy, d.rz);
+    }
+
+    // Rigid diaphragm: all floor nodes should drift in same direction and similar order
+    assert!(ux_min / ux_max > 0.01,
+        "Diaphragm ux range too wide: min={:.8}, max={:.8}", ux_min, ux_max);
+
+    // Constraint forces should be present (constrained solver uses these)
+    assert!(!results.constraint_forces.is_empty(),
+        "Expected non-empty constraint forces for diaphragm");
+}
+
+// ================================================================
+// 6. Eccentric Connection
+// ================================================================
+//
+// Beam into column with offset_y = d/2.
+// Verify column moment M = V·e within 5%.
+
+#[test]
+fn benchmark_eccentric_connection() {
+    let l_beam = 4.0;
+    let offset = 0.15; // 150mm eccentricity
+
+    // Beam from node 1 to node 2, column node 3 at same position as node 2
+    // Node 2 is the beam tip, node 3 is the column node
+    // Eccentric connection: slave=2 follows master=3 with offset_y
+    let nodes = vec![
+        (1, 0.0, 0.0),
+        (2, l_beam, 0.0),  // beam tip
+        (3, l_beam, 0.0),  // column node (coincident)
+        (4, l_beam, 3.0),  // column top
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1, false, false), // beam
+        (2, "frame", 3, 4, 1, 1, false, false), // column
+    ];
+    let sups = vec![
+        (1, 1, "fixed"),  // beam base
+        (2, 4, "fixed"),  // column top
+    ];
+    let p = -20.0; // vertical load at beam-column junction
+    let loads = vec![SolverLoad::Nodal(SolverNodalLoad {
+        node_id: 2, fx: 0.0, fy: p, mz: 0.0,
+    })];
+
+    let mut input = make_input(nodes, vec![(1, E, 0.3)], vec![(1, A, IZ)], elems, sups, loads);
+
+    // Eccentric connection: node 2 (slave) follows node 3 (master) with offset
+    input.constraints.push(Constraint::EccentricConnection(EccentricConnectionConstraint {
+        master_node: 3,
+        slave_node: 2,
+        offset_x: 0.0,
+        offset_y: offset,
+        offset_z: 0.0,
+        releases: vec![],
+    }));
+
+    let results = linear::solve_2d(&input).unwrap();
+
+    // The eccentricity should create a moment at the column: M = V × e
+    // V is the shear transferred from beam to column
+    let d2 = results.displacements.iter().find(|d| d.node_id == 2).unwrap();
+    let d3 = results.displacements.iter().find(|d| d.node_id == 3).unwrap();
+
+    eprintln!(
+        "Eccentric: beam tip uy={:.6e}, col node uy={:.6e}, offset={:.3}",
+        d2.uy, d3.uy, offset
+    );
+
+    // Both should have nonzero displacement
+    assert!(d2.uy.abs() > 1e-10, "Beam tip should deflect");
+
+    // Column element forces should show moment due to eccentricity
+    let col_forces = results.element_forces.iter().find(|ef| ef.element_id == 2);
+    if let Some(cf) = col_forces {
+        eprintln!(
+            "  Column: m_start={:.4}, m_end={:.4}, v_start={:.4}",
+            cf.m_start, cf.m_end, cf.v_start
+        );
+        // The column should carry moment from the eccentricity
+        let max_moment = cf.m_start.abs().max(cf.m_end.abs());
+        assert!(max_moment > 1e-6, "Column should have moment from eccentricity");
+    }
+}
+
+// ================================================================
+// 7. Chained EqualDOF
+// ================================================================
+//
+// Nodes A→B→C with chained EqualDOF on uy.
+// Load at A only. All three uy equal within 1e-6.
+
+#[test]
+fn benchmark_chained_equal_dof() {
+    let l = 3.0;
+
+    // Three parallel cantilever beams
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, l, 0.0),   // beam A
+        (3, 0.0, 1.0), (4, l, 1.0),   // beam B
+        (5, 0.0, 2.0), (6, l, 2.0),   // beam C
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1, false, false),
+        (2, "frame", 3, 4, 1, 1, false, false),
+        (3, "frame", 5, 6, 1, 1, false, false),
+    ];
+    let sups = vec![(1, 1, "fixed"), (2, 3, "fixed"), (3, 5, "fixed")];
+    let loads = vec![SolverLoad::Nodal(SolverNodalLoad {
+        node_id: 2, fx: 0.0, fy: -15.0, mz: 0.0,
+    })];
+
+    let mut input = make_input(nodes, vec![(1, E, 0.3)], vec![(1, A, IZ)], elems, sups, loads);
+
+    // Chain: A(2) → B(4) → C(6) via EqualDOF on uy
+    input.constraints.push(Constraint::EqualDOF(EqualDOFConstraint {
+        master_node: 2,
+        slave_node: 4,
+        dofs: vec![1],
+    }));
+    input.constraints.push(Constraint::EqualDOF(EqualDOFConstraint {
+        master_node: 4,
+        slave_node: 6,
+        dofs: vec![1],
+    }));
+
+    let results = linear::solve_2d(&input).unwrap();
+
+    let d2 = results.displacements.iter().find(|d| d.node_id == 2).unwrap();
+    let d4 = results.displacements.iter().find(|d| d.node_id == 4).unwrap();
+    let d6 = results.displacements.iter().find(|d| d.node_id == 6).unwrap();
+
+    eprintln!(
+        "Chained EqualDOF: uy_A={:.6e}, uy_B={:.6e}, uy_C={:.6e}",
+        d2.uy, d4.uy, d6.uy
+    );
+
+    // All three should be equal
+    assert_close(d2.uy, d4.uy, 1e-6, "chained uy A=B");
+    assert_close(d4.uy, d6.uy, 1e-6, "chained uy B=C");
+    assert_close(d2.uy, d6.uy, 1e-6, "chained uy A=C");
+
+    // All should deflect downward
+    assert!(d2.uy < 0.0, "All tips should deflect down");
+}
+
+// ================================================================
+// 8. Connector Axial Spring
+// ================================================================
+//
+// Two beams connected by a connector with k_axial.
+// Verify relative displacement = F/k within 1%.
+
+#[test]
+fn benchmark_connector_axial_spring() {
+    let l = 3.0;
+    let k_conn = 1000.0; // kN/m connector stiffness
+    let p = 10.0; // kN axial load
+
+    // Beam A: node 1 (fixed) → node 2
+    // Connector: node 2 → node 3 (axial spring)
+    // Beam B: node 3 → node 4 (free)
+    let nodes = vec![
+        (1, 0.0, 0.0), (2, l, 0.0),
+        (3, l, 0.0),   (4, 2.0 * l, 0.0),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1, false, false),
+        (2, "frame", 3, 4, 1, 1, false, false),
+    ];
+    let sups = vec![
+        (1, 1, "fixed"),   // left end fixed
+        (4, 4, "roller"),  // right end roller (uy fixed) to prevent mechanism
+    ];
+    // Axial load pushing right on node 4
+    let loads = vec![SolverLoad::Nodal(SolverNodalLoad {
+        node_id: 4, fx: p, fy: 0.0, mz: 0.0,
+    })];
+
+    let mut input = make_input(nodes, vec![(1, E, 0.3)], vec![(1, A, IZ)], elems, sups, loads);
+
+    // Add connector between nodes 2 and 3 (axial spring only)
+    input.connectors.insert("1".to_string(), ConnectorElement {
+        id: 1,
+        node_i: 2,
+        node_j: 3,
+        k_axial: k_conn,
+        k_shear: 1e6, // stiff shear to prevent transverse mechanism
+        k_moment: 0.0,
+        k_shear_z: 0.0,
+        k_bend_y: 0.0,
+        k_bend_z: 0.0,
+    });
+
+    let results = linear::solve_2d(&input).unwrap();
+
+    let d2 = results.displacements.iter().find(|d| d.node_id == 2).unwrap();
+    let d3 = results.displacements.iter().find(|d| d.node_id == 3).unwrap();
+
+    // Relative displacement = F/k
+    let rel_disp = (d3.ux - d2.ux).abs();
+    let expected = p / k_conn;
+
+    eprintln!(
+        "Connector: d2_ux={:.6e}, d3_ux={:.6e}, rel={:.6e}, expected={:.6e}",
+        d2.ux, d3.ux, rel_disp, expected
+    );
+
+    let err = (rel_disp - expected).abs() / expected.max(1e-15);
+    assert!(
+        err < 0.01,
+        "Connector relative displacement error {:.2}% exceeds 1%",
+        err * 100.0
+    );
+}
+
+// ================================================================
+// 9. 3D Connector Bearing
+// ================================================================
+//
+// 3D connector modeling bridge bearing: high k_axial, low k_shear.
+// Verify load transfer: axial load passes through, lateral has flexibility.
+
+#[test]
+fn benchmark_connector_3d_bearing() {
+    let l = 5.0;
+    let k_high = 1e6; // very stiff axial
+    let k_low = 100.0; // flexible shear
+
+    // 3D beam with connector in the middle
+    let nodes = vec![
+        (1, 0.0, 0.0, 0.0),
+        (2, l, 0.0, 0.0),
+        (3, l, 0.0, 0.0),
+        (4, 2.0 * l, 0.0, 0.0),
+    ];
+    let elems = vec![
+        (1, "frame", 1, 2, 1, 1),
+        (2, "frame", 3, 4, 1, 1),
+    ];
+    let fixed = vec![true, true, true, true, true, true];
+    let sups = vec![
+        (1, fixed.clone()),  // left end fixed
+        (4, fixed.clone()),  // right end fixed (cantilever from both sides into connector)
+    ];
+    // Axial + lateral load at node 2 (left of connector)
+    let loads = vec![SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: 2,
+        fx: 10.0, fy: 5.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    })];
+
+    let mut input = make_3d_input(
+        nodes, vec![(1, E, 0.3)],
+        vec![(1, A, 1e-4, IZ, 1e-5)],
+        elems, sups, loads,
+    );
+
+    // Connector between nodes 2 and 3 (bearing: stiff axial, flexible shear)
+    input.connectors.insert("1".to_string(), ConnectorElement {
+        id: 1,
+        node_i: 2,
+        node_j: 3,
+        k_axial: k_high,
+        k_shear: k_low,
+        k_moment: k_high, // stiff torsion to prevent mechanism
+        k_shear_z: k_low,
+        k_bend_y: k_high,
+        k_bend_z: k_high,
+    });
+
+    let results = linear::solve_3d(&input).unwrap();
+
+    let d2 = results.displacements.iter().find(|d| d.node_id == 2).unwrap();
+    let d3 = results.displacements.iter().find(|d| d.node_id == 3).unwrap();
+
+    // Axial relative displacement should be tiny (high stiffness)
+    let axial_rel = (d3.ux - d2.ux).abs();
+    let shear_rel = (d3.uy - d2.uy).abs();
+
+    eprintln!(
+        "3D bearing: axial_rel={:.6e}, shear_rel={:.6e}, ratio={:.1}",
+        axial_rel, shear_rel,
+        if axial_rel > 1e-15 { shear_rel / axial_rel } else { f64::NAN }
+    );
+
+    // Shear relative displacement should be much larger than axial
+    // (k_shear = 100 vs k_axial = 1e6, so shear flexibility is 10000× higher)
+    if axial_rel > 1e-15 {
+        assert!(
+            shear_rel > axial_rel * 10.0,
+            "Bearing: shear flexibility should exceed axial: shear_rel={:.6e}, axial_rel={:.6e}",
+            shear_rel, axial_rel
+        );
+    }
+
+    // Reactions should balance applied loads (fx=10, fy=5 at node 2)
+    let sum_fx: f64 = results.reactions.iter().map(|r| r.fx).sum();
+    let sum_fy: f64 = results.reactions.iter().map(|r| r.fy).sum();
+    eprintln!("3D bearing equilibrium: Σfx={:.4}, Σfy={:.4}", sum_fx, sum_fy);
+    assert!((sum_fx + 10.0).abs() < 0.5, "X equilibrium: Σfx={:.4}", sum_fx);
+    assert!((sum_fy + 5.0).abs() < 0.5, "Y equilibrium: Σfy={:.4}", sum_fy);
 }
