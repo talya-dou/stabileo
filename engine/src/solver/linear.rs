@@ -194,22 +194,44 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
             for i in 0..nf { f_f[i] -= kfr_ur[i]; }
         }
 
+        // Dense LU fallback: used when sparse Cholesky fails or gives bad residual
+        let dense_lu_fallback = || -> Result<Vec<f64>, String> {
+            let asm_d = assemble_3d(input, &dof_num);
+            let free_idx: Vec<usize> = (0..nf).collect();
+            let rest_idx: Vec<usize> = (nf..n).collect();
+            let k_fr = extract_submatrix(&asm_d.k, n, &free_idx, &rest_idx);
+            let kfr_ur_d = mat_vec_rect(&k_fr, &u_r, nf, nr);
+            let mut f_work = extract_subvec(&asm_d.f, &free_idx);
+            for i in 0..nf { f_work[i] -= kfr_ur_d[i]; }
+            let mut k_ff_d = extract_submatrix(&asm_d.k, n, &free_idx, &free_idx);
+            lu_solve(&mut k_ff_d, &mut f_work, nf)
+                .ok_or_else(|| "Singular stiffness matrix — structure is a mechanism".to_string())
+        };
+
         // Solve Kff * u_f = f_f
         let u_f = match sparse_cholesky_solve_full(&asm.k_ff, &f_f) {
-            Some(u) => u,
+            Some(u) => {
+                // Verify Cholesky solution quality via residual check.
+                // Sparse Cholesky can silently produce wrong results for ill-conditioned
+                // matrices (e.g. 3D frames with wide stiffness ranges). If the residual
+                // is too large, fall back to dense LU.
+                let ku = asm.k_ff.sym_mat_vec(&u);
+                let mut res_norm2 = 0.0f64;
+                let mut f_norm2 = 0.0f64;
+                for i in 0..nf {
+                    res_norm2 += (ku[i] - f_f[i]).powi(2);
+                    f_norm2 += f_f[i].powi(2);
+                }
+                let rel_residual = res_norm2.sqrt() / f_norm2.sqrt().max(1e-30);
+                if rel_residual < 1e-6 {
+                    u
+                } else {
+                    dense_lu_fallback()?
+                }
+            }
             None => {
-                // Cholesky failed (e.g. shell drilling DOFs) — fall back to dense
-                // assembly + LU to match the original dense-path behavior exactly.
-                let asm_d = assemble_3d(input, &dof_num);
-                let free_idx: Vec<usize> = (0..nf).collect();
-                let rest_idx: Vec<usize> = (nf..n).collect();
-                let k_fr = extract_submatrix(&asm_d.k, n, &free_idx, &rest_idx);
-                let kfr_ur_d = mat_vec_rect(&k_fr, &u_r, nf, nr);
-                let mut f_work = extract_subvec(&asm_d.f, &free_idx);
-                for i in 0..nf { f_work[i] -= kfr_ur_d[i]; }
-                let mut k_ff_d = extract_submatrix(&asm_d.k, n, &free_idx, &free_idx);
-                lu_solve(&mut k_ff_d, &mut f_work, nf)
-                    .ok_or_else(|| "Singular stiffness matrix — structure is a mechanism".to_string())?
+                // Cholesky failed (e.g. shell drilling DOFs) — fall back to dense LU.
+                dense_lu_fallback()?
             }
         };
 
