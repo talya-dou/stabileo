@@ -39,6 +39,25 @@ That matches how structural firms buy software:
 
 `can it analyze -> can it design -> can it produce deliverables -> can it fit our workflow`
 
+## Users We Can Support
+
+The same solver can support different user groups, but they need different product layers:
+
+- structural and civil engineers
+  full analysis, design, diagnostics, reports, and office workflows
+- engineering firms
+  templates, repeatable workflows, QA, reports, and interoperability
+- students and professors
+  onboarding, examples, benchmark explorer, and educational surfaces
+- design-build / contractors / temporary works teams
+  staged workflows, rapid reporting, and simple pass/fail communication
+- BIM / computational design users
+  interoperability, import/export, and API hooks
+- researchers / verification users
+  benchmark visibility, solver settings, exports, and reproducibility
+- architects
+  only as a later conceptual structural mode with strong guardrails, not as the default product surface
+
 ## Current Product Surface
 
 Already present:
@@ -61,6 +80,19 @@ Still productizing:
 - broader workflow packaging around the full solver surface
 - deeper collaboration and firm-facing features
 - smoother interoperability and downstream integrations
+
+## Product Layers By User Need
+
+- `Engineers and firms`
+  diagnostics, code checks, reports, connections, foundations, templates, interoperability
+- `Education`
+  first-solve success, examples, benchmark explorer, explanatory views
+- `Design-build / temporary works`
+  staged workflows, fast results communication, deliverable generation
+- `BIM / computational design`
+  import/export, API packaging, geometry-model exchange
+- `Architects`
+  later conceptual structural mode with defaults, visual feedback, and guardrails
 
 ## Near-Term Product Priorities
 
@@ -134,7 +166,7 @@ Focus:
 - architect-friendly conceptual structural mode
 
 Goal:
-Fit into real firm workflows and broaden adoption.
+Fit into real firm workflows, broaden adoption, and open adjacent non-engineer surfaces carefully.
 
 ### Phase 4: Platform Layer
 

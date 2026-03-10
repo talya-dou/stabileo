@@ -31,6 +31,13 @@ At a high level, Dedaliano already has:
 - constraint systems, reduction/substructuring, and broad postprocessing/design modules
 - a browser-native product surface on top of the solver
 
+That same solver surface can support multiple user layers:
+- engineering firms
+- students and professors
+- design-build / temporary works workflows
+- BIM / computational design users
+- later, a guardrailed conceptual mode for architects
+
 ## Strongest Areas
 
 - broad structural analysis coverage
