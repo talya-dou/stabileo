@@ -33,6 +33,22 @@ Current measured inventory:
 - explicit CI gate stages for shell benchmarks, shell acceptance models, and constraint benchmarks
 - the benchmark ledger below is curated and intentionally narrower than the full automated suite
 
+### Fast Scan
+
+| Area | Implemented | Benchmarked | Gated | Main Remaining Gap |
+|---|---|---|---|---|
+| Linear / second-order core | Yes | Yes | Partial | broader large-model and sparse-path proof |
+| Dynamics (modal / spectrum / time history / harmonic) | Yes | Yes | Partial | more mixed shell/frame and nonlinear depth |
+| Nonlinear frames / fiber / staged | Yes | Yes | Partial | harder mixed nonlinear workflows and convergence edge cases |
+| Contact / SSI | Yes | Yes | Partial | tougher mixed cases and more long-tail reference coverage |
+| Shells / plates | Yes | Yes | Yes | curved-shell workflows, distortion endgame, hemisphere decision |
+| Constraints / reduction | Yes | Yes | Yes | chained-constraint maturity and broader solver-path consistency |
+| Sparse / conditioning paths | Yes | Yes | Yes | runtime wins, ordering quality, broader sparse-path reuse |
+| Design-check / postprocess stack | Yes | Yes | No | workflow/product packaging rather than core mechanics |
+
+Use this table first.
+Use the capability matrix and benchmark ledger below for detail.
+
 ## How to Read This File
 
 This file answers four different questions, in this order:

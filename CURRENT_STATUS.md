@@ -2,6 +2,9 @@
 
 This file is the short project snapshot.
 
+This is the `canonical status snapshot` for the repo-level docs.
+If an exact top-level test count or current-status sentence needs to live anywhere, it should live here first.
+
 For the proof and detailed capability matrix, see [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
 For sequencing, see [`SOLVER_ROADMAP.md`](/Users/unbalancedparen/projects/dedaliano/SOLVER_ROADMAP.md).
 
@@ -50,6 +53,13 @@ The biggest remaining gaps are no longer basic solver categories. They are:
   hard mixed nonlinear workflows and more mature failure behavior
 - solver-path consistency
   dense vs sparse, constrained vs unconstrained, shell vs mixed workflows
+
+## Canonical Snapshot Rules
+
+- keep the canonical repo-level test count here
+- keep the shortest “where the solver stands now” summary here
+- let [`README.md`](/Users/unbalancedparen/projects/dedaliano/README.md) stay qualitative and short
+- let [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md) carry the detailed proof and capability matrix
 
 ## Next Priorities
 
