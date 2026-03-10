@@ -162,7 +162,7 @@ Phase 2 is complete — constraint unification, contact refinement, connector el
 
 - shell release-gating and shell-driven fixes from the newest benchmark/acceptance suites
 - real-model acceptance tests and full-workflow performance benchmarks
-- shell hardening (MITC9 extended curved/non-planar benchmarks, acceptance models exercising quad9, twisted beam/Raasch hook)
+- shell hardening — curved/non-planar frontier (twisted beam, Raasch hook, hemisphere expose flat-faceted limits in both MITC4 and MITC9)
 - advanced contact variants (friction cycles, multi-gap mixed states)
 - CI hardening and release-grade benchmark gates
 - performance at scale and production solver polish

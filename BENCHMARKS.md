@@ -41,7 +41,7 @@ Current measured inventory:
 | Dynamics (modal / spectrum / time history / harmonic) | Yes | Yes | Partial | more mixed shell/frame and nonlinear depth |
 | Nonlinear frames / fiber / staged | Yes | Yes | Partial | harder mixed nonlinear workflows and convergence edge cases |
 | Contact / SSI | Yes | Yes | Partial | tougher mixed cases and more long-tail reference coverage |
-| Shells / plates | Yes | Yes | Yes | MITC4+MITC9 multi-family stack implemented; hardening on extended curved/non-planar benchmarks |
+| Shells / plates | Yes | Yes | Yes | MITC4+MITC9 multi-family stack implemented and acceptance-covered; hardening on curved/non-planar frontier |
 | Constraints / reduction | Yes | Yes | Yes | chained-constraint maturity and broader solver-path consistency |
 | Sparse / conditioning paths | Yes | Yes | Yes | runtime wins, ordering quality, broader sparse-path reuse |
 | Design-check / postprocess stack | Yes | Yes | No | workflow/product packaging rather than core mechanics |
@@ -98,7 +98,7 @@ The rest of this document explains how proven each part of that surface is.
 The main remaining needs are no longer basic feature categories. They are:
 
 - shell hardening
-  MITC4+MITC9 multi-family stack is implemented; remaining work is extended curved/non-planar benchmarks, acceptance models, and distortion robustness
+  MITC4+MITC9 multi-family stack is implemented and acceptance-covered (cantilever, mixed beam+slab, cylindrical tank, modal plate); remaining work is the curved/non-planar frontier (twisted beam, Raasch hook, hemisphere) and distortion robustness
 - performance and scale maturity
   especially broader sparse-path wins, runtime discipline, and large-model reliability
 - verification depth
@@ -223,7 +223,24 @@ Status definitions used here:
 | 3D frame / truss elements | Strong | `element/frame.rs`, broad `validation_3d_*` coverage | More difficult mixed nonlinear / shell-coupled cases and warping hardening |
 | Plate / shell triangles | Good | `element/plate.rs`, `validation_plates.rs`, `validation_scordelis_lo.rs`, recent drilling/nodal-stress/thermal upgrades | Higher fidelity shell behavior, convergence quality, and more benchmark depth |
 | MITC4 quadrilateral shell element | Strong | `element/quad.rs` with Bathe-Dvorkin (1986) ANS shear tying plus EAS-7 membrane enhancement, integrated through standard input and assembly, nonlinear 3D stress recovery, full nodal stress tensor recovery, shell-quality diagnostics, and Jacobian/warping detection. Scordelis-Lo 84%, Navier plate 93%, buckling 102%, modal 99.9% of reference. | Extreme non-planar shell cases like the pinched hemisphere, Raasch hook, and twisted beam still expose formulation limits |
-| MITC9 9-node quadrilateral shell element | Strong | `element/quad9.rs` with ANS shear tying (Bucalem & Bathe 1993), Hughes-Brezzi drilling stabilization, 3×3 Gauss quadrature, 54 DOFs. Full solver-stack integration: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery, all load types. Navier plate 2×2: 98%, Scordelis-Lo 2×2: 96%, spherical cap self-convergence 63%→92%→100%. | Extended curved/non-planar benchmarks (twisted beam, Raasch hook), corotational extension, acceptance models |
+| MITC9 9-node quadrilateral shell element | Strong | `element/quad9.rs` with ANS shear tying (Bucalem & Bathe 1993), Hughes-Brezzi drilling stabilization, 3×3 Gauss quadrature, 54 DOFs. Full solver-stack integration: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery, all load types. Navier plate 2×2: 98%, Scordelis-Lo 2×2: 96%, spherical cap self-convergence 63%→92%→100%. 4 acceptance models (cantilever, mixed beam+slab, cylindrical tank, modal plate). | Curved/non-planar frontier (twisted beam, Raasch hook, hemisphere still locked), corotational extension |
+
+**MITC4 vs MITC9 Comparison**
+
+| Benchmark | MITC4 | MITC9 | Notes |
+|-----------|-------|-------|-------|
+| Navier plate (SS, uniform p) | 4×4: 93% | 2×2: 98%, 4×4: 95% | MITC9 2×2 beats MITC4 4×4 |
+| Scordelis-Lo barrel vault | 6×6: 84% | 2×2: 96%, 6×6: 85% | MITC9 2×2 beats MITC4 6×6 |
+| Spherical cap R/t=100 | 4→8→16: 70→93→99% | 4→8→16: 63→92→100% | Both converge well |
+| Hypar (neg. curvature) | 4→8→16→32: 15→42→76→100% | 4→8→16: 24→57→100% | MITC9 converges faster |
+| Twisted beam (MacNeal-Harder) | 24×8: ~0.2% | 12×4: ~0.1% | Both locked — flat-faceted limit |
+| Raasch hook (150° arc) | 24×12: ~0.01% | 16×8: ~0.01% | Both locked — flat-faceted limit |
+| Hemisphere 18° hole | 8×8: ~28× | 4×4: ~38× | Both locked — needs curved shell |
+| Modal SS plate (f₁) | 8×8: 99.9% | 4×4: 95.8% | Both excellent |
+| Buckling (flat plate) | 8×8: 102% | — | MITC9 buckling not yet benchmarked separately |
+
+The comparison confirms: MITC9 converges faster on fewer elements for standard benchmarks (Navier, Scordelis-Lo, hypar). Both elements hit the same flat-faceted wall on extreme curved geometries (twisted beam, Raasch hook, hemisphere). The next shell frontier requires a curved-shell or solid-shell formulation.
+
 | Curved beams | Partial | `element/curved_beam.rs`, `validation_curved_beams.rs` | Current approach is segmented expansion, not native high-end formulation |
 | Timoshenko beam / shear deformation | Good | `element/frame.rs`, shear-area fields in `types/input.rs`, `validation_timoshenko_solver.rs` | Needs broader production validation across all solver modes |
 | Cable / catenary element | Good | `element/cable.rs`, `solver/cable.rs`, `integration_cable_solver.rs` | Needs broader bridge/cable-net/staged benchmark depth |
@@ -274,7 +291,7 @@ The sections below describe current capability and current gaps. This section an
 Based on the current code, tests, and benchmark surface, the remaining differences are no longer about missing the basics. They are:
 
 1. `Shell hardening`
-   MITC4+EAS-7 and MITC9 are both implemented and benchmark-validated, forming a real multi-family shell stack. The remaining gap is hardening: extended curved/non-planar benchmarks (twisted beam, Raasch hook), acceptance models, and the `bounded MITC4+MITC9 vs solid-shell` decision.
+   MITC4+EAS-7 and MITC9 are both implemented, benchmark-validated, and acceptance-covered (4 workflow models). The remaining gap is the curved/non-planar frontier: twisted beam, Raasch hook, and hemisphere all expose flat-faceted formulation limits in both elements, and the `bounded MITC4+MITC9 vs solid-shell` decision.
 
 2. `Long-tail nonlinear maturity`
    More years of hardened mixed nonlinear edge cases are still needed, especially around contact + nonlinear + staging and shell + nonlinear interaction.
@@ -316,7 +333,7 @@ This is the solver-core ordering to use when the goal is technical leadership ra
 
 | Priority | Topic | Why now |
 |----------|-------|---------|
-| 1 | Shell hardening and MITC9 benchmark extension | MITC4+MITC9 multi-family stack is implemented and benchmark-validated; the next step is extending curved/non-planar benchmarks (twisted beam, Raasch hook), adding acceptance models exercising quad9, and distortion robustness hardening. |
+| 1 | Shell hardening — curved/non-planar frontier | MITC4+MITC9 multi-family stack is implemented, benchmark-validated, and acceptance-covered. The next step is the curved/non-planar frontier (twisted beam, Raasch hook, hemisphere all still locked) and distortion robustness hardening. |
 | 2 | Performance and scale engineering | Sparse 3D is now real; the next step is large-model runtime wins, better ordering, and broader sparse-path reuse. |
 | 3 | Verification hardening | Expand invariants, property-based tests, fuzzing, benchmark gates, and acceptance models around the newest solver families. |
 | 4 | Long-tail nonlinear hardening | The biggest remaining gap versus the deepest open solvers is robustness on hard nonlinear mixed workflows. |
@@ -351,7 +368,7 @@ This is the solver-core ordering to use when the goal is technical leadership ra
 
 | Priority | Topic | Why It Matters |
 |----------|-------|----------------|
-| 1 | Shell hardening and MITC9 extension | MITC4+MITC9 multi-family stack is implemented and benchmark-validated (Navier 2×2: 98%, Scordelis-Lo 2×2: 96%); remaining work is extended curved/non-planar benchmarks, acceptance models exercising quad9, and the bounded MITC4+MITC9 vs solid-shell decision |
+| 1 | Shell hardening — curved/non-planar frontier | MITC4+MITC9 multi-family stack is implemented, benchmark-validated, and acceptance-covered (4 workflow models). Remaining work is the curved/non-planar frontier (twisted beam, Raasch hook, hemisphere still locked in both elements) and the bounded MITC4+MITC9 vs solid-shell decision |
 | 2 | Performance / scale engineering | Large-model reliability, sparse performance, conditioning, and eigensolver robustness are part of solver quality, not implementation detail |
 | 3 | Verification hardening on newest solver families | The remaining differentiator is now proof and hardening, not only additional categories |
 | 4 | Long-tail nonlinear maturity | Hard mixed workflows and difficult convergence behavior are where the deepest open solvers still have more years of hardened edge cases |
@@ -414,7 +431,7 @@ This is the approximate implementation difficulty ordering for the remaining sol
 
 | Topic | Status | Why |
 |---|---|---|
-| Advanced shell technology | Strong | MITC4 (ANS+EAS-7) and MITC9 (ANS, 9-node quad) form a real multi-family shell stack. MITC9 outperforms MITC4 at lower mesh density on standard benchmarks (Navier 2×2: 98%, Scordelis-Lo 2×2: 96%). Full solver-stack integration: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery. Remaining: extended curved/non-planar benchmarks (twisted beam, Raasch hook), acceptance models, corotational extension. |
+| Advanced shell technology | Strong | MITC4 (ANS+EAS-7) and MITC9 (ANS, 9-node quad) form a multi-family shell stack with 15 benchmarks and 4 acceptance models. MITC9 outperforms MITC4 at lower mesh density (Navier 2×2: 98%, Scordelis-Lo 2×2: 96%). Full solver-stack integration: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery, modal. Remaining: curved/non-planar frontier (twisted beam, Raasch hook, hemisphere still locked), corotational extension. |
 
 ---
 
@@ -960,7 +977,7 @@ This is the approximate implementation difficulty ordering for the remaining sol
 - `validation_shell_theory.rs` (8) — Spherical vessel, cylindrical, conical, edge bending
 - `validation_thin_shell_structures.rs` (8) — Dome membrane, cylindrical roof, hypar, buckling
 - `validation_plates_extended.rs` (8) — Timoshenko SS/clamped plate, rectangular/center load, mesh convergence, cantilever strip, patch test, modal frequency
-- `shell_benchmark.rs` (~50 tests) — **MITC4**: Scordelis-Lo convergence, Navier plate convergence, quad patch test, pinched hemisphere, pinched cylinder, QuadPressure, cantilever plate, shell buckling (flat plate, convergence, cylinder, triangle), shell modal, thermal (free expansion, restrained, gradient bending, gradient convergence), self-weight Scordelis-Lo, edge loads (normal, tangential), mesh distortion (aspect ratio, skew, taper, random), warped element accuracy, mixed frame-shell building, beam-shell coupling, mixed stress recovery, spherical cap, hypar, hemisphere, R/t sweep. **MITC9**: patch test, Navier plate convergence, Scordelis-Lo convergence, pinched hemisphere, spherical cap, hypar.
+- `shell_benchmark.rs` (~56 tests) — **MITC4**: Scordelis-Lo convergence, Navier plate convergence, quad patch test, pinched hemisphere, pinched cylinder, QuadPressure, cantilever plate, shell buckling (flat plate, convergence, cylinder, triangle), shell modal, thermal (free expansion, restrained, gradient bending, gradient convergence), self-weight Scordelis-Lo, edge loads (normal, tangential), mesh distortion (aspect ratio, skew, taper, random), warped element accuracy, mixed frame-shell building, beam-shell coupling, mixed stress recovery, spherical cap, hypar, hemisphere, R/t sweep. **MITC9**: patch test, Navier plate convergence, Scordelis-Lo convergence, pinched hemisphere, spherical cap, hypar, twisted beam (A+B), Raasch hook, hemisphere R/t sweep.
 
 ### Plates & Shell Convergence (1 file, ~8 tests)
 - `validation_plate_convergence.rs` (8) — Navier series SS plate, clamped mesh refinement, point load convergence, aspect ratio, cantilever strip, patch test, modal frequency, von Mises stress
@@ -1353,7 +1370,7 @@ These are the largest gaps between the current engine and a top-tier structural 
 | Prestress / post-tension FE behavior | Hard | Good | Real PT depth exists now, but full time-dependent coupling and workflow breadth remain open |
 | Construction staging | Hard | Good | 2D and 3D implementations exist; broader workflow depth and prestress/time-dependent coupling remain open |
 | Creep & shrinkage response | Hard | Good | Core time-dependent response now exists; the remaining gap is broader staged/PT coupling and long-term benchmark depth |
-| Plate / shell advanced elements and load vectors | Hard | Strong | Triangles, MITC4 (ANS+EAS-7), and MITC9 (9-node quad, ANS) form a multi-family shell stack with credible benchmark results. MITC9 outperforms MITC4 at lower mesh density (Navier 2×2: 98%, Scordelis-Lo 2×2: 96%). Remaining: extended curved/non-planar benchmarks, acceptance models, corotational extension |
+| Plate / shell advanced elements and load vectors | Hard | Strong | Triangles, MITC4 (ANS+EAS-7), and MITC9 (9-node quad, ANS) form a multi-family shell stack with 15 benchmarks and 4 acceptance models. MITC9 outperforms MITC4 at lower mesh density (Navier 2×2: 98%, Scordelis-Lo 2×2: 96%). Remaining: curved/non-planar frontier (twisted beam, Raasch hook, hemisphere still locked), corotational extension |
 | Advanced contact variants | Hard | Good | Contact exists, but richer contact laws and harder convergence cases remain open |
 | Nonlinear solution controls and path-following hardening | Hard | Good | Controls now exist; what remains is hard-path validation and broader integration |
 | Model reduction / substructuring | Medium | Good | Core capability exists; the remaining work is workflow integration, reduction choices, and larger-model validation |

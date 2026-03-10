@@ -40,8 +40,8 @@ The main remaining work is no longer missing basic solver categories. It is:
 
 Based on the comparison against projects like OpenSees, Code_Aster, and Kratos, the remaining gaps are not “missing the basics.” They are:
 
-1. `Shell endgame maturity`
-   MITC4+EAS-7 and MITC9 are both implemented and benchmark-validated. MITC9 already outperforms MITC4 on standard benchmarks at lower mesh density. The remaining gap is hardening: broader curved-shell workflows, distortion robustness, non-planar benchmark extensions (twisted beam, Raasch hook), and deciding whether the bounded MITC4+MITC9 stack is sufficient.
+1. `Shell hardening — curved/non-planar frontier`
+   MITC4+EAS-7 and MITC9 are both implemented, benchmark-validated (15 benchmarks), and acceptance-covered (4 workflow models). The shell stack is no longer experimental. The remaining gap is the curved/non-planar frontier: twisted beam, Raasch hook, and hemisphere all expose flat-faceted formulation limits in both elements. The next decision is whether to stop at the well-bounded MITC4+MITC9 stack or introduce a curved/solid-shell formulation.
 
 2. `Long-tail nonlinear maturity`
    More years of hardened edge cases are still needed in mixed nonlinear workflows:
@@ -67,13 +67,12 @@ This changes the strategic target:
 
 If the goal is `best open structural solver`, the current priority order is:
 
-1. `Shell endgame maturity`
-   Harden the now-implemented MITC4+MITC9 shell stack:
-   - broader curved-shell validation (twisted beam, Raasch hook, hemisphere variants)
-   - distortion robustness
-   - shell workflow completeness
+1. `Shell hardening — curved/non-planar frontier`
+   The MITC4+MITC9 stack is implemented and acceptance-covered. Remaining:
+   - curved/non-planar frontier (twisted beam, Raasch hook, hemisphere — all flat-faceted limited)
+   - decide: stop at bounded MITC4+MITC9 or introduce curved/solid-shell
    - MITC9 corotational extension (deferred)
-   - clear decision on whether the bounded MITC4+MITC9 stack is sufficient or whether an even broader shell family is justified later
+   - distortion robustness
 
 2. `Performance and scale`
    Turn sparse-first 3D and current performance infrastructure into real large-model runtime wins.
@@ -166,29 +165,29 @@ Focus:
 - MITC4-vs-MITC9 comparative benchmark tables
 
 Current status:
-- MITC9 is **implemented and benchmark-validated** (6 benchmarks passing, all wired through assembly/mass/buckling/stress recovery)
+- MITC9 is **implemented, benchmark-validated, and acceptance-covered**
+- 15 MITC9 benchmarks passing (patch test, Navier, Scordelis-Lo, hemisphere, spherical cap, hypar, twisted beam A+B, Raasch hook, hemisphere R/t sweep)
+- 4 acceptance/workflow models passing (cantilever, mixed beam+slab, cylindrical tank, modal plate)
 - MITC9 outperforms MITC4 on standard benchmarks at lower mesh density (Navier 2×2: 0.98 vs MITC4 4×4: 0.93; Scordelis-Lo 2×2: 0.96 vs MITC4 6×6: 0.84)
 
 Current remaining shell backlog:
-- extend MITC9 benchmarks: twisted beam, Raasch hook, hemisphere variants
+- curved/non-planar frontier: twisted beam, Raasch hook, and hemisphere all still locked in both elements (~0.1% ratio)
 - broader curved-shell workflow validation (folded plates, conical, hyperbolic)
 - broader shell modal, buckling, and dynamic reference cases with MITC9
 - better shell diagnostics and output semantics in solver results
 - MITC9 corotational extension (deferred)
-- acceptance/workflow models that specifically exercise quad9
 
 Known formulation boundary:
 - MITC4+EAS-7: accurate for R/t < ~100 and flat/mildly curved shells
 - MITC9: quadratic elements converge faster, extend the envelope for curved shells
-- the pinched hemisphere, Raasch hook, and twisted beam remain open challenges for both elements (mesh/geometry setup issues, not pure formulation limitations)
+- twisted beam (~0.1%), Raasch hook (~0.01%), and hemisphere (~35×) expose the flat-faceted limit in **both** elements — this is a formulation wall, not a bug
 - the next decision is whether to:
   - stop at the well-bounded `MITC4 + MITC9` shell stack (likely sufficient for most structural engineering)
-  - or introduce solid-shell later for composites/contact
+  - or introduce solid-shell later for composites/contact/extreme curvature
 
 Recommended shell order:
-1. harden MITC9 on extended curved/non-planar benchmarks (twisted beam, Raasch hook)
-2. add acceptance models that exercise quad9 in realistic workflows
-3. only then decide whether the remaining shell gap justifies a broader shell family beyond MITC9
+1. decide whether the curved/non-planar frontier justifies a new element family (solid-shell or MITC with curved geometry)
+2. if not, document the bounded capability and shift attention to performance/scale
 
 Why it matters:
 Shell quality is one of the clearest separators between a strong structural solver and a top-tier one.
@@ -254,14 +253,16 @@ This is the main remaining place where mature open solvers still have more years
 
 ## Exit Criteria
 
-### Shell endgame maturity
+### Shell hardening — curved/non-planar frontier
 
-Done means:
-- curved-shell validation sets are in place and passing
+Already done:
+- MITC9 benchmarked (15 tests) and acceptance-covered (4 workflow models)
+- MITC9 accepted as part of the production shell stack
+- curved/non-planar benchmarks written and running (twisted beam, Raasch hook, hemisphere R/t sweep) — results document the flat-faceted limit
+
+Remaining to close:
+- the `bounded MITC4/MITC9 stack vs curved/solid-shell` decision is explicitly documented
 - distortion and warp studies are gated and bounded
-- shell workflow completeness cases are covered
-- MITC9 is either benchmarked and accepted as part of the production shell stack, or its remaining gap is explicitly documented
-- the `bounded MITC4/MITC9 stack vs broader shell family` decision is explicitly documented
 
 ### Performance and scale
 

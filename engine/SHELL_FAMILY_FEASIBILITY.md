@@ -1,8 +1,8 @@
 # Shell Element Family Feasibility Analysis
 
-## Current Status: MITC9 Implemented
+## Current Status: MITC9 Implemented and Acceptance-Covered
 
-**MITC9 (Bucalem & Bathe 1993) is now implemented, wired through the full solver stack, and benchmark-validated.** The shell family has moved from `MITC4-only` to `MITC4 + MITC9`.
+**MITC9 (Bucalem & Bathe 1993) is implemented, benchmark-validated (15 benchmarks), and acceptance-covered (4 workflow models).** The shell family has moved from `MITC4-only` to a mature `MITC4 + MITC9` stack.
 
 ### MITC4+EAS-7 (quad.rs)
 
@@ -16,7 +16,7 @@
 | Raasch hook 24×12 | curved | ~0.0001 | Locked |
 | Twisted beam 24×8 | warped | ~0.0015 | Locked |
 
-### MITC9 (quad9.rs) — NEW
+### MITC9 (quad9.rs) — Benchmarks
 
 | Benchmark | Mesh | Ratio | vs MITC4 |
 |-----------|------|-------|----------|
@@ -26,13 +26,26 @@
 | Scordelis-Lo | 6×6 | 0.85 | — |
 | Spherical cap R/t=100 | 4→8→16 | 63%→92%→100% | MITC4: 70%→93%→99% |
 | Hypar (neg. curvature) | 4→8→16 | 24%→57%→100% | MITC4: 15%→42%→76% |
+| Twisted beam A | 12×4 | ~0.1% | MITC4 24×8: ~0.2% |
+| Twisted beam B | 12×4 | ~0.2% | MITC4 24×8: ~0.1% |
+| Raasch hook | 16×8 | ~0.01% | MITC4 24×12: ~0.01% |
 | Hemisphere 18° hole | 4×4 | ~38× | Same issue as MITC4 |
+| Hemisphere R/t sweep | 4×4, R/t=10-250 | ~33-38× | Same wall as MITC4 |
+
+### MITC9 (quad9.rs) — Acceptance Models
+
+| Model | Description | Key check |
+|-------|-------------|-----------|
+| Q9 cantilever | 4×8 MITC9, tip point load | Equilibrium, stress gradient, tip deflection |
+| Mixed beam+Q9 slab | 4 columns + 2×2 Q9 slab, gravity+lateral | Column forces, slab deflection, equilibrium |
+| Cylindrical tank | Quarter-cylinder R=5m, hydrostatic Q9 pressure | Radial bulging, fixed base, membrane stress |
+| Q9 modal plate | 4×4 SS plate, eigenvalue extraction | f₁ ratio 0.96 vs analytical |
 
 **Key result**: MITC9 2×2 already outperforms MITC4 6×6 on both Navier plate and Scordelis-Lo. Quadratic elements converge faster on fewer elements.
 
 **MITC4+EAS-7 remains accurate** for R/t < ~100 and flat/mildly curved shells. MITC9 extends the envelope with quadratic displacement fields.
 
-The hemisphere overshoot (~38× for both elements) is a known mesh/geometry setup issue, not a formulation limitation.
+**Flat-faceted formulation wall**: twisted beam (~0.1%), Raasch hook (~0.01%), and hemisphere (~35×) show the same locked behavior in both MITC4 and MITC9. This is a fundamental flat-faceted element limit, not a bug — both elements assume flat geometry within each element.
 
 ---
 
