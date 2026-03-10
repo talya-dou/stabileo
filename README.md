@@ -38,6 +38,10 @@
 
 Use the docs by question:
 
+- [`DOCS.md`](/Users/unbalancedparen/projects/dedaliano/DOCS.md)
+  document index and suggested reading order
+- [`CURRENT_STATUS.md`](/Users/unbalancedparen/projects/dedaliano/CURRENT_STATUS.md)
+  current solver snapshot, biggest strengths, biggest remaining gaps, and next priorities
 - [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md)
   source of truth for solver capability, validation coverage, benchmark status, and remaining solver gaps
 - [`SOLVER_ROADMAP.md`](/Users/unbalancedparen/projects/dedaliano/SOLVER_ROADMAP.md)
@@ -62,42 +66,13 @@ Dedaliano is an `open-source structural solver` with a growing structural engine
 
 Latest reported milestone:
 
-- `5856` tests passing, `0` failures
-- shell workflow maturity now covers distortion robustness, pinched cylinder (MacNeal-Harder), self-weight loading, edge loads, thermal convergence, and warped element degradation studies
-- MITC4 quad shell element with Bathe-Dvorkin (1986) ANS shear tying plus EAS-4 membrane softening: Scordelis-Lo 6x6 at 80% of reference, Navier plate at 93%, buckling at 102%, modal frequencies at 0.1% error
-- explicit CI gate stages for shell benchmarks, shell acceptance models, and constraint benchmarks ahead of the full suite
-- diagnostics now propagate through solver result types; the main remaining product-side gap is surfacing them cleanly in the app/API
+- `6371` tests passing, `0` failures
+- broad 2D and 3D structural analysis coverage, including staged, contact, SSI, fiber nonlinear, imperfections, and creep/shrinkage workflows
+- shell maturity now includes MITC4 ANS plus EAS-4, explicit shell CI gates, curved/distorted workflow studies, self-weight, edge loads, and thermal convergence coverage
+- sparse-first 3D assembly and solve path is live, with dense-vs-sparse parity coverage and large memory wins on shell models
+- benchmark gates, acceptance models, integration tests, property/differential fuzz coverage, and a large public benchmark program back the solver-quality story
 
-What exists today at a high level:
-
-- browser-native modeling and visualization
-- a substantial Rust structural solver in `engine/`
-- 2D and 3D linear, second-order, dynamic, staged, cable, and nonlinear analysis paths
-- model reduction and substructuring utilities for larger-model workflows
-- design-check and postprocess modules for steel, concrete, timber, masonry, serviceability, connections, and foundations
-- a large benchmark and validation program tracked in [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md)
-
-The solver currently combines:
-
-- broad structural analysis coverage
-- serious nonlinear capability
-- contact and soil-structure interaction
-- staged construction and prestress / PT workflows
-- warping torsion
-- 3D fiber beam-column nonlinear analysis
-- initial imperfections and residual-stress modeling
-- time-dependent creep / shrinkage response
-- dynamic analysis
-- strong postprocessing and design layers
-- broad validation coverage
-
-The main remaining differentiators are:
-
-- robustness on hard real models
-- performance at scale
-- benchmark credibility
-- shell maturity and workflow quality
-- consistent solver-path behavior across constrained and unconstrained workflows
+For the concise current snapshot, see [`CURRENT_STATUS.md`](/Users/unbalancedparen/projects/dedaliano/CURRENT_STATUS.md).
 
 A reasonable description today is:
 
