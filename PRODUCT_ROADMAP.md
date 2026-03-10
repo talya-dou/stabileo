@@ -56,6 +56,7 @@ Still productizing:
 - richer diagnostics UX in the app/API
 - constraint-force presentation in the results experience
 - click-to-focus and visual highlighting for problematic elements
+- stronger onboarding and first-solve success
 - report and deliverable workflows
 - broader workflow packaging around the full solver surface
 - deeper collaboration and firm-facing features
@@ -67,33 +68,35 @@ Still productizing:
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 1 | Richer diagnostics UX | Diagnostics are now in the app flow; the next step is better grouping, filtering, and visibility rather than first-time surfacing. |
-| 2 | Constraint-force presentation | Constraint forces now exist end-to-end; users need them presented coherently alongside reactions and solver diagnostics. |
-| 3 | Click-to-focus and visual highlighting | The next high-value usability step is linking diagnostics and warnings to the affected elements in the viewport. |
-| 4 | Shell/contact/constrained workflow usability | Turn the newest solver capabilities into practical workflows that feel coherent in the app. |
+| 1 | Onboarding and first-solve success | The fastest way to grow usage is to make the first successful solve easy, obvious, and low-friction. |
+| 2 | Richer diagnostics UX | Diagnostics are now in the app flow; the next step is better grouping, filtering, and visibility rather than first-time surfacing. |
+| 3 | Constraint-force presentation | Constraint forces now exist end-to-end; users need them presented coherently alongside reactions and solver diagnostics. |
+| 4 | Click-to-focus and visual highlighting | The next high-value usability step is linking diagnostics and warnings to the affected elements in the viewport. |
 | 5 | Report and calculation-document foundations | Solver trust converts into revenue more easily when firms can produce deliverables. |
 | 6 | Public benchmark and acceptance-model presentation | Make the trust story legible to users, customers, and evaluators. |
-| 7 | Performance feedback in the UI | Progress, iteration counts, and slow-phase visibility make large-model solves feel much more mature. |
+| 7 | Shell/contact/constrained workflow usability | Turn the newest solver capabilities into practical workflows that feel coherent in the app. |
+| 8 | Performance feedback in the UI | Progress, iteration counts, and slow-phase visibility make large-model solves feel much more mature. |
 
 ### 3-6 months
 
 | Priority | Topic | Why now |
 |---|---|---|
-| 8 | Code-check packaging and workflow polish | The solver already supports a broad design-check layer; the next step is turning it into a cleaner end-user workflow. |
-| 9 | Connections and foundations productization | These are natural downstream layers on top of solver outputs. |
-| 10 | Interoperability and import/export improvements | Lower switching friction and fit existing office workflows. |
-| 11 | Project, template, and repeatable workflow support | Help firms standardize how they use the solver. |
-| 12 | Education and benchmark-explorer product surface | A strong distribution and trust channel with minimal solver rework. |
-| 13 | API packaging | The engine is reusable; packaging it cleanly opens additional product and enterprise paths. |
+| 9 | Code-check packaging and workflow polish | The solver already supports a broad design-check layer; the next step is turning it into a cleaner end-user workflow. |
+| 10 | Connections and foundations productization | These are natural downstream layers on top of solver outputs. |
+| 11 | Interoperability and import/export improvements | Lower switching friction and fit existing office workflows. |
+| 12 | Project, template, and repeatable workflow support | Help firms standardize how they use the solver. |
+| 13 | Education and benchmark-explorer product surface | A strong distribution and trust channel with minimal solver rework. |
+| 14 | API packaging | The engine is reusable; packaging it cleanly opens additional product and enterprise paths. |
+| 15 | Conceptual structural mode for architects | Valuable as a later product layer for early-stage structural feedback, but only after the core engineering workflow is stronger. |
 
 ### 12 months+
 
 | Priority | Topic | Why later |
 |---|---|---|
-| 14 | Collaboration and server-backed project workflows | High value, but should build on a stable single-user core. |
-| 15 | Enterprise permissions, audit, and administration | Useful once adoption grows inside firms. |
-| 16 | Optimization and AI-assisted workflow layer | Best added after solver trust and core workflow maturity are strong. |
-| 17 | Broader structural platform expansion | Additional downstream tools should follow a strong core product, not lead it. |
+| 16 | Collaboration and server-backed project workflows | High value, but should build on a stable single-user core. |
+| 17 | Enterprise permissions, audit, and administration | Useful once adoption grows inside firms. |
+| 18 | Optimization and AI-assisted workflow layer | Best added after solver trust and core workflow maturity are strong. |
+| 19 | Broader structural platform expansion | Additional downstream tools should follow a strong core product, not lead it. |
 
 ## Delivery Phases
 
@@ -101,6 +104,7 @@ Still productizing:
 
 Focus:
 - trustworthy browser-native analysis
+- easy first successful solve
 - visible diagnostics and warnings
 - clean results and constraint-force surface
 - actionable diagnostics tied back to the model
@@ -127,6 +131,7 @@ Focus:
 - reusable project templates
 - education and benchmark explorer
 - API packaging
+- architect-friendly conceptual structural mode
 
 Goal:
 Fit into real firm workflows and broaden adoption.
@@ -150,6 +155,7 @@ Do not prioritize these before the core product is clearly trusted:
 - CFD or thermal-fluid products
 - overly broad enterprise features before single-user workflow quality is strong
 - AI features that outrun solver trust
+- architect-friendly conceptual mode before onboarding, diagnostics, deliverables, and interoperability are stronger
 
 ## Related Docs
 

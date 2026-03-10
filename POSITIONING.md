@@ -155,6 +155,7 @@ Good adjacent markets:
 - structural education
 - engineering automation and report generation
 - structural optimization and design review
+- architect-friendly conceptual structural analysis as a later, guardrailed product layer
 
 Bad adjacent markets for now:
 
