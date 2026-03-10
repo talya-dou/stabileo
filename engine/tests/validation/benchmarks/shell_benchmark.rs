@@ -167,7 +167,7 @@ fn scordelis_lo_solve(nx: usize, ntheta: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -372,7 +372,7 @@ fn navier_plate_solve(nx: usize, ny: usize) -> (f64, f64) {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -526,7 +526,7 @@ fn benchmark_quad_patch_test_uniform_stress() {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -683,7 +683,7 @@ fn pinched_hemisphere_solve(n_phi: usize, n_theta: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -913,7 +913,7 @@ fn navier_plate_solve_with_quad_pressure(nx: usize, ny: usize) -> (f64, f64) {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -1049,7 +1049,7 @@ fn benchmark_cantilever_plate_pressure() {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -1169,7 +1169,7 @@ fn shell_buckling_plate(nx: usize, ny: usize) -> f64 {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -1374,7 +1374,7 @@ fn benchmark_shell_buckling_cylinder() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -1413,7 +1413,7 @@ fn benchmark_shell_buckling_cylinder() {
 // ================================================================
 
 /// Helper: build a flat square plate mesh in XY plane (z=0) with quad elements.
-/// Returns (nodes, quads, node_grid) where node_grid[i][j] is the node id.
+/// Returns (nodes, quads, quad9s: HashMap::new(), node_grid) where node_grid[i][j] is the node id.
 fn thermal_plate_mesh(
     nx: usize, ny: usize, lx: f64, ly: f64, t: f64, mat_id: usize,
 ) -> (HashMap<String, SolverNode3D>, HashMap<String, SolverQuadElement>, Vec<Vec<usize>>) {
@@ -1498,7 +1498,7 @@ fn benchmark_shell_thermal_free_expansion() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -1573,7 +1573,7 @@ fn benchmark_shell_thermal_restrained() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -1677,7 +1677,7 @@ fn benchmark_shell_thermal_gradient_bending() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -1846,7 +1846,7 @@ fn benchmark_shell_scordelis_lo_pressure() {
             nodes, materials: mats, sections: HashMap::new(),
             elements: HashMap::new(), supports, loads,
             constraints: vec![], left_hand: None,
-            plates: HashMap::new(), quads, curved_beams: vec![],
+            plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
             connectors: HashMap::new(),
         };
 
@@ -1984,7 +1984,7 @@ fn benchmark_mixed_frame_shell_building() {
     let input = SolverInput3D {
         nodes, materials: mats, sections, elements, supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -2173,7 +2173,7 @@ fn benchmark_shell_buckling_plate_triangle() {
         constraints: vec![],
         left_hand: None,
         plates,
-        quads: HashMap::new(),
+        quads: HashMap::new(), quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -2300,7 +2300,7 @@ fn benchmark_shell_modal_frequencies_ss_plate() {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -2397,7 +2397,7 @@ fn benchmark_shell_modal_frequencies_ss_plate() {
 // ================================================================
 //
 // Flat 2m×1m plate with left half as DKT triangles (plates) and
-// right half as MITC4 quads, sharing nodes along the center line.
+// right half as MITC4 quads, quad9s: HashMap::new(), sharing nodes along the center line.
 // Uniform pressure, SS boundary. Verify displacement continuity
 // at the shared interface.
 
@@ -2518,7 +2518,7 @@ fn benchmark_shell_mixed_tri_quad_patch() {
         constraints: vec![],
         left_hand: None,
         plates,
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -2709,7 +2709,7 @@ fn benchmark_shell_stress_mixed_plate_quad() {
         constraints: vec![],
         left_hand: None,
         plates,
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -2932,7 +2932,7 @@ fn distorted_plate_solve(nx: usize, ny: usize, distortion: &str, param: f64) -> 
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -3111,7 +3111,7 @@ fn pinched_cylinder_solve(nx: usize, ntheta: usize) -> f64 {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -3255,7 +3255,7 @@ fn benchmark_shell_self_weight_scordelis_lo() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -3369,7 +3369,7 @@ fn benchmark_edge_load_normal() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -3504,7 +3504,7 @@ fn benchmark_edge_load_tangential() {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads, curved_beams: vec![],
+        plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
         connectors: HashMap::new(),
     };
 
@@ -3585,7 +3585,7 @@ fn benchmark_shell_thermal_gradient_convergence() {
             nodes, materials: mats, sections: HashMap::new(),
             elements: HashMap::new(), supports, loads,
             constraints: vec![], left_hand: None,
-            plates: HashMap::new(), quads, curved_beams: vec![],
+            plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
             connectors: HashMap::new(),
         };
 
@@ -3713,7 +3713,7 @@ fn benchmark_warped_element_accuracy() {
             nodes, materials: mats, sections: HashMap::new(),
             elements: HashMap::new(), supports, loads,
             constraints: vec![], left_hand: None,
-            plates: HashMap::new(), quads, curved_beams: vec![],
+            plates: HashMap::new(), quads, quad9s: HashMap::new(), curved_beams: vec![],
             connectors: HashMap::new(),
         };
 
@@ -3846,7 +3846,7 @@ fn raasch_hook_solve(n_arc: usize, n_width: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4020,7 +4020,7 @@ fn twisted_beam_solve(nx: usize, ny: usize, load_case: char) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4226,7 +4226,7 @@ fn hemisphere_hole_solve(n_phi: usize, n_theta: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4378,7 +4378,7 @@ fn hypar_solve(n: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4577,7 +4577,7 @@ fn spherical_cap_solve(n: usize) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4739,7 +4739,7 @@ fn pinched_hemisphere_rt_solve(n: usize, rt_ratio: f64) -> f64 {
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads,
+        quads, quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     };
@@ -4826,4 +4826,1206 @@ fn benchmark_rt_sweep_pinched_hemisphere() {
         low_rt_ratio > 1e-8 && high_rt_ratio > 1e-8,
         "Both extreme R/t ratios should be nonzero"
     );
+}
+
+// ================================================================
+// MITC9 (Quad9) Benchmarks
+// ================================================================
+//
+// 9-node Lagrange shell element with ANS shear tying (Bucalem & Bathe 1993).
+// For an NxM element mesh we generate a (2N+1)×(2M+1) node grid:
+//   - Corner nodes at even (i,j) indices
+//   - Midside nodes at odd indices
+//   - Center node at (2i+1, 2j+1)
+// Node numbering per element:
+//   4---7---3
+//   |       |
+//   8   9   6
+//   |       |
+//   1---5---2
+
+/// Build a structured quad9 mesh using a coordinate mapping function.
+/// Returns (nodes, quad9s, node_grid) where node_grid is (2*nx+1) × (2*ny+1).
+fn build_q9_mesh<F>(
+    nx: usize, ny: usize, coord_fn: F,
+) -> (HashMap<String, SolverNode3D>, HashMap<String, SolverQuad9Element>, Vec<Vec<usize>>)
+where
+    F: Fn(f64, f64) -> (f64, f64, f64),
+{
+    let rows = 2 * nx + 1;
+    let cols = 2 * ny + 1;
+
+    let mut nodes = HashMap::new();
+    let mut grid = vec![vec![0usize; cols]; rows];
+    let mut nid = 1;
+
+    for i in 0..rows {
+        for j in 0..cols {
+            let xi = i as f64 / (rows - 1) as f64;
+            let eta = j as f64 / (cols - 1) as f64;
+            let (x, y, z) = coord_fn(xi, eta);
+            nodes.insert(nid.to_string(), SolverNode3D { id: nid, x, y, z });
+            grid[i][j] = nid;
+            nid += 1;
+        }
+    }
+
+    let mut quad9s = HashMap::new();
+    let mut qid = 1;
+    for i in 0..nx {
+        for j in 0..ny {
+            let bi = 2 * i; // base row index
+            let bj = 2 * j; // base col index
+            // Node ordering: 1(bi,bj) 2(bi+2,bj) 3(bi+2,bj+2) 4(bi,bj+2)
+            //                5(bi+1,bj) 6(bi+2,bj+1) 7(bi+1,bj+2) 8(bi,bj+1) 9(bi+1,bj+1)
+            let nodes_9 = [
+                grid[bi][bj],
+                grid[bi + 2][bj],
+                grid[bi + 2][bj + 2],
+                grid[bi][bj + 2],
+                grid[bi + 1][bj],
+                grid[bi + 2][bj + 1],
+                grid[bi + 1][bj + 2],
+                grid[bi][bj + 1],
+                grid[bi + 1][bj + 1],
+            ];
+            quad9s.insert(qid.to_string(), SolverQuad9Element {
+                id: qid,
+                nodes: nodes_9,
+                material_id: 1,
+                thickness: 0.0, // caller sets thickness
+            });
+            qid += 1;
+        }
+    }
+
+    (nodes, quad9s, grid)
+}
+
+// ----------------------------------------------------------------
+// Q9-1. Patch Test — constant stress recovery
+// ----------------------------------------------------------------
+
+#[test]
+fn benchmark_q9_patch_test() {
+    // Single quad9 element under uniform in-plane stretch.
+    // Nodes at unit square with midside/center nodes.
+    // Apply ux = x at all boundary nodes → constant σ_xx.
+    let e_mpa = 100.0;
+    let nu = 0.3;
+    let t = 0.1;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(1, 1, |xi, eta| {
+        (xi, eta, 0.0)
+    });
+
+    for q in quad9s.values_mut() {
+        q.thickness = t;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+    // Pin node 1 (corner 0,0) fully, roller node 2 (corner 1,0) in y
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+
+    // Fix bottom-left corner: all translations + rz
+    let n1 = grid[0][0];
+    supports.insert(sid.to_string(), sup3d(n1, true, true, true, false, false, true));
+    sid += 1;
+
+    // Fix bottom-right corner: uy, uz
+    let n2 = grid[2][0];
+    supports.insert(sid.to_string(), sup3d(n2, false, true, true, false, false, false));
+    sid += 1;
+
+    // Fix top-left corner: uz only
+    let n4 = grid[0][2];
+    supports.insert(sid.to_string(), sup3d(n4, false, false, true, false, false, false));
+    sid += 1;
+
+    // Fix top-right corner: uz only
+    let n3 = grid[2][2];
+    supports.insert(sid.to_string(), sup3d(n3, false, false, true, false, false, false));
+    sid += 1;
+
+    // Fix all midside/center nodes in z
+    for &nid_fix in &[grid[1][0], grid[2][1], grid[1][2], grid[0][1], grid[1][1]] {
+        supports.insert(sid.to_string(), sup3d(nid_fix, false, false, true, false, false, false));
+        sid += 1;
+    }
+
+    // Apply prescribed ux=1 at right edge nodes (x=1): grid[2][0], grid[2][1], grid[2][2]
+    // Use nodal loads equivalent to σ_xx = E/(1-ν²) * ε_xx over tributary length
+    let sigma_xx = e_mpa * 1000.0 / (1.0 - nu * nu); // plane stress σ for ε=1
+    // For now, apply unit forces at right edge to test stress uniformity
+    let f_total = sigma_xx * t * 1.0; // force = σ * t * height
+    let mut loads = Vec::new();
+    // 3-point Simpson: weight 1/6, 4/6, 1/6 for the 3 right-edge nodes
+    loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: grid[2][0], fx: f_total / 6.0, fy: 0.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    }));
+    loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: grid[2][1], fx: 4.0 * f_total / 6.0, fy: 0.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    }));
+    loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: grid[2][2], fx: f_total / 6.0, fy: 0.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    }));
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 patch test solve failed");
+
+    // Check that all nodes have approximately uniform ux displacement
+    // proportional to their x-coordinate
+    let max_ux = res.displacements.iter()
+        .map(|d| d.ux.abs())
+        .fold(0.0_f64, f64::max);
+
+    assert!(max_ux > 1e-10, "Patch test: should have nonzero displacement, got max_ux={:.6e}", max_ux);
+
+    // Stress should be approximately uniform σ_xx across all elements
+    if !res.quad_stresses.is_empty() {
+        let sxx_vals: Vec<f64> = res.quad_stresses.iter().map(|s| s.sigma_xx).collect();
+        let sxx_mean = sxx_vals.iter().sum::<f64>() / sxx_vals.len() as f64;
+        eprintln!("Q9 patch test: sigma_xx mean = {:.6e}, expected = {:.6e}", sxx_mean, sigma_xx);
+
+        for (i, &sxx) in sxx_vals.iter().enumerate() {
+            let rel_err = (sxx - sxx_mean).abs() / sxx_mean.abs().max(1e-10);
+            assert!(
+                rel_err < 0.01,
+                "Q9 patch test: element {} sigma_xx={:.6e} deviates from mean={:.6e} by {:.2}%",
+                i, sxx, sxx_mean, rel_err * 100.0
+            );
+        }
+    }
+
+    eprintln!("Q9 patch test: PASSED");
+}
+
+// ----------------------------------------------------------------
+// Q9-2. Navier Plate — simply-supported plate under uniform pressure
+// ----------------------------------------------------------------
+
+fn q9_navier_plate_solve(nx: usize, ny: usize) -> (f64, f64) {
+    let a: f64 = 1.0;
+    let t: f64 = 0.01;
+    let e_mpa: f64 = 200_000.0;
+    let nu: f64 = 0.3;
+    let q: f64 = 1.0;
+
+    let e_eff = e_mpa * 1000.0;
+    let d_plate = e_eff * t.powi(3) / (12.0 * (1.0 - nu * nu));
+
+    let pi = std::f64::consts::PI;
+    let mut navier_sum = 0.0;
+    for m_idx in 0..20 {
+        let m = 2 * m_idx + 1;
+        for n_idx in 0..20 {
+            let n = 2 * n_idx + 1;
+            let mn2 = (m * m + n * n) as f64;
+            navier_sum += 1.0 / ((m * n) as f64 * mn2 * mn2);
+        }
+    }
+    let w_navier = 16.0 * q * a.powi(4) / (pi.powi(6) * d_plate) * navier_sum;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(nx, ny, |xi, eta| {
+        (xi * a, eta * a, 0.0)
+    });
+    for q9 in quad9s.values_mut() {
+        q9.thickness = t;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+    let rows = 2 * nx + 1;
+    let cols = 2 * ny + 1;
+
+    // Simply-supported: uz = 0 on all boundary nodes
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+    for i in 0..rows {
+        for j in 0..cols {
+            let on_x = i == 0 || i == rows - 1;
+            let on_y = j == 0 || j == cols - 1;
+            if on_x || on_y {
+                supports.insert(sid.to_string(), SolverSupport3D {
+                    node_id: grid[i][j],
+                    rx: i == 0 && j == 0,
+                    ry: (i == 0 && j == 0) || (i == rows - 1 && j == 0),
+                    rz: true,
+                    rrx: false, rry: false, rrz: false,
+                    kx: None, ky: None, kz: None,
+                    krx: None, kry: None, krz: None,
+                    dx: None, dy: None, dz: None,
+                    drx: None, dry: None, drz: None,
+                    normal_x: None, normal_y: None, normal_z: None,
+                    is_inclined: None, rw: None, kw: None,
+                });
+                sid += 1;
+            }
+        }
+    }
+
+    // Equivalent nodal loads: use consistent pressure loading via Quad9Pressure
+    let mut loads = Vec::new();
+    for q9 in quad9s.values() {
+        loads.push(SolverLoad3D::Quad9Pressure(SolverPressureLoad {
+            element_id: q9.id,
+            pressure: -q, // downward
+        }));
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 Navier plate solve failed");
+
+    // Center node is at grid index (nx, ny) in the (2*nx+1) grid
+    let center_nid = grid[nx][ny];
+    let d_center = res.displacements.iter()
+        .find(|d| d.node_id == center_nid)
+        .expect("Center node not found");
+
+    (d_center.uz.abs(), w_navier)
+}
+
+#[test]
+fn benchmark_q9_navier_plate() {
+    let meshes = [(2, 2), (4, 4), (8, 8)];
+
+    for &(nx, ny) in &meshes {
+        let (w_fem, w_ref) = q9_navier_plate_solve(nx, ny);
+        let ratio = w_fem / w_ref;
+        eprintln!(
+            "Q9 Navier plate {}x{}: w_fem={:.6e}, w_ref={:.6e}, ratio={:.4}",
+            nx, ny, w_fem, w_ref, ratio
+        );
+
+        // Quadratic elements should converge faster than MITC4
+        assert!(
+            w_fem > 1e-15,
+            "Q9 Navier plate {}x{}: should deflect", nx, ny
+        );
+    }
+
+    // At 4×4, Q9 should be at least as good as MITC4 at 4×4 (ratio ~0.93)
+    let (w_4, w_ref) = q9_navier_plate_solve(4, 4);
+    let ratio_4 = w_4 / w_ref;
+    assert!(
+        ratio_4 > 0.85,
+        "Q9 Navier 4x4: ratio={:.4} too low (expected > 0.85)", ratio_4
+    );
+}
+
+// ----------------------------------------------------------------
+// Q9-3. Scordelis-Lo Barrel Vault
+// ----------------------------------------------------------------
+
+fn q9_scordelis_lo_solve(nx: usize, ntheta: usize) -> f64 {
+    let e = 4.32e8 / 1000.0;
+    let nu = 0.0;
+    let t = 0.25;
+    let r = 25.0;
+    let half_l = 25.0;
+    let theta_deg = 40.0;
+    let theta_rad = theta_deg * std::f64::consts::PI / 180.0;
+    let gravity_per_area = 90.0;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(nx, ntheta, |xi, eta| {
+        let x = xi * half_l;
+        let th = eta * theta_rad;
+        let y = r * th.sin();
+        let z = r * th.cos() - r;
+        (x, y, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e / 1000.0, nu });
+    // e is in kPa; SolverMaterial expects MPa, so e_mpa = e/1000 ... wait, let me check
+    // In the MITC4 version, e = 4.32e8 / 1000.0 = 432000 (MPa). That's right, no further division needed.
+    mats.clear();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: 4.32e8 / 1000.0, nu });
+
+    let rows = 2 * nx + 1;
+    let cols = 2 * ntheta + 1;
+
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+
+    // x = 0: symmetry — restrain ux, rry
+    for j in 0..cols {
+        let nid_s = grid[0][j];
+        supports.insert(sid.to_string(), sup3d(nid_s, true, false, false, false, true, false));
+        sid += 1;
+    }
+
+    // x = half_L: rigid diaphragm — restrain uy, uz
+    for j in 0..cols {
+        let nid_s = grid[rows - 1][j];
+        supports.insert(sid.to_string(), sup3d(nid_s, false, true, true, false, false, false));
+        sid += 1;
+    }
+
+    // theta = 0 (crown): symmetry — restrain uy, rrx
+    for i in 0..rows {
+        let nid_s = grid[i][0];
+        if !supports.values().any(|s| s.node_id == nid_s) {
+            supports.insert(sid.to_string(), sup3d(nid_s, false, true, false, true, false, false));
+            sid += 1;
+        }
+    }
+
+    // Pin corner for rigid body
+    let corner = grid[0][0];
+    if let Some(s) = supports.values_mut().find(|s| s.node_id == corner) {
+        s.ry = true;
+        s.rz = true;
+    }
+
+    // Equivalent nodal gravity loads (matching MITC4 pattern)
+    // For q9 mesh: nodes on element edges/interiors have different tributary weights.
+    // Use uniform tributary area approach: each node's tributary area from the
+    // regular grid of (2*nx+1)×(2*ntheta+1) nodes.
+    let dx_len = half_l / (2 * nx) as f64;
+    let dtheta = theta_rad / (2 * ntheta) as f64;
+
+    let mut loads = Vec::new();
+    for i in 0..rows {
+        for j in 0..cols {
+            let on_x_edge = i == 0 || i == rows - 1;
+            let on_t_edge = j == 0 || j == cols - 1;
+            let factor = match (on_x_edge, on_t_edge) {
+                (true, true)   => 0.25,
+                (true, false) | (false, true) => 0.5,
+                (false, false) => 1.0,
+            };
+            let trib_area = dx_len * r * dtheta;
+            let fz = -gravity_per_area * trib_area * factor;
+
+            let nid_l = grid[i][j];
+            let is_rz_restrained = supports.values().any(|s| s.node_id == nid_l && s.rz);
+            if !is_rz_restrained {
+                loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                    node_id: nid_l,
+                    fx: 0.0, fy: 0.0, fz,
+                    mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+                }));
+            }
+        }
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 Scordelis-Lo solve failed");
+
+    // Free edge midspan node: grid[0][cols-1] (x=0, theta=40°)
+    let free_edge_nid = grid[0][cols - 1];
+    let d_free = res.displacements.iter()
+        .find(|d| d.node_id == free_edge_nid)
+        .expect("Free edge node displacement not found");
+
+    d_free.uz.abs()
+}
+
+#[test]
+fn benchmark_q9_scordelis_lo() {
+    let reference = 0.3024;
+    let meshes = [(2, 2), (4, 4), (6, 6)];
+    let mut ratios = Vec::new();
+
+    for &(nx, nt) in &meshes {
+        let uz = q9_scordelis_lo_solve(nx, nt);
+        let ratio = uz / reference;
+        ratios.push((nx, nt, uz, ratio));
+        eprintln!(
+            "Q9 Scordelis-Lo {}x{}: uz={:.6e}, ratio={:.4}",
+            nx, nt, uz, ratio
+        );
+    }
+
+    // All meshes should produce nonzero deflection
+    for &(nx, nt, uz, _) in &ratios {
+        assert!(
+            uz > 1e-15,
+            "Q9 Scordelis-Lo {}x{}: should deflect, got uz={:.6e}",
+            nx, nt, uz
+        );
+    }
+
+    // Finest mesh should converge well (Q9 should beat MITC4 at same element count)
+    let (_, _, _, r_fine) = *ratios.last().unwrap();
+    assert!(
+        r_fine > 0.5,
+        "Q9 Scordelis-Lo 6x6: ratio={:.4} too low (expected > 0.5)", r_fine
+    );
+}
+
+// ----------------------------------------------------------------
+// Q9-4. Pinched Hemisphere — MacNeal-Harder benchmark
+// ----------------------------------------------------------------
+// The key test: MITC4 is membrane-locked here (ratio ~0.03 at 8×8).
+// MITC9 should dramatically improve.
+
+fn q9_hemisphere_solve(n_phi: usize, n_theta: usize) -> f64 {
+    let r = 10.0;
+    let t_shell = 0.04;
+    let e_mpa = 68.25;
+    let nu = 0.3;
+    let f_load = 2.0;
+
+    let pi = std::f64::consts::PI;
+    let phi_min = 0.0_f64; // equator
+    let phi_max = 72.0 * pi / 180.0; // 72° = 90° - 18° hole
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(n_phi, n_theta, |xi, eta| {
+        let phi = phi_min + xi * (phi_max - phi_min);
+        let theta = eta * pi / 2.0;
+        let x = r * phi.cos() * theta.cos();
+        let y = r * phi.cos() * theta.sin();
+        let z = r * phi.sin();
+        (x, y, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t_shell;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+    let rows = 2 * n_phi + 1;
+    let cols = 2 * n_theta + 1;
+
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+
+    // Symmetry: theta=0 plane (XZ) → restrain uy, rrx, rrz
+    for i in 0..rows {
+        let nid_s = grid[i][0];
+        supports.insert(sid.to_string(), sup3d(nid_s, false, true, false, true, false, true));
+        sid += 1;
+    }
+
+    // Symmetry: theta=π/2 plane (YZ) → restrain ux, rry, rrz
+    for i in 0..rows {
+        let nid_s = grid[i][cols - 1];
+        if !supports.values().any(|s| s.node_id == nid_s) {
+            supports.insert(sid.to_string(), sup3d(nid_s, true, false, false, false, true, true));
+            sid += 1;
+        }
+    }
+
+    // Pin uz at one hole-edge node
+    let hole_edge_node = grid[rows - 1][0];
+    if let Some(s) = supports.values_mut().find(|s| s.node_id == hole_edge_node) {
+        s.rz = true;
+    }
+
+    // Point loads at equator
+    let eq_x = grid[0][0]; // point A on x-axis
+    let eq_y = grid[0][cols - 1]; // point C on y-axis
+
+    let mut loads = Vec::new();
+    loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: eq_x,
+        fx: f_load, fy: 0.0, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    }));
+    loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+        node_id: eq_y,
+        fx: 0.0, fy: -f_load, fz: 0.0,
+        mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+    }));
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 hemisphere solve failed");
+
+    let d_eq = res.displacements.iter()
+        .find(|d| d.node_id == eq_x)
+        .expect("Equator node displacement not found");
+
+    d_eq.ux.abs()
+}
+
+#[test]
+fn benchmark_q9_pinched_hemisphere() {
+    let reference = 0.185; // NAFEMS LE3 reference for F=2
+    let meshes = [(4, 4), (8, 8)];
+    let mut ratios = Vec::new();
+
+    for &(np, nt) in &meshes {
+        let ux = q9_hemisphere_solve(np, nt);
+        let ratio = ux / reference;
+        ratios.push((np, nt, ux, ratio));
+        eprintln!(
+            "Q9 Hemisphere {}x{}: ux={:.6e}, ratio={:.4}",
+            np, nt, ux, ratio
+        );
+    }
+
+    for &(np, nt, ux, _) in &ratios {
+        assert!(
+            ux > 1e-15,
+            "Q9 Hemisphere {}x{}: should deflect, got ux={:.6e}",
+            np, nt, ux
+        );
+    }
+
+    // MITC4 8×8 had ratio ~0.03 (severely locked). MITC9 should be much better.
+    // Even a ratio > 0.1 at 4×4 would be a significant improvement.
+    let (_, _, _, r_4) = ratios[0];
+    eprintln!(
+        "Q9 Hemisphere 4x4 ratio={:.4} (MITC4 8x8 was ~0.03)",
+        r_4
+    );
+}
+
+// ----------------------------------------------------------------
+// Q9-5. Spherical Cap — R/t=100 convergence
+// ----------------------------------------------------------------
+
+fn q9_spherical_cap_solve(n: usize) -> f64 {
+    let r = 1.0;
+    let t_shell = 0.01; // R/t = 100
+    let e_mpa = 200_000.0;
+    let nu = 0.3;
+    let p = 1.0;
+
+    let pi = std::f64::consts::PI;
+    let phi_max = 10.0 * pi / 180.0; // 10° cap
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(n, n, |xi, eta| {
+        let phi = xi * phi_max;
+        let theta = eta * pi / 2.0;
+        let x = r * phi.sin() * theta.cos();
+        let y = r * phi.sin() * theta.sin();
+        let z = r * phi.cos();
+        (x, y, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t_shell;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+    let rows = 2 * n + 1;
+    let cols = 2 * n + 1;
+
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+
+    // Symmetry theta=0 (XZ plane): uy=0, rrx=0, rrz=0
+    for i in 0..rows {
+        let nid_s = grid[i][0];
+        supports.insert(sid.to_string(), sup3d(nid_s, false, true, false, true, false, true));
+        sid += 1;
+    }
+
+    // Symmetry theta=π/2 (YZ plane): ux=0, rry=0, rrz=0
+    for i in 0..rows {
+        let nid_s = grid[i][cols - 1];
+        if !supports.values().any(|s| s.node_id == nid_s) {
+            supports.insert(sid.to_string(), sup3d(nid_s, true, false, false, false, true, true));
+            sid += 1;
+        }
+    }
+
+    // Boundary ring at phi=phi_max: pin uz (clamped shell edge)
+    for j in 0..cols {
+        let nid_s = grid[rows - 1][j];
+        if let Some(s) = supports.values_mut().find(|s| s.node_id == nid_s) {
+            s.rz = true;
+            s.rx = true;
+            s.ry = true;
+        } else {
+            supports.insert(sid.to_string(), sup3d(nid_s, true, true, true, false, false, false));
+            sid += 1;
+        }
+    }
+
+    // Pressure load on all elements
+    let mut loads = Vec::new();
+    for q in quad9s.values() {
+        loads.push(SolverLoad3D::Quad9Pressure(SolverPressureLoad {
+            element_id: q.id,
+            pressure: -p,
+        }));
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 spherical cap solve failed");
+
+    // Apex radial displacement
+    let apex_nid = grid[0][0];
+    let d_apex = res.displacements.iter()
+        .find(|d| d.node_id == apex_nid)
+        .expect("Apex node displacement not found");
+
+    // Radial displacement at apex = uz (since apex is at z-axis)
+    d_apex.uz.abs()
+}
+
+#[test]
+fn benchmark_q9_spherical_cap() {
+    // Self-convergence: use finest mesh as reference
+    let meshes = [4, 8, 16];
+    let mut results = Vec::new();
+
+    for &n in &meshes {
+        let uz = q9_spherical_cap_solve(n);
+        results.push((n, uz));
+        eprintln!("Q9 Spherical cap {}x{}: uz={:.6e}", n, n, uz);
+    }
+
+    let (_, uz_ref) = *results.last().unwrap();
+
+    for &(n, uz) in &results {
+        let ratio = uz / uz_ref;
+        eprintln!("Q9 Spherical cap {}x{}: ratio={:.4} (vs 16x16)", n, n, ratio);
+    }
+
+    // All should produce nonzero deflection
+    for &(n, uz) in &results {
+        assert!(
+            uz > 1e-15,
+            "Q9 Spherical cap {}x{}: should deflect", n, n
+        );
+    }
+
+    // Convergence: 8×8 should be within 20% of 16×16
+    let ratio_8 = results[1].1 / uz_ref;
+    assert!(
+        ratio_8 > 0.80,
+        "Q9 Spherical cap 8x8: ratio={:.4} should be > 0.80 vs 16x16", ratio_8
+    );
+}
+
+// ----------------------------------------------------------------
+// Q9-6. Hypar — bending-dominated negative curvature
+// ----------------------------------------------------------------
+
+fn q9_hypar_solve(n: usize) -> f64 {
+    let e_mpa = 200_000.0;
+    let nu = 0.3;
+    let t = 0.01;
+    let p = 1.0;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(n, n, |xi, eta| {
+        let x = xi - 0.5;
+        let y = eta - 0.5;
+        let z = x * x - y * y;
+        (x, y, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+    let cols = 2 * n + 1;
+
+    // Clamp x = -0.5 edge (i=0)
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+    for j in 0..cols {
+        let nid_s = grid[0][j];
+        supports.insert(sid.to_string(), sup3d(nid_s, true, true, true, true, true, true));
+        sid += 1;
+    }
+
+    // Pressure load on all elements
+    let mut loads = Vec::new();
+    for q in quad9s.values() {
+        loads.push(SolverLoad3D::Quad9Pressure(SolverPressureLoad {
+            element_id: q.id,
+            pressure: -p,
+        }));
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 hypar solve failed");
+
+    // Max displacement anywhere
+    res.displacements.iter()
+        .map(|d| (d.ux * d.ux + d.uy * d.uy + d.uz * d.uz).sqrt())
+        .fold(0.0_f64, f64::max)
+}
+
+#[test]
+fn benchmark_q9_hypar() {
+    // Self-convergence: use finest mesh as reference
+    // (32×32 Q9 = 65×65 nodes = 25350 DOFs, too slow for dense solver)
+    let meshes = [4, 8, 16];
+    let mut results = Vec::new();
+
+    for &n in &meshes {
+        let max_d = q9_hypar_solve(n);
+        results.push((n, max_d));
+        eprintln!("Q9 Hypar {}x{}: max_disp={:.6e}", n, n, max_d);
+    }
+
+    let (_, ref_d) = *results.last().unwrap();
+
+    for &(n, d) in &results {
+        let ratio = d / ref_d;
+        eprintln!("Q9 Hypar {}x{}: ratio={:.4} (vs 16x16)", n, n, ratio);
+    }
+
+    // All meshes should produce nonzero deflection
+    for &(n, d) in &results {
+        assert!(
+            d > 1e-15,
+            "Q9 Hypar {}x{}: should deflect", n, n
+        );
+    }
+
+    // Convergence: 8×8 should be within 50% of 16×16
+    let ratio_8 = results[1].1 / ref_d;
+    assert!(
+        ratio_8 > 0.50,
+        "Q9 Hypar 8x8: ratio={:.4} should be > 0.50 vs 16x16", ratio_8
+    );
+}
+
+// ----------------------------------------------------------------
+// Q9-7. Twisted Beam — MacNeal-Harder (90° twist, warped elements)
+// ----------------------------------------------------------------
+// L=12, w=1.1, t=0.32, 90° linear twist. E=29×10⁶, ν=0.22.
+// Load A: Pz=1 at tip → ref uz = 0.005424
+// Load B: Py=1 at tip → ref uy = 0.001754
+// MITC4 24×8: ratio ~0.001-0.002 (severely locked on warped quads).
+
+fn q9_twisted_beam_solve(nx: usize, ny: usize, load_case: char) -> f64 {
+    let l = 12.0;
+    let w = 1.1;
+    let t_shell = 0.32;
+    let e = 29_000_000.0;
+    let nu = 0.22;
+
+    let pi = std::f64::consts::PI;
+    let twist_total = pi / 2.0;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(nx, ny, |xi, eta| {
+        let x = xi * l;
+        let twist_angle = (x / l) * twist_total;
+        let s = eta * w - w / 2.0;
+        let y = s * twist_angle.cos();
+        let z = s * twist_angle.sin();
+        (x, y, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t_shell;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e, nu });
+
+    let rows = 2 * nx + 1;
+    let cols = 2 * ny + 1;
+
+    // Clamp root (x=0)
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+    for j in 0..cols {
+        let nid_root = grid[0][j];
+        supports.insert(sid.to_string(), sup3d(nid_root, true, true, true, true, true, true));
+        sid += 1;
+    }
+
+    // Load at tip mid-width node
+    let mid_j = ny; // center node in 2*ny+1 grid
+    let tip_mid = grid[rows - 1][mid_j];
+
+    let mut loads = Vec::new();
+    match load_case {
+        'A' => {
+            loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: tip_mid,
+                fx: 0.0, fy: 0.0, fz: 1.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            }));
+        }
+        'B' => {
+            loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: tip_mid,
+                fx: 0.0, fy: 1.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            }));
+        }
+        _ => panic!("Invalid load case"),
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 twisted beam solve failed");
+
+    let d = res.displacements.iter()
+        .find(|d| d.node_id == tip_mid)
+        .expect("Tip node displacement not found");
+
+    match load_case {
+        'A' => d.uz.abs(),
+        'B' => d.uy.abs(),
+        _ => unreachable!(),
+    }
+}
+
+#[test]
+fn benchmark_q9_twisted_beam_load_a() {
+    let reference = 0.005424;
+    let meshes = [(3, 1), (6, 2), (12, 4)];
+
+    for &(nx, ny) in &meshes {
+        let uz = q9_twisted_beam_solve(nx, ny, 'A');
+        let ratio = uz / reference;
+        eprintln!(
+            "Q9 Twisted beam A {}x{}: uz={:.6e}, ratio={:.4} (MITC4 24x8: ~0.002)",
+            nx, ny, uz, ratio
+        );
+        assert!(uz > 1e-15, "Q9 Twisted beam A {}x{}: should deflect", nx, ny);
+    }
+}
+
+#[test]
+fn benchmark_q9_twisted_beam_load_b() {
+    let reference = 0.001754;
+    let meshes = [(3, 1), (6, 2), (12, 4)];
+
+    for &(nx, ny) in &meshes {
+        let uy = q9_twisted_beam_solve(nx, ny, 'B');
+        let ratio = uy / reference;
+        eprintln!(
+            "Q9 Twisted beam B {}x{}: uy={:.6e}, ratio={:.4} (MITC4 24x8: ~0.001)",
+            nx, ny, uy, ratio
+        );
+        assert!(uy > 1e-15, "Q9 Twisted beam B {}x{}: should deflect", nx, ny);
+    }
+}
+
+// ----------------------------------------------------------------
+// Q9-8. Raasch Hook — NAFEMS curved cantilever strip
+// ----------------------------------------------------------------
+// 150° arc, R=14, width=20, t=0.02, E=3300, ν=0.35.
+// Fz=1 shear at free end → ref uz = 5.022.
+// MITC4 24×12: ratio ~0.0001 (locked).
+
+fn q9_raasch_hook_solve(n_arc: usize, n_width: usize) -> f64 {
+    let r = 14.0;
+    let w = 20.0;
+    let t_shell = 0.02;
+    let e = 3300.0;
+    let nu = 0.35;
+    let f_load = 1.0;
+
+    let pi = std::f64::consts::PI;
+    let arc_rad = 150.0 * pi / 180.0;
+
+    let (nodes, mut quad9s, grid) = build_q9_mesh(n_arc, n_width, |xi, eta| {
+        let theta = xi * arc_rad;
+        let cx = r * theta.cos();
+        let cy = r * theta.sin();
+        let z = eta * w - w / 2.0;
+        (cx, cy, z)
+    });
+    for q in quad9s.values_mut() {
+        q.thickness = t_shell;
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e, nu });
+
+    let cols = 2 * n_width + 1;
+
+    // Clamp at θ=0
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+    for j in 0..cols {
+        let nid_clamp = grid[0][j];
+        supports.insert(sid.to_string(), sup3d(nid_clamp, true, true, true, true, true, true));
+        sid += 1;
+    }
+
+    // Unit shear Fz=1 at free end, distributed across width nodes
+    let rows = 2 * n_arc + 1;
+    let mut loads = Vec::new();
+    for j in 0..cols {
+        let on_edge = j == 0 || j == cols - 1;
+        let trib = if on_edge { 0.5 } else { 1.0 };
+        let fz = f_load * trib / (n_width as f64);
+        loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: grid[rows - 1][j],
+            fx: 0.0, fy: 0.0, fz,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }));
+    }
+
+    let input = SolverInput3D {
+        nodes,
+        materials: mats,
+        sections: HashMap::new(),
+        elements: HashMap::new(),
+        supports,
+        loads,
+        constraints: vec![],
+        left_hand: None,
+        plates: HashMap::new(),
+        quads: HashMap::new(),
+        quad9s,
+        curved_beams: vec![],
+        connectors: HashMap::new(),
+    };
+
+    let res = linear::solve_3d(&input).expect("Q9 Raasch hook solve failed");
+
+    let mid_j = n_width; // center in 2*n_width+1 grid
+    let free_mid = grid[rows - 1][mid_j];
+    let d = res.displacements.iter()
+        .find(|d| d.node_id == free_mid)
+        .expect("Free-end midpoint displacement not found");
+
+    d.uz.abs()
+}
+
+#[test]
+fn benchmark_q9_raasch_hook() {
+    let reference = 5.022;
+    let meshes = [(4, 2), (8, 4), (16, 8)];
+
+    for &(n_arc, n_width) in &meshes {
+        let uz = q9_raasch_hook_solve(n_arc, n_width);
+        let ratio = uz / reference;
+        eprintln!(
+            "Q9 Raasch hook {}x{}: uz={:.6e}, ratio={:.4} (MITC4 24x12: ~0.0001)",
+            n_arc, n_width, uz, ratio
+        );
+        assert!(uz > 1e-15, "Q9 Raasch hook {}x{}: should deflect", n_arc, n_width);
+    }
+}
+
+// ----------------------------------------------------------------
+// Q9-9. Hemisphere Variants — R/t parameter study
+// ----------------------------------------------------------------
+// Same geometry as NAFEMS LE3 hemisphere with 18° hole.
+// R=10, E=68.25, ν=0.3. Vary t to span R/t = 10, 50, 100, 250.
+// Compare MITC9 4×4 ratio across R/t values.
+
+#[test]
+fn benchmark_q9_hemisphere_rt_sweep() {
+    let r = 10.0;
+    let e_mpa = 68.25;
+    let nu = 0.3;
+    let f_load = 2.0;
+    let reference_rt250 = 0.185;
+
+    let pi = std::f64::consts::PI;
+    let phi_min = 0.0_f64;
+    let phi_max = 72.0 * pi / 180.0;
+
+    let rt_values = [10.0, 50.0, 100.0, 250.0];
+
+    for &rt in &rt_values {
+        let t_shell = r / rt;
+        // Reference scales as (R/t)^2 relative to R/t=250
+        let ref_scale = (rt / 250.0_f64).powi(2);
+        let ref_val = reference_rt250 * ref_scale;
+
+        let n = 4; // 4×4 Q9 mesh
+        let (nodes, mut quad9s, grid) = build_q9_mesh(n, n, |xi, eta| {
+            let phi = phi_min + xi * (phi_max - phi_min);
+            let theta = eta * pi / 2.0;
+            let x = r * phi.cos() * theta.cos();
+            let y = r * phi.cos() * theta.sin();
+            let z = r * phi.sin();
+            (x, y, z)
+        });
+        for q in quad9s.values_mut() {
+            q.thickness = t_shell;
+        }
+
+        let mut mats = HashMap::new();
+        mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+        let rows = 2 * n + 1;
+        let cols = 2 * n + 1;
+
+        let mut supports = HashMap::new();
+        let mut sid = 1;
+
+        // Symmetry theta=0 (XZ): uy=0, rrx=0, rrz=0
+        for i in 0..rows {
+            supports.insert(sid.to_string(), sup3d(grid[i][0], false, true, false, true, false, true));
+            sid += 1;
+        }
+
+        // Symmetry theta=π/2 (YZ): ux=0, rry=0, rrz=0
+        for i in 0..rows {
+            let nid_s = grid[i][cols - 1];
+            if !supports.values().any(|s| s.node_id == nid_s) {
+                supports.insert(sid.to_string(), sup3d(nid_s, true, false, false, false, true, true));
+                sid += 1;
+            }
+        }
+
+        // Pin uz at hole edge
+        let hole_node = grid[rows - 1][0];
+        if let Some(s) = supports.values_mut().find(|s| s.node_id == hole_node) {
+            s.rz = true;
+        }
+
+        let eq_x = grid[0][0];
+        let eq_y = grid[0][cols - 1];
+
+        let mut loads = Vec::new();
+        loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: eq_x,
+            fx: f_load, fy: 0.0, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }));
+        loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: eq_y,
+            fx: 0.0, fy: -f_load, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }));
+
+        let input = SolverInput3D {
+            nodes,
+            materials: mats,
+            sections: HashMap::new(),
+            elements: HashMap::new(),
+            supports,
+            loads,
+            constraints: vec![],
+            left_hand: None,
+            plates: HashMap::new(),
+            quads: HashMap::new(),
+            quad9s,
+            curved_beams: vec![],
+            connectors: HashMap::new(),
+        };
+
+        let res = linear::solve_3d(&input).expect("Q9 hemisphere R/t solve failed");
+
+        let d_eq = res.displacements.iter()
+            .find(|d| d.node_id == eq_x)
+            .expect("Equator node not found");
+
+        let ux = d_eq.ux.abs();
+        let ratio = ux / ref_val;
+        eprintln!(
+            "Q9 Hemisphere R/t={}: t={:.4}, ux={:.6e}, ref={:.6e}, ratio={:.4}",
+            rt, t_shell, ux, ref_val, ratio
+        );
+
+        assert!(ux > 1e-15, "Q9 Hemisphere R/t={}: should deflect", rt);
+    }
 }

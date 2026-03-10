@@ -537,6 +537,24 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
     }
 
+    // Assemble quad9 (MITC9 shell) element stiffness matrices
+    for quad9 in input.quad9s.values() {
+        let mat = mat_map[&quad9.material_id];
+        let e = mat.e * 1000.0;
+        let nu = mat.nu;
+        let coords = quad9_coords(&node_map, quad9);
+        let k_local = crate::element::quad9::mitc9_local_stiffness(&coords, e, nu, quad9.thickness);
+        let t_q9 = crate::element::quad9::quad9_transform_3d(&coords);
+        let k_glob = transform_stiffness(&k_local, &t_q9, 54);
+        let q9_dofs = dof_num.quad9_element_dofs(&quad9.nodes);
+        let ndof = q9_dofs.len();
+        for i in 0..ndof {
+            for j in 0..ndof {
+                k_global[q9_dofs[i] * n + q9_dofs[j]] += k_glob[i * ndof + j];
+            }
+        }
+    }
+
     // Assemble 3D connector elements
     if !input.connectors.is_empty() {
         crate::element::connector::assemble_connectors_3d(
@@ -718,6 +736,60 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
         }
     }
 
+    // Quad9 (MITC9) load dispatch — dense path
+    let quad9_map: std::collections::HashMap<usize, &SolverQuad9Element> =
+        input.quad9s.values().map(|q| (q.id, q)).collect();
+    for load in &input.loads {
+        if let SolverLoad3D::Quad9Pressure(pl) = load {
+            if let Some(&q9) = quad9_map.get(&pl.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_p = crate::element::quad9::quad9_pressure_load(&coords, pl.pressure);
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_p.len() { f_global[dof] += f_p[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9Thermal(tl) = load {
+            if let Some(&q9) = quad9_map.get(&tl.element_id) {
+                let mat = mat_map[&q9.material_id];
+                let e = mat.e * 1000.0;
+                let nu = mat.nu;
+                let alpha = tl.alpha.unwrap_or(1.2e-5);
+                let coords = quad9_coords(&node_map, q9);
+                let f_th = crate::element::quad9::quad9_thermal_load(
+                    &coords, e, nu, q9.thickness, alpha, tl.dt_uniform, tl.dt_gradient,
+                );
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_th.len() { f_global[dof] += f_th[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9SelfWeight(sw) = load {
+            if let Some(&q9) = quad9_map.get(&sw.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_sw = crate::element::quad9::quad9_self_weight_load(
+                    &coords, sw.density, q9.thickness, sw.gx, sw.gy, sw.gz,
+                );
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_sw.len() { f_global[dof] += f_sw[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9Edge(el) = load {
+            if let Some(&q9) = quad9_map.get(&el.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_edge = crate::element::quad9::quad9_edge_load(&coords, el.edge, el.qn, el.qt);
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_edge.len() { f_global[dof] += f_edge[i]; }
+                }
+            }
+        }
+    }
+
     // Add 3D spring stiffness
     for sup in input.supports.values() {
         let springs = [sup.kx, sup.ky, sup.kz, sup.krx, sup.kry, sup.krz];
@@ -884,6 +956,19 @@ pub fn assemble_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> AssemblyRes
                 value: qm.jacobian_ratio,
                 threshold: 0.1,
                 message: format!("Quad {} jacobian ratio {:.3} below 0.1", quad.id, qm.jacobian_ratio),
+            });
+        }
+    }
+
+    // Quad9 diagnostics (dense path)
+    for q9 in input.quad9s.values() {
+        let coords = quad9_coords(&node_map, q9);
+        let (_, _, has_neg_j) = crate::element::quad9::quad9_check_jacobian(&coords);
+        if has_neg_j {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: q9.id, element_type: "quad9".into(), metric: "negative_jacobian".into(),
+                value: -1.0, threshold: 0.0,
+                message: format!("Quad9 {} has negative Jacobian determinant (inverted element)", q9.id),
             });
         }
     }
@@ -1553,6 +1638,20 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
         scatter!(k_glob, quad_dofs, ndof);
     }
 
+    // Quad9 elements (MITC9 shell, 54 DOFs per element)
+    for q9 in input.quad9s.values() {
+        let mat = mat_map[&q9.material_id];
+        let e = mat.e * 1000.0;
+        let nu = mat.nu;
+        let coords = quad9_coords(&node_map, q9);
+        let k_local = crate::element::quad9::mitc9_local_stiffness(&coords, e, nu, q9.thickness);
+        let t_q9 = crate::element::quad9::quad9_transform_3d(&coords);
+        let k_glob = transform_stiffness(&k_local, &t_q9, 54);
+        let q9_dofs = dof_num.quad9_element_dofs(&q9.nodes);
+        let ndof = q9_dofs.len();
+        scatter!(k_glob, q9_dofs, ndof);
+    }
+
     // All loads (nodal, bimoment, plate pressure/thermal, quad pressure/thermal/self-weight/edge)
     for load in &input.loads {
         if let SolverLoad3D::Nodal(nl) = load {
@@ -1649,6 +1748,55 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
                 let f_edge = crate::element::quad::quad_edge_load(&coords, el.edge, el.qn, el.qt);
                 let quad_dofs = dof_num.quad_element_dofs(&quad.nodes);
                 for (i, &dof) in quad_dofs.iter().enumerate() {
+                    if i < f_edge.len() { f_global[dof] += f_edge[i]; }
+                }
+            }
+        }
+        // Quad9 (MITC9) load dispatch — sparse path
+        if let SolverLoad3D::Quad9Pressure(pl) = load {
+            if let Some(q9) = input.quad9s.values().find(|q| q.id == pl.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_p = crate::element::quad9::quad9_pressure_load(&coords, pl.pressure);
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_p.len() { f_global[dof] += f_p[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9Thermal(tl) = load {
+            if let Some(q9) = input.quad9s.values().find(|q| q.id == tl.element_id) {
+                let mat = mat_map[&q9.material_id];
+                let e = mat.e * 1000.0;
+                let nu = mat.nu;
+                let alpha = tl.alpha.unwrap_or(1.2e-5);
+                let coords = quad9_coords(&node_map, q9);
+                let f_th = crate::element::quad9::quad9_thermal_load(
+                    &coords, e, nu, q9.thickness, alpha, tl.dt_uniform, tl.dt_gradient,
+                );
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_th.len() { f_global[dof] += f_th[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9SelfWeight(sw) = load {
+            if let Some(q9) = input.quad9s.values().find(|q| q.id == sw.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_sw = crate::element::quad9::quad9_self_weight_load(
+                    &coords, sw.density, q9.thickness, sw.gx, sw.gy, sw.gz,
+                );
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
+                    if i < f_sw.len() { f_global[dof] += f_sw[i]; }
+                }
+            }
+        }
+        if let SolverLoad3D::Quad9Edge(el) = load {
+            if let Some(q9) = input.quad9s.values().find(|q| q.id == el.element_id) {
+                let coords = quad9_coords(&node_map, q9);
+                let f_edge = crate::element::quad9::quad9_edge_load(&coords, el.edge, el.qn, el.qt);
+                let dofs = dof_num.quad9_element_dofs(&q9.nodes);
+                for (i, &dof) in dofs.iter().enumerate() {
                     if i < f_edge.len() { f_global[dof] += f_edge[i]; }
                 }
             }
@@ -1805,6 +1953,19 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
         }
     }
 
+    // Quad9 diagnostics (sparse path)
+    for q9 in input.quad9s.values() {
+        let coords = quad9_coords(&node_map, q9);
+        let (_, _, has_neg_j) = crate::element::quad9::quad9_check_jacobian(&coords);
+        if has_neg_j {
+            diagnostics.push(crate::types::AssemblyDiagnostic {
+                element_id: q9.id, element_type: "quad9".into(), metric: "negative_jacobian".into(),
+                value: -1.0, threshold: 0.0,
+                message: format!("Quad9 {} has negative Jacobian determinant (inverted element)", q9.id),
+            });
+        }
+    }
+
     // Build full-K CSC from all triplets, then filter for Kff
     let k_full = CscMatrix::from_triplets(n, &trip_rows, &trip_cols, &trip_vals);
 
@@ -1834,4 +1995,14 @@ fn quad_coords(node_map: &std::collections::HashMap<usize, &SolverNode3D>, quad:
     let n2 = node_map[&quad.nodes[2]];
     let n3 = node_map[&quad.nodes[3]];
     [[n0.x, n0.y, n0.z], [n1.x, n1.y, n1.z], [n2.x, n2.y, n2.z], [n3.x, n3.y, n3.z]]
+}
+
+/// Helper to extract quad9 node coordinates.
+fn quad9_coords(node_map: &std::collections::HashMap<usize, &SolverNode3D>, q9: &SolverQuad9Element) -> [[f64; 3]; 9] {
+    let mut coords = [[0.0; 3]; 9];
+    for (i, &nid) in q9.nodes.iter().enumerate() {
+        let n = node_map[&nid];
+        coords[i] = [n.x, n.y, n.z];
+    }
+    coords
 }

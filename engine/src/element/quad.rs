@@ -2,7 +2,7 @@
 ///
 /// 4-node shell with 24 DOFs (6 per node: ux, uy, uz, rx, ry, rz).
 /// Combines:
-/// - Bilinear membrane with EAS (Enhanced Assumed Strain, 4 modes) — Simo & Rifai 1990
+/// - Bilinear membrane with EAS-7 (Enhanced Assumed Strain, 7 modes) — Andelfinger & Ramm 1993
 /// - Mindlin plate bending (2×2 full integration)
 /// - MITC4 assumed natural strain (ANS) transverse shear tying (Bathe & Dvorkin 1986)
 /// - Hughes-Brezzi drilling DOF stabilization
@@ -11,11 +11,14 @@
 /// at 4 edge midpoints and interpolates bilinearly, eliminating the spurious
 /// shear strain modes that cause locking on thin plates (a/t > 50).
 ///
-/// The EAS enhancement adds 4 internal strain parameters to the membrane field,
-/// statically condensed at element level, eliminating membrane locking in
-/// inextensional bending (e.g. pinched hemisphere, curved shells).
+/// The EAS-7 enhancement adds 7 internal strain parameters to the membrane field
+/// (4 linear ξ/η modes + 3 bilinear ξη coupling modes), statically condensed at
+/// element level. The bilinear modes provide substantially stronger membrane
+/// softening than EAS-4, critical for curved shells with high membrane/bending
+/// stiffness ratios (e.g. pinched hemisphere R/t=250).
 ///
 /// References:
+///   - Andelfinger & Ramm (1993): "EAS-elements for 2D, 3D, plate and shell structures"
 ///   - Simo & Rifai (1990): "A class of mixed assumed strain methods"
 ///   - Bathe & Dvorkin (1986): "A formulation of general shell elements"
 ///   - Hughes & Brezzi (1989): Drilling rotations formulation
@@ -213,50 +216,71 @@ fn shear_b_nat(pts: &[[f64; 2]; 4], xi: f64, eta: f64) -> [[f64; 24]; 2] {
 
 // ==================== EAS Helper ====================
 
-/// Invert a 4×4 matrix stored as [f64; 16] (row-major) via cofactor expansion.
-/// Panics if the matrix is singular (det ≈ 0).
-fn invert_4x4(m: &[f64; 16]) -> [f64; 16] {
-    let a = |r: usize, c: usize| m[r * 4 + c];
+/// Invert an n×n matrix (flat row-major slice) in-place via Gauss-Jordan
+/// elimination with partial pivoting. Returns the inverse as a Vec.
+/// Panics if the matrix is singular.
+fn invert_small_matrix(n: usize, m: &[f64]) -> Vec<f64> {
+    debug_assert_eq!(m.len(), n * n);
+    let cols = 2 * n;
+    let mut a = vec![0.0f64; n * cols];
+    for r in 0..n {
+        for c in 0..n {
+            a[r * cols + c] = m[r * n + c];
+        }
+        a[r * cols + n + r] = 1.0;
+    }
 
-    // 2×2 sub-determinants from rows 0,1
-    let s0 = a(0,0)*a(1,1) - a(1,0)*a(0,1);
-    let s1 = a(0,0)*a(1,2) - a(1,0)*a(0,2);
-    let s2 = a(0,0)*a(1,3) - a(1,0)*a(0,3);
-    let s3 = a(0,1)*a(1,2) - a(1,1)*a(0,2);
-    let s4 = a(0,1)*a(1,3) - a(1,1)*a(0,3);
-    let s5 = a(0,2)*a(1,3) - a(1,2)*a(0,3);
+    for col in 0..n {
+        // Partial pivoting
+        let mut max_val = a[col * cols + col].abs();
+        let mut max_row = col;
+        for row in (col + 1)..n {
+            let v = a[row * cols + col].abs();
+            if v > max_val {
+                max_val = v;
+                max_row = row;
+            }
+        }
+        assert!(max_val > 1e-30, "invert_small_matrix: singular (pivot {col} ≈ 0)");
 
-    // 2×2 sub-determinants from rows 2,3
-    let c5 = a(2,2)*a(3,3) - a(3,2)*a(2,3);
-    let c4 = a(2,1)*a(3,3) - a(3,1)*a(2,3);
-    let c3 = a(2,1)*a(3,2) - a(3,1)*a(2,2);
-    let c2 = a(2,0)*a(3,3) - a(3,0)*a(2,3);
-    let c1 = a(2,0)*a(3,2) - a(3,0)*a(2,2);
-    let c0 = a(2,0)*a(3,1) - a(3,0)*a(2,1);
+        if max_row != col {
+            for c in 0..cols {
+                let tmp = a[col * cols + c];
+                a[col * cols + c] = a[max_row * cols + c];
+                a[max_row * cols + c] = tmp;
+            }
+        }
 
-    let det = s0*c5 - s1*c4 + s2*c3 + s3*c2 - s4*c1 + s5*c0;
-    assert!(det.abs() > 1e-30, "invert_4x4: singular matrix (det={:.2e})", det);
-    let inv_det = 1.0 / det;
+        let pivot = a[col * cols + col];
+        for c in 0..cols {
+            a[col * cols + c] /= pivot;
+        }
 
-    let mut inv = [0.0; 16];
-    inv[ 0] = ( a(1,1)*c5 - a(1,2)*c4 + a(1,3)*c3) * inv_det;
-    inv[ 1] = (-a(0,1)*c5 + a(0,2)*c4 - a(0,3)*c3) * inv_det;
-    inv[ 2] = ( a(3,1)*s5 - a(3,2)*s4 + a(3,3)*s3) * inv_det;
-    inv[ 3] = (-a(2,1)*s5 + a(2,2)*s4 - a(2,3)*s3) * inv_det;
-    inv[ 4] = (-a(1,0)*c5 + a(1,2)*c2 - a(1,3)*c1) * inv_det;
-    inv[ 5] = ( a(0,0)*c5 - a(0,2)*c2 + a(0,3)*c1) * inv_det;
-    inv[ 6] = (-a(3,0)*s5 + a(3,2)*s2 - a(3,3)*s1) * inv_det;
-    inv[ 7] = ( a(2,0)*s5 - a(2,2)*s2 + a(2,3)*s1) * inv_det;
-    inv[ 8] = ( a(1,0)*c4 - a(1,1)*c2 + a(1,3)*c0) * inv_det;
-    inv[ 9] = (-a(0,0)*c4 + a(0,1)*c2 - a(0,3)*c0) * inv_det;
-    inv[10] = ( a(3,0)*s4 - a(3,1)*s2 + a(3,3)*s0) * inv_det;
-    inv[11] = (-a(2,0)*s4 + a(2,1)*s2 - a(2,3)*s0) * inv_det;
-    inv[12] = (-a(1,0)*c3 + a(1,1)*c1 - a(1,2)*c0) * inv_det;
-    inv[13] = ( a(0,0)*c3 - a(0,1)*c1 + a(0,2)*c0) * inv_det;
-    inv[14] = (-a(3,0)*s3 + a(3,1)*s1 - a(3,2)*s0) * inv_det;
-    inv[15] = ( a(2,0)*s3 - a(2,1)*s1 + a(2,2)*s0) * inv_det;
+        for row in 0..n {
+            if row == col { continue; }
+            let factor = a[row * cols + col];
+            for c in 0..cols {
+                a[row * cols + c] -= factor * a[col * cols + c];
+            }
+        }
+    }
 
+    let mut inv = vec![0.0f64; n * n];
+    for r in 0..n {
+        for c in 0..n {
+            inv[r * n + c] = a[r * cols + n + c];
+        }
+    }
     inv
+}
+
+/// Invert a 4×4 matrix stored as [f64; 16] (row-major).
+#[cfg(test)]
+fn invert_4x4(m: &[f64; 16]) -> [f64; 16] {
+    let v = invert_small_matrix(4, m);
+    let mut out = [0.0; 16];
+    out.copy_from_slice(&v);
+    out
 }
 
 // ==================== Stiffness Matrix ====================
@@ -323,7 +347,7 @@ pub fn mitc4_local_stiffness(
     let b_nat_c = shear_b_nat(&pts, -1.0, 0.0);
     let b_nat_d = shear_b_nat(&pts,  1.0, 0.0);
 
-    // --- EAS pre-computation (Simo & Rifai 1990, 4-mode membrane) ---
+    // --- EAS pre-computation (Andelfinger & Ramm 1993, 7-mode membrane) ---
     // T₀ columns from J₀⁻ᵀ (Voigt strain transformation at element center)
     let (_j0, inv_j0, det_j0) = jacobian_2d(&pts, 0.0, 0.0);
     let ep = inv_j0[0][0];
@@ -333,8 +357,8 @@ pub fn mitc4_local_stiffness(
     let t0_col0 = [ep * ep, er * er, 2.0 * ep * er];
     let t0_col1 = [eq * eq, es * es, 2.0 * eq * es];
     let t0_col2 = [ep * eq, er * es, ep * es + eq * er];
-    let mut c_eas = [[0.0f64; 4]; 8]; // 8 membrane DOFs × 4 EAS params
-    let mut q_eas = [0.0f64; 16];     // 4×4 row-major
+    let mut c_eas = [[0.0f64; 7]; 8]; // 8 membrane DOFs × 7 EAS params
+    let mut q_eas = [0.0f64; 49];     // 7×7 row-major
 
     for &((xi, eta), w_g) in &gauss {
         let (_j, inv_j, det_j) = jacobian_2d(&pts, xi, eta);
@@ -386,39 +410,45 @@ pub fn mitc4_local_stiffness(
             }
         }
 
-        // --- EAS accumulation (membrane enhanced strain modes) ---
+        // --- EAS accumulation (membrane enhanced strain, 7 modes) ---
+        // Modes 1-4: Simo & Rifai 1990 (ξ, η linear)
+        // Modes 5-7: Andelfinger & Ramm 1993 (ξη bilinear coupling)
         {
             let scale = det_j0 / det_j;
             let sxi = scale * xi;
             let seta = scale * eta;
+            let sxe = scale * xi * eta;
 
-            // M(ξ,η) = (det_J₀/det_J) · T₀ · M_hat  (3×4)
-            let m_eas: [[f64; 4]; 3] = [
-                [sxi * t0_col0[0], seta * t0_col1[0], sxi * t0_col2[0], seta * t0_col2[0]],
-                [sxi * t0_col0[1], seta * t0_col1[1], sxi * t0_col2[1], seta * t0_col2[1]],
-                [sxi * t0_col0[2], seta * t0_col1[2], sxi * t0_col2[2], seta * t0_col2[2]],
+            // M̂(ξ,η) = (det_J₀/det_J) · T₀ · M_hat  (3×7)
+            let m_eas: [[f64; 7]; 3] = [
+                [sxi * t0_col0[0], seta * t0_col1[0], sxi * t0_col2[0], seta * t0_col2[0],
+                 sxe * t0_col0[0], sxe * t0_col1[0], sxe * t0_col2[0]],
+                [sxi * t0_col0[1], seta * t0_col1[1], sxi * t0_col2[1], seta * t0_col2[1],
+                 sxe * t0_col0[1], sxe * t0_col1[1], sxe * t0_col2[1]],
+                [sxi * t0_col0[2], seta * t0_col1[2], sxi * t0_col2[2], seta * t0_col2[2],
+                 sxe * t0_col0[2], sxe * t0_col1[2], sxe * t0_col2[2]],
             ];
 
             // DM = D_m · M (exploiting D_m sparsity)
-            let mut dm = [[0.0; 4]; 3];
-            for kk in 0..4 {
+            let mut dm = [[0.0; 7]; 3];
+            for kk in 0..7 {
                 dm[0][kk] = d_m[0] * m_eas[0][kk] + d_m[1] * m_eas[1][kk];
                 dm[1][kk] = d_m[3] * m_eas[0][kk] + d_m[4] * m_eas[1][kk];
                 dm[2][kk] = d_m[8] * m_eas[2][kk];
             }
 
-            // C = ∫ Bᵀ_m · D_m · M dΩ  (8×4)
+            // C = ∫ Bᵀ_m · D_m · M dΩ  (8×7)
             for i in 0..4 {
-                for kk in 0..4 {
+                for kk in 0..7 {
                     c_eas[2 * i][kk]     += dv * (dn_dx[i] * dm[0][kk] + dn_dy[i] * dm[2][kk]);
                     c_eas[2 * i + 1][kk] += dv * (dn_dy[i] * dm[1][kk] + dn_dx[i] * dm[2][kk]);
                 }
             }
 
-            // Q = ∫ Mᵀ · D_m · M dΩ  (4×4)
-            for k1 in 0..4 {
-                for k2 in 0..4 {
-                    q_eas[k1 * 4 + k2] += dv * (
+            // Q = ∫ Mᵀ · D_m · M dΩ  (7×7)
+            for k1 in 0..7 {
+                for k2 in 0..7 {
+                    q_eas[k1 * 7 + k2] += dv * (
                         m_eas[0][k1] * dm[0][k2]
                         + m_eas[1][k1] * dm[1][k2]
                         + m_eas[2][k1] * dm[2][k2]
@@ -515,15 +545,15 @@ pub fn mitc4_local_stiffness(
 
     // --- EAS static condensation: K_eff = K - C · Q⁻¹ · Cᵀ ---
     {
-        let q_inv = invert_4x4(&q_eas);
+        let q_inv = invert_small_matrix(7, &q_eas);
 
-        // qi_ct = Q⁻¹ · Cᵀ  (4×8); Cᵀ[a][j] = c_eas[j][a]
-        let mut qi_ct = [[0.0; 8]; 4];
-        for a in 0..4 {
+        // qi_ct = Q⁻¹ · Cᵀ  (7×8); Cᵀ[a][j] = c_eas[j][a]
+        let mut qi_ct = [[0.0; 8]; 7];
+        for a in 0..7 {
             for j in 0..8 {
                 let mut v = 0.0;
-                for b in 0..4 {
-                    v += q_inv[a * 4 + b] * c_eas[j][b];
+                for b in 0..7 {
+                    v += q_inv[a * 7 + b] * c_eas[j][b];
                 }
                 qi_ct[a][j] = v;
             }
@@ -536,7 +566,7 @@ pub fn mitc4_local_stiffness(
             for j in 0..8 {
                 let gj = mem_dofs[j];
                 let mut corr = 0.0;
-                for a in 0..4 {
+                for a in 0..7 {
                     corr += c_eas[i][a] * qi_ct[a][j];
                 }
                 k[gi * ndof + gj] -= corr;
@@ -1030,8 +1060,13 @@ pub fn quad_self_weight_load(
     gy: f64,
     gz: f64,
 ) -> Vec<f64> {
-    let (ex, ey, _) = quad_local_axes(coords);
+    let (ex, ey, ez) = quad_local_axes(coords);
     let pts = project_to_2d(coords, &ex, &ey);
+
+    // Project global gravity into local coordinates
+    let g_local_x = gx * ex[0] + gy * ex[1] + gz * ex[2];
+    let g_local_y = gx * ey[0] + gy * ey[1] + gz * ey[2];
+    let g_local_z = gx * ez[0] + gy * ez[1] + gz * ez[2];
 
     let mut f = vec![0.0; 24];
     let gauss = gauss_2x2();
@@ -1043,9 +1078,9 @@ pub fn quad_self_weight_load(
 
         for i in 0..4 {
             let w = (rho / 1000.0) * t * n[i] * dv;
-            f[i * 6]     += w * gx;
-            f[i * 6 + 1] += w * gy;
-            f[i * 6 + 2] += w * gz;
+            f[i * 6]     += w * g_local_x;
+            f[i * 6 + 1] += w * g_local_y;
+            f[i * 6 + 2] += w * g_local_z;
         }
     }
 

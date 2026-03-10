@@ -214,7 +214,7 @@ fn make_input_3d(
         constraints: vec![],
         left_hand: None,
         plates: HashMap::new(),
-        quads: HashMap::new(),
+        quads: HashMap::new(), quad9s: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     }
@@ -535,7 +535,7 @@ fn make_flat_plate_3d(nx: usize, ny: usize) -> SolverInput3D {
         nodes, materials: mats, sections: HashMap::new(),
         elements: HashMap::new(), supports, loads,
         constraints: vec![], left_hand: None,
-        plates: HashMap::new(), quads,
+        plates: HashMap::new(), quads, quad9s: HashMap::new(),
         curved_beams: vec![], connectors: HashMap::new(),
     }
 }

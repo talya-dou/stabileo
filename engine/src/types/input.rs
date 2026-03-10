@@ -311,6 +311,14 @@ pub enum SolverLoad3D {
     QuadEdge(SolverQuadEdgeLoad),
     #[serde(rename = "quadSelfWeight")]
     QuadSelfWeight(SolverQuadSelfWeightLoad),
+    #[serde(rename = "quad9Pressure")]
+    Quad9Pressure(SolverPressureLoad),
+    #[serde(rename = "quad9Thermal")]
+    Quad9Thermal(SolverPlateThermalLoad),
+    #[serde(rename = "quad9Edge")]
+    Quad9Edge(SolverQuadEdgeLoad),
+    #[serde(rename = "quad9SelfWeight")]
+    Quad9SelfWeight(SolverQuadSelfWeightLoad),
 }
 
 /// Body force (self-weight) load on a quad element.
@@ -382,6 +390,8 @@ pub struct SolverInput3D {
     #[serde(default)]
     pub quads: HashMap<String, SolverQuadElement>,
     #[serde(default)]
+    pub quad9s: HashMap<String, SolverQuad9Element>,
+    #[serde(default)]
     pub curved_beams: Vec<CurvedBeamInput>,
     #[serde(default)]
     pub connectors: HashMap<String, ConnectorElement>,
@@ -403,6 +413,15 @@ pub struct SolverPlateElement {
 pub struct SolverQuadElement {
     pub id: usize,
     pub nodes: [usize; 4],
+    pub material_id: usize,
+    pub thickness: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SolverQuad9Element {
+    pub id: usize,
+    pub nodes: [usize; 9],
     pub material_id: usize,
     pub thickness: f64,
 }

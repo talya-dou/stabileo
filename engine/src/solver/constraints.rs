@@ -558,6 +558,7 @@ pub fn solve_constrained_2d(input: &ConstrainedInput) -> Result<AnalysisResults,
         element_forces,
         constraint_forces,
         diagnostics: vec![],
+        solver_diagnostics: vec![],
     })
 }
 
@@ -685,6 +686,7 @@ pub fn solve_constrained_3d(input: &ConstrainedInput3D) -> Result<AnalysisResult
         quad_nodal_stresses: vec![],
         constraint_forces,
         diagnostics: vec![],
+        solver_diagnostics: vec![],
     })
 }
 

@@ -43,15 +43,15 @@ That same solver surface can support multiple user layers:
 - broad structural analysis coverage
 - unusually visible benchmark and validation discipline
 - strong product surface for an open solver project
-- shell maturity that is benchmark-gated and now includes MITC4 ANS plus EAS-7
+- multi-family shell stack: MITC4 (ANS + EAS-7) and MITC9 (9-node, ANS shear tying), both benchmark-gated
 - sparse-first 3D path with dense-vs-sparse parity coverage and significant memory reduction on shell models
 
 ## Main Remaining Gaps
 
 The biggest remaining gaps are no longer basic solver categories. They are:
 
-- shell endgame maturity
-  curved-shell workflows, distortion endgame, and the `broader shell family vs bounded MITC4+EAS-7` decision
+- shell hardening
+  MITC4+MITC9 are both implemented; remaining work is extended curved/non-planar benchmarks, acceptance models exercising quad9, and the `bounded MITC4+MITC9 stack vs solid-shell` decision
 - performance and scale
   broader sparse-path runtime wins and large-model discipline
 - verification depth

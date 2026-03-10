@@ -323,6 +323,7 @@ pub fn solve_cable_2d(
         element_forces,
         constraint_forces,
         diagnostics: vec![],
+        solver_diagnostics: vec![],
     };
 
     // Cable-specific results
@@ -571,6 +572,7 @@ pub fn solve_cable_3d(
         quad_nodal_stresses: vec![],
         constraint_forces,
         diagnostics: vec![],
+        solver_diagnostics: vec![],
     };
 
     let cable_forces = cables.iter().map(|ci| {

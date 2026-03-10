@@ -42,7 +42,7 @@
 - **Source**: NAFEMS standard test, MacNeal & Harder (1985)
 - **Problem**: Cylindrical roof shell, gravity loading
 - **Reference**: u_z = 0.3024 at midspan free edge
-- **Status**: Implemented with MITC4 ANS shear tying. 6×6 mesh: 80% of reference, converging with refinement.
+- **Status**: MITC4 ANS shear tying: 6×6 mesh: 80%. MITC9: 2×2 mesh: 96%, 6×6 mesh: 85%.
 
 ### Hemisphere with 18° Hole (NAFEMS LE3)
 - **Source**: NAFEMS, "The Standard NAFEMS Benchmarks" (TNSB), Rev 3, 1990, Test LE3
@@ -242,7 +242,7 @@
 
 | Benchmark | Category | Solver Feature | Status | Notes |
 |-----------|----------|----------------|--------|-------|
-| Navier SS plate | Plates | DKT+CST, MITC4 | DONE | MITC4 with ANS: 93% at 4×4, 95% at 16×16 |
+| Navier SS plate | Plates | DKT+CST, MITC4, MITC9 | DONE | MITC4 with ANS: 93% at 4×4, 95% at 16×16. MITC9: 98% at 2×2. |
 | Roark ring | Curved beams | 3D curved | NEW | Full ring needed |
 | VM18 quarter-circle | Curved beams | 3D curved | CAPABILITY | R=100in, δ=-2.648 |
 | Plastic collapse 8Mp/L | Nonlinear | Bilinear N-R | CAPABILITY | Fixed-fixed, central P |

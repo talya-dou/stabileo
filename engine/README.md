@@ -44,7 +44,7 @@ This document should stay focused on the engine surface, analysis families, and 
 - **Cable solver** (2D): tension-only cable/catenary-style solve with iterative update
 - **Fiber nonlinear beam-columns** (2D & 3D): distributed plasticity / section-integration solvers
 - **Creep / shrinkage**: time-dependent structural response with EC2-style models
-- **Plate/shell** (3D): DKT/DKMT triangular plates and MITC4 quadrilateral shells with ANS shear tying, EAS-7 membrane enhancement, pressure, drilling stabilization, and thermal support
+- **Plate/shell** (3D): DKT/DKMT triangular plates, MITC4 quadrilateral shells (ANS shear tying, EAS-7 membrane), and MITC9 9-node quadrilateral shells (ANS shear tying, Bucalem & Bathe 1993) with pressure, self-weight, thermal, and edge loading
 - **Model reduction / substructuring**: Guyan condensation and Craig-Bampton reduction for larger-model workflows
 - **Section analysis**: polygon-based cross-section properties and section metrics
 
@@ -162,7 +162,7 @@ Phase 2 is complete — constraint unification, contact refinement, connector el
 
 - shell release-gating and shell-driven fixes from the newest benchmark/acceptance suites
 - real-model acceptance tests and full-workflow performance benchmarks
-- deeper shell maturity (broader curved-shell families, non-planar shell-boundary decisions, folded plates)
+- shell hardening (MITC9 extended curved/non-planar benchmarks, acceptance models exercising quad9, twisted beam/Raasch hook)
 - advanced contact variants (friction cycles, multi-gap mixed states)
 - CI hardening and release-grade benchmark gates
 - performance at scale and production solver polish
@@ -184,7 +184,7 @@ Compact must-pass suites validating the newest solver families:
 |-------|------|----------|
 | Constraints | `benchmarks/constraints_benchmark.rs` | Rigid links, diaphragms, equal-DOF, eccentric connections, constraint forces |
 | Contact | `benchmarks/contact_benchmark.rs` | Gap elements, tension/compression-only, friction, augmented Lagrangian |
-| Shells | `benchmarks/shell_benchmark.rs` | MITC4 quads, membrane/bending, thermal, mesh quality, mixed frame+shell, distortion robustness, pinched cylinder, self-weight, edge loads, warped elements |
+| Shells | `benchmarks/shell_benchmark.rs` | MITC4 quads, MITC9 quad9s, membrane/bending, thermal, mesh quality, mixed frame+shell, distortion robustness, pinched cylinder, self-weight, edge loads, warped elements, Navier/Scordelis-Lo/spherical-cap/hypar/hemisphere convergence |
 | Reduction | `benchmarks/reduction_benchmark.rs` | Guyan condensation, Craig-Bampton, substructuring workflows |
 | Sparse | `benchmarks/sparse_benchmark.rs` | Sparse assembly, sparse Cholesky, conditioning diagnostics |
 | Sparse 3D Parity | `benchmarks/sparse_3d_parity.rs` | Dense-vs-sparse assembly/solve parity for shells, frames, prescribed displacements, inclined supports |

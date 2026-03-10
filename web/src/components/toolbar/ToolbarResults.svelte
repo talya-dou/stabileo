@@ -114,6 +114,14 @@
           comboText = ` + ${comboResult.perCombo.size} combinaciones`;
         }
       }
+      // Show diagnostics warnings if present
+      const diagWarnings = [
+        ...(results.diagnostics ?? []).filter(d => d.metric === 'negative_jacobian').map(d => d.message),
+        ...(results.solverDiagnostics ?? []).filter(d => d.severity === 'warning').map(d => d.message),
+      ];
+      if (diagWarnings.length > 0) {
+        uiStore.toast(diagWarnings.join(' | '), 'info');
+      }
       uiStore.toast(`Cálculo exitoso${classText} — ${results.elementForces.length} barras, ${results.reactions.length} reacciones${comboText}`, 'success');
     } else {
       uiStore.toast('Modelo vacío o error inesperado', 'error');
@@ -147,6 +155,14 @@
           resultsStore.setCombinationResults3D(comboResult.perCase, comboResult.perCombo, comboResult.envelope);
           comboText = ` + ${comboResult.perCombo.size} combinaciones`;
         }
+      }
+      // Show diagnostics warnings if present
+      const diagWarnings3D = [
+        ...(results.diagnostics ?? []).filter((d: { metric: string }) => d.metric === 'negative_jacobian').map((d: { message: string }) => d.message),
+        ...(results.solverDiagnostics ?? []).filter((d: { severity: string }) => d.severity === 'warning').map((d: { message: string }) => d.message),
+      ];
+      if (diagWarnings3D.length > 0) {
+        uiStore.toast(diagWarnings3D.join(' | '), 'info');
       }
       uiStore.toast(
         `Análisis 3D exitoso — ${results.elementForces.length} barras, ${results.reactions.length} reacciones${comboText}`,
