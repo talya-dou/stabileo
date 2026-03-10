@@ -16,18 +16,9 @@ For that, see [`PRODUCT_ROADMAP.md`](/Users/unbalancedparen/projects/dedaliano/P
 
 For current capability and validation status, see [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
 
-## Current State
+## Current Frontier
 
-The solver is already broad and serious:
-
-- 2D and 3D linear, second-order, buckling, modal, spectrum, time history, and harmonic analysis
-- corotational, material nonlinear, fiber nonlinear, contact, SSI, staged, prestress, imperfections, and creep/shrinkage workflows
-- plate and shell support including DKT/DKMT triangles and MITC4 quads with Bathe-Dvorkin ANS shear tying and EAS-4 membrane softening
-- constraints, reduction/substructuring, and broad postprocessing/design support
-- explicit benchmark gates and acceptance models
-
-The main remaining work is no longer missing basic solver categories.
-It is:
+The main remaining work is no longer missing basic solver categories. It is:
 
 - shell workflow maturity
 - solver-path consistency
@@ -36,14 +27,6 @@ It is:
 - performance and scale
 - deeper reference-benchmark coverage on the newest advanced paths
 - long-tail nonlinear maturity on hard real models
-
-Recent milestones that changed the priority order:
-
-- shell benchmark hardening is materially complete
-- shell acceptance models are in place
-- diagnostics now propagate through solver result types
-- constraint-force output is broadly propagated across solver families
-- reference benchmark validation is materially in place for shells, contact, fiber 3D, SSI, imperfections, creep/shrinkage, reduction, and constraints
 
 ## What Still Separates Dedaliano From The Strongest Open Solvers
 
@@ -195,7 +178,7 @@ The current near-term sequence is:
 | 19 | Bridge-specific advanced workflows | High-value specialization once the core solver is fully hardened. |
 | 20 | Broader domain expansion | Additional specialty areas should come after the mainstream structural core is clearly dominant. |
 
-## Five Active Programs
+## Active Programs
 
 ### 1. Shell Maturity
 
@@ -206,14 +189,6 @@ Focus:
 - shell modal and buckling consistency
 - distortion tolerance
 - shell stress recovery consistency
-
-Recently completed shell workflow items:
-- mesh distortion robustness studies (aspect ratio, skew, taper, random perturbation)
-- pinched cylinder benchmark (MacNeal-Harder, second curved-shell reference)
-- `QuadSelfWeight` body force load type with consistent Gauss integration
-- edge load validation against analytical (normal and tangential)
-- thermal gradient convergence sweep with tightened tolerances
-- warped element accuracy study with degradation tracking
 
 Current remaining shell backlog:
 - curved-shell workflow validation (broader: folded plates, conical, hyperbolic)
