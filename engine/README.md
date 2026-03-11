@@ -44,7 +44,7 @@ This document should stay focused on the engine surface, analysis families, and 
 - **Cable solver** (2D): tension-only cable/catenary-style solve with iterative update
 - **Fiber nonlinear beam-columns** (2D & 3D): distributed plasticity / section-integration solvers
 - **Creep / shrinkage**: time-dependent structural response with EC2-style models
-- **Plate/shell** (3D): DKT/DKMT triangular plates, MITC4 quadrilateral shells (ANS shear tying, EAS-7 membrane), MITC9 9-node quadrilateral shells (ANS shear tying, Bucalem & Bathe 1993), and SHB8-ANS solid-shells, with pressure, self-weight, thermal, and edge loading
+- **Plate/shell** (3D): DKT/DKMT triangular plates, MITC4 quadrilateral shells (ANS shear tying, EAS-7 membrane), MITC9 9-node quadrilateral shells (ANS shear tying, Bucalem & Bathe 1993), SHB8-ANS solid-shells, and curved-shell elements, with pressure, self-weight, thermal, and edge loading
 - **Model reduction / substructuring**: Guyan condensation and Craig-Bampton reduction for larger-model workflows
 - **Section analysis**: polygon-based cross-section properties and section metrics
 
@@ -63,7 +63,7 @@ It also runs explicit gate steps for shell benchmarks, shell acceptance models, 
 
 ## Validation Test Suite
 
-Latest reported full-suite status: **5897 passing tests, 0 failures**.
+Latest reported full-suite status: **5896 passing tests, 0 failures**.
 
 The engine is backed by:
 
@@ -158,11 +158,11 @@ See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md
 
 ### Current Engine Frontier
 
-Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, shell benchmark hardening, shell diagnostics, quad nodal stress recovery, MITC9 integration, and SHB8-ANS solid-shell integration are all in place. The main remaining engine work is:
+Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, shell benchmark hardening, shell diagnostics, quad nodal stress recovery, MITC9 integration, SHB8-ANS solid-shell integration, and curved-shell integration are all in place. The main remaining engine work is:
 
 - performance and scale on representative large models
 - real-model acceptance tests and full-workflow performance benchmarks
-- shell-family workflow maturity and selection guidance across `MITC4`, `MITC9`, and `SHB8-ANS`
+- shell-family workflow maturity and selection guidance across `MITC4`, `MITC9`, `SHB8-ANS`, and curved shells
 - advanced contact variants (friction cycles, multi-gap mixed states)
 - CI hardening and release-grade benchmark gates
 - long-tail nonlinear and solver-path consistency hardening
@@ -184,7 +184,7 @@ Compact must-pass suites validating the newest solver families:
 |-------|------|----------|
 | Constraints | `benchmarks/constraints_benchmark.rs` | Rigid links, diaphragms, equal-DOF, eccentric connections, constraint forces |
 | Contact | `benchmarks/contact_benchmark.rs` | Gap elements, tension/compression-only, friction, augmented Lagrangian |
-| Shells | `benchmarks/shell_benchmark.rs` | MITC4 quads, MITC9 quad9s, SHB8-ANS solid-shells, membrane/bending, thermal, mesh quality, mixed frame+shell, distortion robustness, pinched cylinder, self-weight, edge loads, warped elements, Navier/Scordelis-Lo/spherical-cap/hypar/hemisphere/twisted-beam/Raasch-hook coverage |
+| Shells | `benchmarks/shell_benchmark.rs` | MITC4 quads, MITC9 quad9s, SHB8-ANS solid-shells, curved shells, membrane/bending, thermal, mesh quality, mixed frame+shell, distortion robustness, pinched cylinder, self-weight, edge loads, warped elements, Navier/Scordelis-Lo/spherical-cap/hypar/hemisphere/twisted-beam/Raasch-hook coverage |
 | Reduction | `benchmarks/reduction_benchmark.rs` | Guyan condensation, Craig-Bampton, substructuring workflows |
 | Sparse | `benchmarks/sparse_benchmark.rs` | Sparse assembly, sparse Cholesky, conditioning diagnostics |
 | Sparse 3D Parity | `benchmarks/sparse_3d_parity.rs` | Dense-vs-sparse assembly/solve parity for shells, frames, prescribed displacements, inclined supports |

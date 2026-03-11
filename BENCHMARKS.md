@@ -26,7 +26,7 @@ The benchmark ledger below is curated. It is narrower than the full automated te
 
 Current measured inventory:
 
-- latest reported full-suite status: `5897` passing tests, `0` failures
+- latest reported full-suite status: `5896` passing tests, `0` failures
 - `25` integration test files (`182` integration test functions)
 - dedicated property / differential fuzz coverage (`90` passing tests)
 - explicit benchmark-gate suites for constraints, contact, shells, reduction, sparse / conditioning paths, and sparse 3D parity
@@ -41,7 +41,7 @@ Current measured inventory:
 | Dynamics (modal / spectrum / time history / harmonic) | Yes | Yes | Partial | more mixed shell/frame and nonlinear depth |
 | Nonlinear frames / fiber / staged | Yes | Yes | Partial | harder mixed nonlinear workflows and convergence edge cases |
 | Contact / SSI | Yes | Yes | Partial | tougher mixed cases and more long-tail reference coverage |
-| Shells / plates | Yes | Yes | Yes | MITC4+MITC9+SHB8-ANS multi-family stack implemented and acceptance-covered; remaining work is shell-family guidance, frontier tracking, and workflow hardening |
+| Shells / plates | Yes | Yes | Yes | MITC4+MITC9+SHB8-ANS+curved-shell multi-family stack implemented and acceptance-covered; remaining work is shell-family guidance, workflow hardening, and shell-adjacent breadth |
 | Constraints / reduction | Yes | Yes | Yes | chained-constraint maturity and broader solver-path consistency |
 | Sparse / conditioning paths | Yes | Yes | Yes | runtime wins, ordering quality, broader sparse-path reuse |
 | Design-check / postprocess stack | Yes | Yes | No | workflow/product packaging rather than core mechanics |
@@ -83,7 +83,7 @@ At a high level, the current engine already has:
 - broad 2D and 3D structural analysis coverage
 - second-order, buckling, modal, spectrum, time history, and harmonic workflows
 - nonlinear frame, fiber, contact, SSI, staged, prestress, imperfections, and creep/shrinkage support
-- triangular plates plus MITC4, MITC9, and SHB8-ANS shell families
+- triangular plates plus MITC4, MITC9, SHB8-ANS, and curved-shell families
 - constraint systems, reduction/substructuring, and broad postprocessing/design modules
 - benchmark gates, acceptance models, integration tests, property/differential fuzz coverage, and a large validation surface
 
@@ -98,7 +98,7 @@ The rest of this document explains how proven each part of that surface is.
 The main remaining needs are no longer basic feature categories. They are:
 
 - shell-family hardening
-  MITC4+MITC9+SHB8-ANS multi-family stack is implemented and acceptance-covered; remaining work is frontier benchmarking, selection guidance, and workflow hardening rather than missing shell breadth
+  MITC4+MITC9+SHB8-ANS+curved-shell multi-family stack is implemented and acceptance-covered; remaining work is selection guidance, workflow hardening, and shell-adjacent breadth rather than missing core shell families
 - performance and scale maturity
   especially broader sparse-path wins, runtime discipline, and large-model reliability
 - verification depth
@@ -225,22 +225,23 @@ Status definitions used here:
 | MITC4 quadrilateral shell element | Strong | `element/quad.rs` with Bathe-Dvorkin (1986) ANS shear tying plus EAS-7 membrane enhancement, integrated through standard input and assembly, nonlinear 3D stress recovery, full nodal stress tensor recovery, shell-quality diagnostics, and Jacobian/warping detection. Scordelis-Lo 84%, Navier plate 93%, buckling 102%, modal 99.9% of reference. | Extreme non-planar shell cases like the pinched hemisphere, Raasch hook, and twisted beam still expose formulation limits |
 | MITC9 9-node quadrilateral shell element | Strong | `element/quad9.rs` with ANS shear tying (Bucalem & Bathe 1993), Hughes-Brezzi drilling stabilization, 3×3 Gauss quadrature, 54 DOFs. Full solver-stack integration: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery, all load types. Navier plate 2×2: 98%, Scordelis-Lo 2×2: 96%, spherical cap self-convergence 63%→92%→100%. 4 acceptance models (cantilever, mixed beam+slab, cylindrical tank, modal plate). | Curved/non-planar frontier remains weaker than SHB8-ANS; corotational extension |
 | SHB8-ANS 8-node solid-shell element | Strong | `element/solid_shell.rs` with ANS anti-locking, full solver-stack integration, and strong gains on the curved/non-planar frontier. Hemisphere 16×16 improves to ~0.26 of reference, twisted beam improves into ~0.03–0.08 range, and flat-plate behavior remains credible. | Needs broader acceptance/workflow coverage, hardening, and performance maturity |
+| Curved shell element | Strong | `element/curved_shell.rs` with direct curved-geometry formulation, consistent mass, geometric stiffness, pressure/self-weight/thermal/edge loading, stress recovery, and strong hemisphere performance. Hemisphere 8×8: ~0.94, 16×16: ~0.99, hemisphere-hole 16×16: ~1.00, Navier flat plate: ~0.93, Scordelis-Lo: ~0.82. | Twisted beam and Raasch hook remain weaker than ideal; family still needs broader workflow guidance and hardening |
 
-**MITC4 vs MITC9 vs SHB8-ANS Comparison**
+**MITC4 vs MITC9 vs SHB8-ANS vs Curved-Shell Comparison**
 
-| Benchmark | MITC4 | MITC9 | SHB8-ANS | Notes |
+| Benchmark | MITC4 | MITC9 | SHB8-ANS | Curved shell | Notes |
 |-----------|-------|-------|-------|
-| Navier plate (SS, uniform p) | 4×4: 93% | 2×2: 98%, 4×4: 95% | 81–84% | MITC9 is strongest on efficient flat-shell accuracy; SHB8-ANS is acceptable but not the flat-plate leader |
-| Scordelis-Lo barrel vault | 6×6: 84% | 2×2: 96%, 6×6: 85% | — | MITC9 is strongest here at low mesh density |
-| Spherical cap R/t=100 | 4→8→16: 70→93→99% | 4→8→16: 63→92→100% | — | MITC4 and MITC9 both converge well in the practical curved-shell zone |
-| Hypar (neg. curvature) | 4→8→16→32: 15→42→76→100% | 4→8→16: 24→57→100% | — | MITC9 converges faster |
-| Twisted beam (MacNeal-Harder) | ~0.2% | ~0.1% | ~3–8% | SHB8-ANS is materially better on the non-planar frontier |
-| Raasch hook (150° arc) | ~0.01% | ~0.01% | — | Frontier benchmark; keep as an aspirational tracker |
-| Hemisphere | locked / tens× | locked / tens× | ~0.26 | SHB8-ANS is materially better on the hemisphere frontier |
-| Modal SS plate (f₁) | 8×8: 99.9% | 4×4: 95.8% | — | MITC4 and MITC9 are both strong modal shell options |
-| Buckling (flat plate) | 8×8: 102% | — | — | MITC4 currently has the clearest flat-shell buckling benchmark line |
+| Navier plate (SS, uniform p) | 4×4: 93% | 2×2: 98%, 4×4: 95% | 81–84% | ~93% | MITC9 is strongest on efficient flat-shell accuracy; curved shell remains credible on flat behavior |
+| Scordelis-Lo barrel vault | 6×6: 84% | 2×2: 96%, 6×6: 85% | — | ~82% | MITC9 is strongest here at low mesh density; curved shell is comparable and acceptable |
+| Spherical cap R/t=100 | 4→8→16: 70→93→99% | 4→8→16: 63→92→100% | — | strong | MITC4, MITC9, and curved shell all perform well in the practical curved-shell zone |
+| Hypar (neg. curvature) | 4→8→16→32: 15→42→76→100% | 4→8→16: 24→57→100% | — | — | MITC9 converges faster on this benchmark family |
+| Twisted beam (MacNeal-Harder) | ~0.2% | ~0.1% | ~3–8% | ~1%+ | Curved shell improves materially over MITC4/MITC9; SHB8-ANS remains better on this frontier |
+| Raasch hook (150° arc) | ~0.01% | ~0.01% | — | very low but nonzero | Frontier benchmark; keep as an aspirational tracker |
+| Hemisphere | locked / tens× | locked / tens× | ~0.26 | ~0.94–1.00 | Curved shell is the strongest current family on the hemisphere class |
+| Modal SS plate (f₁) | 8×8: 99.9% | 4×4: 95.8% | — | — | MITC4 and MITC9 are the clearest modal shell options today |
+| Buckling (flat plate) | 8×8: 102% | — | — | — | MITC4 currently has the clearest flat-shell buckling benchmark line |
 
-The comparison confirms: `MITC4`, `MITC9`, and `SHB8-ANS` now form a real multi-family shell stack. `MITC9` converges faster on fewer elements for standard shell benchmarks, while `SHB8-ANS` materially improves the curved/non-planar frontier where flat-faceted shell families are weakest. The remaining shell work is now selection guidance, workflow hardening, and frontier benchmarking rather than missing shell breadth.
+The comparison confirms: `MITC4`, `MITC9`, `SHB8-ANS`, and curved shells now form a real multi-family shell stack. `MITC9` converges faster on fewer elements for standard shell benchmarks, `SHB8-ANS` materially improves the non-planar frontier, and the curved-shell family closes the hemisphere-class gap. The remaining shell work is now selection guidance, workflow hardening, and shell-adjacent breadth rather than missing core shell families.
 
 | Curved beams | Partial | `element/curved_beam.rs`, `validation_curved_beams.rs` | Current approach is segmented expansion, not native high-end formulation |
 | Timoshenko beam / shear deformation | Good | `element/frame.rs`, shear-area fields in `types/input.rs`, `validation_timoshenko_solver.rs` | Needs broader production validation across all solver modes |

@@ -8,6 +8,8 @@ Read next:
 - current snapshot: [`CURRENT_STATUS.md`](/Users/unbalancedparen/projects/dedaliano/CURRENT_STATUS.md)
 - current proof and capability status: [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md)
 - verification method: [`VERIFICATION.md`](/Users/unbalancedparen/projects/dedaliano/VERIFICATION.md)
+- shell-family selection notes: [`research/shell_family_selection.md`](/Users/unbalancedparen/projects/dedaliano/research/shell_family_selection.md)
+- competitor shell-family comparison: [`research/competitor_element_families.md`](/Users/unbalancedparen/projects/dedaliano/research/competitor_element_families.md)
 
 It is for:
 - solver mechanics
@@ -20,6 +22,7 @@ It is not the product, market, or revenue roadmap.
 For that, see [`PRODUCT_ROADMAP.md`](/Users/unbalancedparen/projects/dedaliano/PRODUCT_ROADMAP.md).
 
 For current capability and validation status, see [`BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md).
+For shell-family selection and competitor comparison research, use the research notes linked above.
 
 This document should stay forward-looking.
 Historical progress belongs in [`CHANGELOG.md`](/Users/unbalancedparen/projects/dedaliano/CHANGELOG.md).
@@ -58,7 +61,7 @@ Based on the comparison against projects like OpenSees, Code_Aster, and Kratos, 
    Dedaliano is already strong here, but broader external-reference proof is also the most realistic path to becoming the best open structural solver.
 
 5. `Shell-family workflow maturity`
-   `MITC4 + MITC9 + SHB8-ANS` now form a real production shell stack. The remaining shell work is no longer basic shell breadth, but shell-family guidance, frontier benchmarking, workflow hardening, and the next important shell-adjacent capabilities competitors still expose clearly.
+   `MITC4 + MITC9 + SHB8-ANS + curved shells` now form a real production shell stack. The remaining shell work is no longer basic shell breadth, but shell-family guidance, workflow hardening, and the next important shell-adjacent capabilities competitors still expose clearly.
 
 This changes the strategic target:
 
@@ -107,7 +110,13 @@ If the goal is `best open structural solver`, the current priority order is:
 10. `Shell-family automatic selection policy`
    Turn shell-family guidance into explicit rules the UI and model layer can use for automatic defaults, explainable recommendations, and safe override behavior.
 
-11. `Reduction, staged/PT coupling, and other second-tier depth`
+11. `Shell-adjacent workflow breadth competitors still expose clearly`
+    Add the highest-value missing shell-related workflow classes:
+   - layered / laminated shell workflows
+   - axisymmetric workflows
+   - deeper nonlinear / corotational shell depth
+
+12. `Reduction, staged/PT coupling, and other second-tier depth`
     Mature the scale-oriented and long-term workflow layers after the core solver-quality gaps above are tighter.
 
 ## Current Sequence
@@ -140,17 +149,23 @@ The current near-term sequence is:
    - clearer solver-side diagnostics and output semantics
 
 5. `Shell-family workflow guidance and frontier tracking`
-   Keep the shell-family selection guidance current, maintain the frontier-gate benchmarks, and only reopen shell-family expansion if the current `MITC4 / MITC9 / SHB8-ANS` stack proves insufficient.
+   Keep the shell-family selection guidance current, maintain the frontier-gate benchmarks, and only reopen shell-family expansion if the current `MITC4 / MITC9 / SHB8-ANS / curved-shell` stack proves insufficient.
 
 6. `Shell-family automatic selection policy`
    Encode shell-family selection rules based on geometry, curvature, topology, distortion, thickness regime, and analysis type so the product can pick defaults automatically and still allow manual override.
+
+7. `Shell-adjacent workflow breadth`
+   Add the highest-value shell-related workflow classes competitors still expose clearly:
+   - layered / laminated shell workflows
+   - axisymmetric workflows
+   - deeper nonlinear / corotational shell depth
 
 ## Active Programs
 
 ### 1. Shell-Family Maturity
 
 Focus:
-- release-gated shell benchmarks (`MITC4`, `MITC9`, and `SHB8-ANS`)
+- release-gated shell benchmarks (`MITC4`, `MITC9`, `SHB8-ANS`, and curved-shell frontiers)
 - shell load vectors
 - mixed tri/quad and beam-shell workflows
 - shell modal and buckling consistency
@@ -160,12 +175,12 @@ Focus:
 - shell-family automatic-selection rules for default product behavior
 
 Current status:
-- MITC4+EAS-7, MITC9, and SHB8-ANS are all implemented, benchmarked, and part of the production shell stack
-- shell-family frontier gates now exist across MITC4, MITC9, and SHB8-ANS
+- MITC4+EAS-7, MITC9, SHB8-ANS, and curved shells are all implemented, benchmarked, and part of the production shell stack
+- shell-family frontier gates now exist across MITC4, MITC9, SHB8-ANS, and curved-shell benchmarks
 - the shell question is no longer “do we have enough shell breadth?” but “how do we harden and guide the multi-family stack?”
 
 Current remaining shell backlog:
-- shell-family selection guidance and explicit “use / avoid” rules for MITC4, MITC9, and SHB8-ANS
+- shell-family selection guidance and explicit “use / avoid” rules for MITC4, MITC9, SHB8-ANS, and curved shells
 - a rule-based shell-family selector for automatic defaults and explainable recommendations
 - broader curved/non-planar workflow validation with the multi-family shell stack
 - broader shell modal, buckling, and dynamic reference cases across the multi-family shell stack
@@ -175,10 +190,15 @@ Current remaining shell backlog:
 - axisymmetric workflows for shells of revolution
 - nonlinear / corotational shell workflow depth across the multi-family stack
 
+Decision support:
+- use [`research/shell_family_selection.md`](/Users/unbalancedparen/projects/dedaliano/research/shell_family_selection.md) for current family-choice rules and default-selection logic
+- use [`research/competitor_element_families.md`](/Users/unbalancedparen/projects/dedaliano/research/competitor_element_families.md) to justify why layered shells, axisymmetric workflows, and deeper nonlinear shell depth are the highest-value shell-adjacent additions
+
 Known formulation boundary:
 - MITC4+EAS-7: efficient for flat and mildly curved shells
 - MITC9: higher-order shell path with better accuracy on standard shell benchmarks at lower mesh density
-- SHB8-ANS: current answer for the curved/non-planar frontier where flat-faceted shell families are weakest
+- SHB8-ANS: strong solid-shell option on the curved/non-planar frontier
+- curved shell: preferred family for severe shell-of-revolution and genuinely curved geometry where flat-faceted families are weakest
 - shell breadth is no longer the open gap; the remaining shell work is hardening, guidance, and performance across the multi-family stack
 
 Recommended shell order:
@@ -188,7 +208,7 @@ Recommended shell order:
    - axisymmetric workflows
    - nonlinear / corotational shell depth
 3. turn shell-family guidance into an explicit automatic selection policy for the product layer
-4. only reopen shell-family expansion if the current MITC4 / MITC9 / SHB8-ANS stack proves insufficient on practical workflows
+4. only reopen shell-family expansion if the current MITC4 / MITC9 / SHB8-ANS / curved-shell stack proves insufficient on practical workflows
 
 Why it matters:
 Shell quality is one of the clearest separators between a strong structural solver and a top-tier one.

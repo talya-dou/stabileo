@@ -11,6 +11,13 @@ It should capture what changed, not what should be built next.
 
 ### Added
 
+#### Curved shell family and corrected hemisphere interpretation
+
+- integrated the curved-shell family into the solver narrative as a production shell option for genuinely curved geometry
+- established that the old hemisphere extremes were partly inflated by an `E` unit issue in the benchmark setup, and corrected that interpretation across the shell benchmark story
+- added curved-shell benchmark coverage showing near-reference hemisphere behavior while preserving credible flat-shell and barrel-vault performance
+- clarified that the shell stack is now `MITC4 + MITC9 + SHB8-ANS + curved shell`, with the remaining work focused on family guidance, workflow hardening, and shell-adjacent breadth
+
 #### MITC9 and SHB8-ANS shell-family expansion
 
 - integrated the `MITC9` 9-node quadrilateral shell through the full solver stack: dense+sparse assembly, mass, geometric stiffness, buckling, stress recovery, and all shell load types
@@ -102,4 +109,4 @@ It should capture what changed, not what should be built next.
 
 ### Validation
 
-- latest reported full-suite status reached `5897` passing tests with `0` failures
+- latest reported full-suite status reached `5896` passing tests with `0` failures
