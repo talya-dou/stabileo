@@ -46,7 +46,7 @@ The main remaining work is no longer missing basic solver categories. It is:
 Based on the comparison against projects like OpenSees, Code_Aster, and Kratos, the remaining gaps are not “missing the basics.” They are:
 
 1. `Performance / scale maturity`
-   Sparse-first 3D is real, but the solver still needs stronger large-model runtime discipline, ordering quality, and broader sparse-path reuse.
+   Sparse-first 3D and parallel element assembly are live. Next steps are ordering quality, heavier-element parallelism, and broader sparse-path reuse.
 
 2. `Long-tail nonlinear maturity`
    More years of hardened edge cases are still needed in mixed nonlinear workflows:
@@ -73,7 +73,7 @@ This changes the strategic target:
 If the goal is `best open structural solver`, the current priority order is:
 
 1. `Performance and scale`
-   Turn sparse-first 3D and current performance infrastructure into real large-model runtime wins.
+   Parallel assembly is the first concrete step. Turn sparse-first 3D and parallel infrastructure into measurable large-model runtime wins.
 
 2. `Verification hardening`
    Keep building the proof moat with:
@@ -235,15 +235,30 @@ Focus:
 
 Current status:
 - sparse-first 3D assembly is live for plates, quads, and frames (models with 64+ free DOFs)
+- parallel element assembly via rayon (`parallel` feature flag) is wired into the 3D sparse solver path
+- all 8 element families (frame, truss, plate, quad, quad9, solid-shell, curved-shell, connector) parallelized through a unified `AnyElement3D` work pool
+- load dispatch uses a pre-built element-id index (O(elem + loads) instead of O(elem × loads))
 - residual-checked Cholesky fallback to dense LU catches silent ill-conditioning failures
 - memory benchmarks show 11-22x reduction on representative 10×10 to 15×15 shell models
 - relative pivot threshold in sparse Cholesky catches near-singular matrices earlier
+- criterion benchmarks cover flat-plate (up to 50×50 = 2500 quads) and mixed frame+slab models (up to 8-storey, 8×8 slab)
+
+Measured parallel assembly results (Apple Silicon, release build):
+
+| Model | Elements | DOFs | Serial | Parallel | Speedup |
+|-------|----------|------|--------|----------|---------|
+| 20×20 flat plate | 400 quads | ~2.6k | 82 ms | 80 ms | 1.03× |
+| 30×30 flat plate | 900 quads | ~5.8k | 411 ms | 386 ms | 1.06× |
+| 50×50 flat plate | 2500 quads | ~15.6k | 2.96 s | 2.91 s | 1.02× |
+| 8-storey mixed | 512 quads + 32 frames | ~3.3k | 161 ms | 157 ms | 1.03× |
+
+MITC4 element stiffness is lightweight (~200 ops), so the parallel overhead nearly cancels the speedup. Quad9 and curved-shell elements (5-10× heavier per element) will show stronger scaling.
 
 Next steps:
-- runtime criterion benchmarks for dense-vs-sparse 3D wall-clock comparison
 - better AMD ordering (consider external crate or improved heuristic)
-- parallel element loop for sparse 3D assembly (rayon behind `parallel` feature flag)
+- parallel stress recovery for quad elements
 - sparse extraction for buckling/modal 3D solvers (extend sparse path beyond linear solve)
+- heavier-element benchmarks (quad9, curved-shell) where parallel scaling will be larger
 
 Why it matters:
 A solver is not elite if it only works well on small clean examples.

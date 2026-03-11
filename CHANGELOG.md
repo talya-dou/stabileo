@@ -11,6 +11,19 @@ It should capture what changed, not what should be built next.
 
 ### Added
 
+#### Parallel 3D element assembly
+
+- added `assemble_sparse_3d_parallel()` behind `#[cfg(feature = "parallel")]` using rayon
+- unified all 8 element families (frame, truss, plate, quad, quad9, solid-shell, curved-shell, connector) into a single `AnyElement3D` enum for one `par_iter()` work pool
+- pre-built element-id load index reduces load dispatch from O(elem × loads) to O(elem + loads)
+- serial fallback via `#[cfg(not(feature = "parallel"))]` delegates to the existing `assemble_sparse_3d()`
+- wired parallel path into `solve_3d()` as the default sparse assembly call
+- added parity tests: flat-plate (4×4) and mixed frame+slab (4 columns + 16 quads + nodal + pressure loads)
+- added criterion benchmarks: flat-plate up to 50×50 (2500 quads, ~15k DOFs) and mixed frame+slab up to 8-storey 8×8
+- measured 2-6% speedup on MITC4 flat plates (lightweight per-element cost); stronger scaling expected on quad9/curved-shell models
+- made `inclined_rotation_matrix` and `apply_inclined_transform_triplets` public for reuse
+- fixed pre-existing `transform_force` scope issue in the 2D parallel path
+
 #### Curved shell family and corrected hemisphere interpretation
 
 - integrated the curved-shell family into the solver narrative as a production shell option for genuinely curved geometry
@@ -109,4 +122,4 @@ It should capture what changed, not what should be built next.
 
 ### Validation
 
-- latest reported full-suite status reached `5896` passing tests with `0` failures
+- latest reported full-suite status reached `5906` passing tests with `0` failures

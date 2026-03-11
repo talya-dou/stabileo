@@ -25,7 +25,7 @@ pub struct InclinedTransformData {
 }
 
 /// Build rotation matrix that maps global to local frame where ê₁ = normal.
-fn inclined_rotation_matrix(nx: f64, ny: f64, nz: f64) -> [[f64; 3]; 3] {
+pub fn inclined_rotation_matrix(nx: f64, ny: f64, nz: f64) -> [[f64; 3]; 3] {
     let n_len = (nx * nx + ny * ny + nz * nz).sqrt();
     let e1 = [nx / n_len, ny / n_len, nz / n_len];
     // Choose reference vector not parallel to e1
@@ -1501,7 +1501,7 @@ pub fn assemble_sparse_2d(input: &SolverInput, dof_num: &DofNumbering) -> Sparse
 
 /// Apply inclined support rotation to COO triplets and force vector.
 /// Equivalent to the dense `apply_inclined_transform` but operates on triplet arrays.
-fn apply_inclined_transform_triplets(
+pub fn apply_inclined_transform_triplets(
     trip_rows: &mut Vec<usize>, trip_cols: &mut Vec<usize>, trip_vals: &mut Vec<f64>,
     f_global: &mut [f64], dofs: &[usize; 3], r: &[[f64; 3]; 3],
 ) {

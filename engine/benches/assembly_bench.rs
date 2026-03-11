@@ -254,6 +254,134 @@ fn bench_dense_vs_sparse_solve(c: &mut Criterion) {
 
 // ─── 3D Shell Helpers ────────────────────────────────────
 
+/// Mixed model: frame columns + quad slab at each storey level.
+fn make_mixed_frame_slab_3d(n_stories: usize, nx: usize, ny: usize) -> SolverInput3D {
+    use dedaliano_engine::types::*;
+
+    let lx = 12.0;
+    let ly = 12.0;
+    let storey_h = 3.5;
+
+    let mut nodes = HashMap::new();
+    let mut nid = 1;
+
+    // Column base nodes at z=0
+    let corner_coords = [(0.0, 0.0), (lx, 0.0), (lx, ly), (0.0, ly)];
+    let mut level_corner_ids: Vec<[usize; 4]> = Vec::new();
+
+    // Ground level corner nodes
+    let mut base_ids = [0usize; 4];
+    for (c, &(x, y)) in corner_coords.iter().enumerate() {
+        nodes.insert(nid.to_string(), SolverNode3D { id: nid, x, y, z: 0.0 });
+        base_ids[c] = nid;
+        nid += 1;
+    }
+
+    // Slab grids for each storey
+    let mut all_grids = Vec::new();
+    for s in 0..n_stories {
+        let z = (s + 1) as f64 * storey_h;
+        let mut grid = vec![vec![0usize; ny + 1]; nx + 1];
+        for i in 0..=nx {
+            for j in 0..=ny {
+                let x = (i as f64 / nx as f64) * lx;
+                let y = (j as f64 / ny as f64) * ly;
+                nodes.insert(nid.to_string(), SolverNode3D { id: nid, x, y, z });
+                grid[i][j] = nid;
+                nid += 1;
+            }
+        }
+        let corners = [grid[0][0], grid[nx][0], grid[nx][ny], grid[0][ny]];
+        level_corner_ids.push(corners);
+        all_grids.push(grid);
+    }
+
+    // Frame columns: vertical segments at 4 corners
+    let mut elements = HashMap::new();
+    let mut eid = 1;
+    for c in 0..4 {
+        let mut bottom = base_ids[c];
+        for s in 0..n_stories {
+            let top = level_corner_ids[s][c];
+            elements.insert(eid.to_string(), SolverElement3D {
+                id: eid,
+                elem_type: "frame".to_string(),
+                node_i: bottom, node_j: top,
+                material_id: 1, section_id: 1,
+                hinge_start: false, hinge_end: false,
+                local_yx: None, local_yy: None, local_yz: None, roll_angle: None,
+            });
+            eid += 1;
+            bottom = top;
+        }
+    }
+
+    // Quad slabs at each storey
+    let mut quads = HashMap::new();
+    let mut qid = 1;
+    for grid in &all_grids {
+        for i in 0..nx {
+            for j in 0..ny {
+                quads.insert(qid.to_string(), SolverQuadElement {
+                    id: qid,
+                    nodes: [grid[i][j], grid[i+1][j], grid[i+1][j+1], grid[i][j+1]],
+                    material_id: 1,
+                    thickness: 0.2,
+                });
+                qid += 1;
+            }
+        }
+    }
+
+    let mut mats = HashMap::new();
+    mats.insert("1".to_string(), SolverMaterial { id: 1, e: 30_000.0, nu: 0.2 });
+
+    let mut sections = HashMap::new();
+    sections.insert("1".to_string(), SolverSection3D {
+        id: 1, name: None, a: 0.16, iy: 2.13e-3, iz: 2.13e-3, j: 3.6e-3,
+        cw: None, as_y: None, as_z: None,
+    });
+
+    // Fixed base supports
+    let mut supports = HashMap::new();
+    let mut sid = 1;
+    for &base in &base_ids {
+        supports.insert(sid.to_string(), SolverSupport3D {
+            node_id: base, rx: true, ry: true, rz: true,
+            rrx: true, rry: true, rrz: true,
+            kx: None, ky: None, kz: None,
+            krx: None, kry: None, krz: None,
+            dx: None, dy: None, dz: None,
+            drx: None, dry: None, drz: None,
+            normal_x: None, normal_y: None, normal_z: None,
+            is_inclined: None, rw: None, kw: None,
+        });
+        sid += 1;
+    }
+
+    // Pressure on all slab quads + lateral nodal load at top
+    let n_quads = quads.len();
+    let mut loads: Vec<SolverLoad3D> = (1..=n_quads).map(|eid| {
+        SolverLoad3D::QuadPressure(SolverPressureLoad { element_id: eid, pressure: -5.0 })
+    }).collect();
+    // Lateral load at top corner
+    if let Some(top_corners) = level_corner_ids.last() {
+        loads.push(SolverLoad3D::Nodal(SolverNodalLoad3D {
+            node_id: top_corners[0],
+            fx: 20.0, fy: 0.0, fz: 0.0,
+            mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+        }));
+    }
+
+    SolverInput3D {
+        nodes, materials: mats, sections, elements, supports, loads,
+        constraints: vec![], left_hand: None,
+        plates: HashMap::new(), quads, quad9s: HashMap::new(),
+        solid_shells: HashMap::new(), curved_shells: HashMap::new(),
+        curved_beams: vec![], connectors: HashMap::new(),
+    }
+}
+
 fn make_flat_plate_3d(nx: usize, ny: usize) -> SolverInput3D {
     use dedaliano_engine::types::{
         SolverNode3D, SolverSupport3D, SolverQuadElement, SolverLoad3D,
@@ -426,6 +554,73 @@ fn bench_solve_3d_shell(c: &mut Criterion) {
     group.finish();
 }
 
+// ─── Large 3D Assembly: Serial vs Parallel ──────────────
+
+fn bench_assembly_3d_large(c: &mut Criterion) {
+    use dedaliano_engine::solver::dof::DofNumbering as DN;
+
+    let mut group = c.benchmark_group("assembly_3d_large");
+    group.sample_size(10);
+
+    for &(nx, ny) in &[(20, 20), (30, 30), (50, 50)] {
+        let input = make_flat_plate_3d(nx, ny);
+        let dof_num = DN::build_3d(&input);
+        let label = format!("{}x{}", nx, ny);
+
+        group.bench_with_input(
+            BenchmarkId::new("serial_3d", &label),
+            &(&input, &dof_num),
+            |b, (inp, dn)| {
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("parallel_3d", &label),
+            &(&input, &dof_num),
+            |b, (inp, dn)| {
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+            },
+        );
+    }
+
+    group.finish();
+}
+
+// ─── Mixed Model (Frames + Quads): Serial vs Parallel ───
+
+fn bench_assembly_3d_mixed(c: &mut Criterion) {
+    use dedaliano_engine::solver::dof::DofNumbering as DN;
+
+    let mut group = c.benchmark_group("assembly_3d_mixed");
+    group.sample_size(10);
+
+    // (n_stories, nx, ny) → increasing model size
+    for &(ns, nx, ny) in &[(3, 4, 4), (5, 6, 6), (8, 8, 8)] {
+        let input = make_mixed_frame_slab_3d(ns, nx, ny);
+        let dof_num = DN::build_3d(&input);
+        let label = format!("{}s_{}x{}", ns, nx, ny);
+
+        group.bench_with_input(
+            BenchmarkId::new("serial_mixed", &label),
+            &(&input, &dof_num),
+            |b, (inp, dn)| {
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+            },
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("parallel_mixed", &label),
+            &(&input, &dof_num),
+            |b, (inp, dn)| {
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+            },
+        );
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_assembly,
@@ -434,5 +629,7 @@ criterion_group!(
     bench_dense_vs_sparse_solve,
     bench_assembly_3d_shell,
     bench_solve_3d_shell,
+    bench_assembly_3d_large,
+    bench_assembly_3d_mixed,
 );
 criterion_main!(benches);

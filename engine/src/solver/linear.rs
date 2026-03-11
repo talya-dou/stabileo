@@ -185,7 +185,7 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
 
     if nf >= SPARSE_THRESHOLD {
         // ── Sparse path: O(nnz) assembly, no dense n×n matrix ──
-        let asm = assemble_sparse_3d(input, &dof_num);
+        let asm = super::sparse_assembly::assemble_sparse_3d_parallel(input, &dof_num);
         let mut solver_diags: Vec<SolverDiagnostic> = Vec::new();
 
         // Sparse diagonal conditioning check

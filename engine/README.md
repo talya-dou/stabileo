@@ -20,7 +20,7 @@ This document should stay focused on the engine surface, analysis families, and 
 
 ## Analysis Types
 
-- **Linear static** (2D & 3D): direct stiffness method, sparse Cholesky solver
+- **Linear static** (2D & 3D): direct stiffness method, sparse Cholesky solver, parallel element assembly (rayon)
 - **P-Delta** (2D & 3D): second-order geometric nonlinearity with iterative convergence
 - **Corotational** (2D & 3D): large-displacement nonlinear analysis (Newton-Raphson)
 - **Arc-length / displacement control**: Riks-style path following and displacement-controlled nonlinear solve
@@ -63,7 +63,7 @@ It also runs explicit gate steps for shell benchmarks, shell acceptance models, 
 
 ## Validation Test Suite
 
-Latest reported full-suite status: **5896 passing tests, 0 failures**.
+Latest reported full-suite status: **5906 passing tests, 0 failures**.
 
 The engine is backed by:
 
@@ -158,10 +158,9 @@ See [`../BENCHMARKS.md`](/Users/unbalancedparen/projects/dedaliano/BENCHMARKS.md
 
 ### Current Engine Frontier
 
-Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, shell benchmark hardening, shell diagnostics, quad nodal stress recovery, MITC9 integration, SHB8-ANS solid-shell integration, and curved-shell integration are all in place. The main remaining engine work is:
+Phase 2 is complete — constraint unification, contact refinement, connector elements, eccentric connections, benchmark gate suites, performance architecture, shell benchmark hardening, shell diagnostics, quad nodal stress recovery, MITC9 integration, SHB8-ANS solid-shell integration, curved-shell integration, and parallel element assembly are all in place. The main remaining engine work is:
 
-- performance and scale on representative large models
-- real-model acceptance tests and full-workflow performance benchmarks
+- performance and scale: heavier-element parallelism, ordering quality, full-workflow performance discipline
 - shell-family workflow maturity and selection guidance across `MITC4`, `MITC9`, `SHB8-ANS`, and curved shells
 - advanced contact variants (friction cycles, multi-gap mixed states)
 - CI hardening and release-grade benchmark gates
