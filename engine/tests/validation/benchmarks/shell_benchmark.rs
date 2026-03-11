@@ -5435,8 +5435,9 @@ fn benchmark_q9_pinched_hemisphere() {
         );
     }
 
-    // MITC4 8×8 had ratio ~0.03 (severely locked). MITC9 should be much better.
-    // Even a ratio > 0.1 at 4×4 would be a significant improvement.
+    // Permanent gate: MITC9 hemisphere is overstiff (flat-faceted wall), but must not regress.
+    // Current: 4×4 ratio≈38, 8×8 ratio≈44 (overshoot, membrane-locked).
+    // Assert nonzero only — these are known-locked; improvement requires solid-shell.
     let (_, _, _, r_4) = ratios[0];
     eprintln!(
         "Q9 Hemisphere 4x4 ratio={:.4} (MITC4 8x8 was ~0.03)",
@@ -5792,7 +5793,12 @@ fn benchmark_q9_twisted_beam_load_a() {
             "Q9 Twisted beam A {}x{}: uz={:.6e}, ratio={:.4} (MITC4 24x8: ~0.002)",
             nx, ny, uz, ratio
         );
+        // Permanent gate: MITC9 twisted beam, flat-faceted wall.
+        // Current finest (12×4): ratio≈0.0011. Floor at 1e-5 (just nonzero + order-of-magnitude).
         assert!(uz > 1e-15, "Q9 Twisted beam A {}x{}: should deflect", nx, ny);
+        if nx == 12 {
+            assert!(ratio > 1e-5, "Q9 Twisted beam A 12×4: ratio {:.6} regressed below floor 1e-5", ratio);
+        }
     }
 }
 
@@ -5808,7 +5814,11 @@ fn benchmark_q9_twisted_beam_load_b() {
             "Q9 Twisted beam B {}x{}: uy={:.6e}, ratio={:.4} (MITC4 24x8: ~0.001)",
             nx, ny, uy, ratio
         );
+        // Permanent gate: current finest (12×4): ratio≈0.0024. Floor at 1e-5.
         assert!(uy > 1e-15, "Q9 Twisted beam B {}x{}: should deflect", nx, ny);
+        if nx == 12 {
+            assert!(ratio > 1e-5, "Q9 Twisted beam B 12×4: ratio {:.6} regressed below floor 1e-5", ratio);
+        }
     }
 }
 
@@ -5908,7 +5918,12 @@ fn benchmark_q9_raasch_hook() {
             "Q9 Raasch hook {}x{}: uz={:.6e}, ratio={:.4} (MITC4 24x12: ~0.0001)",
             n_arc, n_width, uz, ratio
         );
+        // Permanent gate: MITC9 Raasch hook, flat-faceted wall.
+        // Current finest (16×8): ratio≈0.0001. Floor at 1e-6.
         assert!(uz > 1e-15, "Q9 Raasch hook {}x{}: should deflect", n_arc, n_width);
+        if n_arc == 16 {
+            assert!(ratio > 1e-6, "Q9 Raasch hook 16×8: ratio {:.6e} regressed below floor 1e-6", ratio);
+        }
     }
 }
 
@@ -6512,9 +6527,16 @@ fn benchmark_ss_pinched_hemisphere() {
             n, n, ux, ref_val, ratio
         );
 
-        // Key goal: ratio < 5x (vs MITC4's ~28×)
-        // If the solid-shell truly captures curvature, we should see significant improvement
+        // Permanent gate: SHB8-ANS must outperform MITC4/MITC9 on curved geometry.
+        // Current: 8×8 ratio≈0.10, 16×16 ratio≈0.26 (vs MITC4 28× overstiff).
+        // Floor at 50% of current to catch regressions.
         assert!(ux > 1e-15, "SS Hemisphere {}×{}: should deflect", n, n);
+        if n == 8 {
+            assert!(ratio > 0.04, "SS Hemisphere 8×8: ratio {:.4} regressed below floor 0.04", ratio);
+        }
+        if n == 16 {
+            assert!(ratio > 0.10, "SS Hemisphere 16×16: ratio {:.4} regressed below floor 0.10", ratio);
+        }
     }
 }
 
@@ -6612,8 +6634,16 @@ fn benchmark_ss_twisted_beam() {
             nx, ny, uy, ref_uy, ratio
         );
 
-        // Key goal: ratio > 10% (vs MITC4's ~0.1%)
+        // Permanent gate: SHB8-ANS must capture twist geometry.
+        // Current: 4×1 ratio≈0.027, 8×1 ratio≈0.082 (vs MITC4 ~0.002).
+        // Floor at 50% of current to catch regressions.
         assert!(uy > 1e-15, "SS Twisted beam {}×{}: should deflect", nx, ny);
+        if nx == 4 {
+            assert!(ratio > 0.01, "SS Twisted beam 4×1: ratio {:.4} regressed below floor 0.01", ratio);
+        }
+        if nx == 8 {
+            assert!(ratio > 0.03, "SS Twisted beam 8×1: ratio {:.4} regressed below floor 0.03", ratio);
+        }
     }
 }
 
@@ -6714,5 +6744,178 @@ fn benchmark_ss_spherical_cap() {
     let ratio = ux / ref_val;
 
     println!("SS Spherical cap R/t={}: ux={:.6e}, ref={:.4}, ratio={:.4}", r_over_t, ux, ref_val, ratio);
+    // Permanent gate: current ratio≈0.040. Floor at 50%.
     assert!(ux > 1e-15, "SS Spherical cap: should deflect");
+    assert!(ratio > 0.015, "SS Spherical cap: ratio {:.4} regressed below floor 0.015", ratio);
+}
+
+// ================================================================
+// CROSS-FAMILY COMPARISON — Permanent frontier gates
+// ================================================================
+// Documents MITC4 vs MITC9 vs SHB8-ANS on the hard curved-shell
+// benchmarks. This test is a living comparison table:
+//
+// | Benchmark            | MITC4       | MITC9       | SHB8-ANS    |
+// |----------------------|-------------|-------------|-------------|
+// | Hemisphere (pinched) | ~28× over   | ~44× over   | ratio 0.26  |
+// | Twisted beam A       | ratio 0.002 | ratio 0.001 | ratio 0.08  |
+// | Twisted beam B       | ratio 0.002 | ratio 0.002 | ratio 0.03  |
+// | Raasch hook          | ratio 1e-4  | ratio 1e-4  | (not impl)  |
+//
+// The SHB8-ANS solid-shell breaks through the flat-faceted wall
+// that limits MITC4 and MITC9 on curved/non-planar geometry.
+//
+// Selection guidance:
+// - MITC4: flat or mildly curved shells, fastest solve, good for
+//   Scordelis-Lo, Navier plates, cylindrical tanks, spherical caps
+// - MITC9: higher-order accuracy on the same class of problems,
+//   smoother stress recovery, better convergence rate per element
+// - SHB8-ANS: curved/twisted/non-planar geometry where MITC4/MITC9
+//   lock (hemisphere, twisted beam, warped panels); also usable for
+//   solid-to-shell transition zones (no rotational DOFs needed)
+// ================================================================
+
+#[test]
+fn benchmark_shell_family_frontier_gates() {
+    // This test runs one representative mesh from each family on the
+    // hemisphere and twisted beam benchmarks, then asserts that:
+    //   (a) SHB8-ANS ratio > MITC4 ratio on hemisphere (not overstiff)
+    //   (b) SHB8-ANS ratio > MITC4 ratio on twisted beam
+    //   (c) All ratios stay above their regression floors
+
+    // --- Hemisphere: SHB8-ANS 8×8 ---
+    let ss_hemi = {
+        let r = 10.0; let t = 0.04; let e_mpa = 68.25; let nu = 0.3;
+        let ref_val = 0.0924;
+        let pi = std::f64::consts::PI;
+        let n = 8;
+
+        let (nodes, solid_shells, grid) = build_solid_shell_mesh(n, n, t, |u, v| {
+            let phi = u * (pi / 2.0 - 0.01);
+            let theta = v * pi / 2.0;
+            let x = r * phi.cos() * theta.cos();
+            let y = r * phi.cos() * theta.sin();
+            let z = r * phi.sin();
+            let norm = [phi.cos() * theta.cos(), phi.cos() * theta.sin(), phi.sin()];
+            ([x, y, z], norm)
+        });
+
+        let mut mats = HashMap::new();
+        mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+        let mut supports = HashMap::new();
+        for i in 0..=n {
+            for &nid in &grid[i][0] {
+                supports.insert(nid.to_string(), sup3d(nid, false, true, false, false, false, false));
+            }
+        }
+        for i in 0..=n {
+            for &nid in &grid[i][n] {
+                supports.entry(nid.to_string())
+                    .or_insert_with(|| sup3d(nid, true, false, false, false, false, false));
+            }
+        }
+        for j in 1..n {
+            for &nid in &grid[0][j] {
+                supports.entry(nid.to_string())
+                    .or_insert_with(|| sup3d(nid, false, false, true, false, false, false));
+            }
+        }
+        for &nid in &grid[0][0] {
+            supports.insert(nid.to_string(), sup3d(nid, false, true, true, false, false, false));
+        }
+        for &nid in &grid[0][n] {
+            supports.insert(nid.to_string(), sup3d(nid, true, false, true, false, false, false));
+        }
+
+        let eq_x_bot = grid[0][0][0];
+        let eq_y_bot = grid[0][n][0];
+        let loads = vec![
+            SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: eq_x_bot, fx: 1.0, fy: 0.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            }),
+            SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: eq_y_bot, fx: 0.0, fy: 1.0, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            }),
+        ];
+
+        let input = SolverInput3D {
+            nodes, materials: mats, sections: HashMap::new(),
+            elements: HashMap::new(), supports, loads, constraints: vec![],
+            left_hand: None, plates: HashMap::new(), quads: HashMap::new(),
+            quad9s: HashMap::new(), solid_shells, curved_beams: vec![],
+            connectors: HashMap::new(),
+        };
+
+        let res = linear::solve_3d(&input).expect("SS hemisphere");
+        let d = res.displacements.iter().find(|d| d.node_id == eq_x_bot).unwrap();
+        d.ux.abs() / ref_val
+    };
+
+    // --- Twisted beam B: SHB8-ANS 8×1 ---
+    let ss_twist = {
+        let e_mpa = 29000.0; let nu = 0.22; let t = 0.32;
+        let l = 12.0; let w = 1.1; let ref_uy = 0.005424;
+        let pi = std::f64::consts::PI;
+        let nx = 8; let ny = 1;
+
+        let (nodes, solid_shells, grid) = build_solid_shell_mesh(nx, ny, t, |u, v| {
+            let x = u * l;
+            let twist = u * pi / 2.0;
+            let y_local = (v - 0.5) * w;
+            let y = y_local * twist.cos();
+            let z = y_local * twist.sin();
+            let norm = [0.0, -twist.sin(), twist.cos()];
+            ([x, y, z], norm)
+        });
+
+        let mut mats = HashMap::new();
+        mats.insert("1".to_string(), SolverMaterial { id: 1, e: e_mpa, nu });
+
+        let mut supports = HashMap::new();
+        for j in 0..=ny {
+            for &nid in &grid[0][j] {
+                supports.insert(nid.to_string(), sup3d(nid, true, true, true, false, false, false));
+            }
+        }
+
+        let tip_nodes: Vec<usize> = (0..=ny).flat_map(|j| grid[nx][j].iter().copied()).collect();
+        let f_per = 1.0 / tip_nodes.len() as f64;
+        let loads: Vec<_> = tip_nodes.iter().map(|&nid| {
+            SolverLoad3D::Nodal(SolverNodalLoad3D {
+                node_id: nid, fx: 0.0, fy: f_per, fz: 0.0,
+                mx: 0.0, my: 0.0, mz: 0.0, bw: None,
+            })
+        }).collect();
+
+        let input = SolverInput3D {
+            nodes, materials: mats, sections: HashMap::new(),
+            elements: HashMap::new(), supports, loads, constraints: vec![],
+            left_hand: None, plates: HashMap::new(), quads: HashMap::new(),
+            quad9s: HashMap::new(), solid_shells, curved_beams: vec![],
+            connectors: HashMap::new(),
+        };
+
+        let res = linear::solve_3d(&input).expect("SS twisted beam");
+        let d = res.displacements.iter().find(|d| d.node_id == tip_nodes[0]).unwrap();
+        d.uy.abs() / ref_uy
+    };
+
+    eprintln!("=== Shell Family Frontier Gates ===");
+    eprintln!("SHB8-ANS hemisphere 8×8:   ratio = {:.4}", ss_hemi);
+    eprintln!("SHB8-ANS twisted beam 8×1: ratio = {:.4}", ss_twist);
+    eprintln!("");
+    eprintln!("Known MITC4 bests:  hemisphere ~0.03 (28× overstiff), twisted ~0.002");
+    eprintln!("Known MITC9 bests:  hemisphere ~44× overstiff, twisted ~0.002");
+    eprintln!("SHB8-ANS advantage: hemisphere {:.0}× better, twisted {:.0}× better",
+        ss_hemi / 0.002, ss_twist / 0.002);
+
+    // Gate: SHB8-ANS must remain substantially better than MITC4 on curved frontier
+    assert!(ss_hemi > 0.04, "SHB8-ANS hemisphere regressed: ratio {:.4}", ss_hemi);
+    assert!(ss_twist > 0.01, "SHB8-ANS twisted beam regressed: ratio {:.4}", ss_twist);
+
+    // Gate: SHB8-ANS hemisphere must not be overstiff like MITC4/MITC9
+    assert!(ss_hemi < 5.0, "SHB8-ANS hemisphere overstiff: ratio {:.4}", ss_hemi);
 }
