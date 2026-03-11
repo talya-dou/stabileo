@@ -1300,6 +1300,33 @@ pub(crate) fn compute_quad_stresses(
         });
     }
 
+    // Solid-shell stress recovery
+    for ss in input.solid_shells.values() {
+        let mat = mat_map[&ss.material_id];
+        let e = mat.e * 1000.0;
+        let nu = mat.nu;
+        let mut coords = [[0.0; 3]; 8];
+        for (i, &nid) in ss.nodes.iter().enumerate() {
+            let n = node_map[&nid];
+            coords[i] = [n.x, n.y, n.z];
+        }
+        let ss_dofs = dof_num.solid_shell_element_dofs(&ss.nodes);
+        let u_elem: Vec<f64> = ss_dofs.iter().map(|&d| u[d]).collect();
+        let s = crate::element::solid_shell::solid_shell_stresses(&coords, &u_elem, e, nu);
+        let nodal_vm = crate::element::solid_shell::solid_shell_nodal_von_mises(&coords, &u_elem, e, nu);
+        stresses.push(QuadStress {
+            element_id: ss.id,
+            sigma_xx: s.sigma_xx,
+            sigma_yy: s.sigma_yy,
+            tau_xy: s.tau_xy,
+            mx: s.mx,
+            my: s.my,
+            mxy: s.mxy,
+            von_mises: s.von_mises,
+            nodal_von_mises: nodal_vm,
+        });
+    }
+
     stresses
 }
 

@@ -488,6 +488,46 @@ pub fn add_quad9_geometric_stiffness_3d(
     }
 }
 
+/// Add solid-shell geometric stiffness to a pre-built Kg matrix, given displacements.
+pub fn add_solid_shell_geometric_stiffness_3d(
+    input: &SolverInput3D,
+    dof_num: &DofNumbering,
+    u: &[f64],
+    k_g: &mut [f64],
+) {
+    let n = dof_num.n_total;
+    let mat_by_id: std::collections::HashMap<usize, &SolverMaterial> = input.materials.values().map(|m| (m.id, m)).collect();
+    let node_by_id: std::collections::HashMap<usize, &SolverNode3D> = input.nodes.values().map(|n| (n.id, n)).collect();
+
+    for ss in input.solid_shells.values() {
+        let mat = mat_by_id[&ss.material_id];
+        let e = mat.e * 1000.0;
+        let nu = mat.nu;
+
+        let mut coords = [[0.0f64; 3]; 8];
+        for (i, &nid) in ss.nodes.iter().enumerate() {
+            let nd = node_by_id[&nid];
+            coords[i] = [nd.x, nd.y, nd.z];
+        }
+
+        let ss_dofs = dof_num.solid_shell_element_dofs(&ss.nodes);
+        let u_elem: Vec<f64> = ss_dofs.iter().map(|&d| u[d]).collect();
+
+        // Compute average stress at centroid
+        let stress = crate::element::solid_shell::solid_shell_avg_stress(&coords, &u_elem, e, nu);
+
+        // Build geometric stiffness
+        let kg_elem = crate::element::solid_shell::solid_shell_geometric_stiffness(&coords, &stress);
+
+        let ndof = ss_dofs.len();
+        for i in 0..ndof {
+            for j in 0..ndof {
+                k_g[ss_dofs[i] * n + ss_dofs[j]] += kg_elem[i * ndof + j];
+            }
+        }
+    }
+}
+
 /// Add 3D geometric stiffness from current displacements.
 pub fn add_geometric_stiffness_3d(
     input: &SolverInput3D,

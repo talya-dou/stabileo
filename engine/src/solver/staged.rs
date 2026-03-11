@@ -935,6 +935,7 @@ fn staged_to_full_solver_input_3d(input: &StagedInput3D) -> SolverInput3D {
         plates: HashMap::new(),
         quads: HashMap::new(),
         quad9s: HashMap::new(),
+        solid_shells: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     }
@@ -973,6 +974,7 @@ fn build_stage_solver_input_3d(
         plates: HashMap::new(),
         quads: HashMap::new(),
         quad9s: HashMap::new(),
+        solid_shells: HashMap::new(),
         curved_beams: vec![],
         connectors: HashMap::new(),
     }

@@ -159,6 +159,18 @@ impl DofNumbering {
         dofs
     }
 
+    pub fn solid_shell_element_dofs(&self, nodes: &[usize; 8]) -> Vec<usize> {
+        let mut dofs = Vec::with_capacity(24);
+        for &node_id in nodes {
+            for local in 0..3 {
+                if let Some(&d) = self.map.get(&(node_id, local)) {
+                    dofs.push(d);
+                }
+            }
+        }
+        dofs
+    }
+
     /// Get global DOF index for (node_id, local_dof)
     pub fn global_dof(&self, node_id: usize, local_dof: usize) -> Option<usize> {
         self.map.get(&(node_id, local_dof)).copied()

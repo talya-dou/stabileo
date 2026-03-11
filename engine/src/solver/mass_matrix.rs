@@ -316,6 +316,31 @@ pub fn assemble_mass_matrix_3d(
         }
     }
 
+    // Assemble solid-shell element masses
+    for ss in input.solid_shells.values() {
+        let density = densities.get(&ss.material_id.to_string()).copied().unwrap_or(0.0);
+        if density <= 0.0 { continue; }
+
+        let mut coords = [[0.0f64; 3]; 8];
+        for (i, &nid) in ss.nodes.iter().enumerate() {
+            let nd = node_by_id[&nid];
+            coords[i] = [nd.x, nd.y, nd.z];
+        }
+
+        // density is in kg/m³, divide by 1000 to get tonnes/m³ (consistent with kN units)
+        let m_local = crate::element::solid_shell::solid_shell_consistent_mass(&coords, density / 1000.0);
+
+        let ss_dofs = dof_num.solid_shell_element_dofs(&ss.nodes);
+        for i in 0..24 {
+            for j in 0..24 {
+                let val = m_local[i * 24 + j];
+                if val.abs() > 1e-30 {
+                    m_global[ss_dofs[i] * n + ss_dofs[j]] += val;
+                }
+            }
+        }
+    }
+
     m_global
 }
 
@@ -498,6 +523,20 @@ pub fn compute_total_mass_3d(
         let a2 = (c2[0] * c2[0] + c2[1] * c2[1] + c2[2] * c2[2]).sqrt() / 2.0;
 
         total += density * (a1 + a2) * quad9.thickness / 1000.0;
+    }
+
+    // Add solid-shell element masses (volumetric — no thickness field)
+    for ss in input.solid_shells.values() {
+        let density = densities.get(&ss.material_id.to_string()).copied().unwrap_or(0.0);
+        if density <= 0.0 { continue; }
+
+        let mut coords = [[0.0f64; 3]; 8];
+        for (i, &nid) in ss.nodes.iter().enumerate() {
+            let nd = node_by_id[&nid];
+            coords[i] = [nd.x, nd.y, nd.z];
+        }
+        let vol = crate::element::solid_shell::solid_shell_volume(&coords);
+        total += density * vol / 1000.0;
     }
 
     total
