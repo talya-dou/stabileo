@@ -43,7 +43,7 @@ Current measured inventory:
 | Contact / SSI | Yes | Yes | Partial | tougher mixed cases and more long-tail reference coverage |
 | Shells / plates | Yes | Yes | Yes | MITC4+MITC9+SHB8-ANS+curved-shell multi-family stack implemented and acceptance-covered; remaining work is shell-family guidance, workflow hardening, and shell-adjacent breadth |
 | Constraints / reduction | Yes | Yes | Yes | chained-constraint maturity and broader solver-path consistency |
-| Sparse / conditioning paths | Yes | Yes | Yes | sparse Cholesky measured: 22-89× factorization speedup over dense LU, 0 perturbations, fill 2.6-7.0× (grows with mesh size); next: extend sparse path into modal/buckling/harmonic solvers, investigate AMD ordering for fill control |
+| Sparse / conditioning paths | Yes | Yes | Yes | sparse Cholesky measured: 22-89× factorization speedup over dense LU, 0 perturbations, fill 2.6-7.0× (grows with mesh size); sparse reuse is partly done in modal/buckling/harmonic/reduction; next blockers are sparse assembly runtime, duplicate-compaction overhead, `k_ff`-only assembly, and ordering/fill control |
 | Design-check / postprocess stack | Yes | Yes | No | workflow/product packaging rather than core mechanics |
 
 Use this table first.
@@ -100,7 +100,7 @@ The main remaining needs are no longer basic feature categories. They are:
 - shell-family hardening
   MITC4+MITC9+SHB8-ANS+curved-shell multi-family stack is implemented and acceptance-covered; remaining work is selection guidance, workflow hardening, and shell-adjacent breadth rather than missing core shell families
 - performance and scale maturity
-  sparse Cholesky runtime gains are now measured (22-89× factorization speedup, 22× end-to-end, 0 perturbations); the remaining work is extending sparse-path reuse into modal/buckling/harmonic/reduction solvers, controlling fill-ratio growth (2.6-7.0× with mesh size), and eigensolver cleanup
+  sparse Cholesky runtime gains are now measured (22-89× factorization speedup, 22× end-to-end, 0 perturbations); sparse reuse is partly done into modal/buckling/harmonic/reduction, and the remaining work is cutting sparse assembly runtime (`from_triplets` / duplicate compaction, `k_ff`-only assembly where possible), controlling fill-ratio growth (2.6-7.0× with mesh size), and eigensolver cleanup
 - verification depth
   more invariants, property-based testing, fuzzing, and acceptance-model discipline around the newest solver families
 - long-tail nonlinear hardening

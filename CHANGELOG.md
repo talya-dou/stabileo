@@ -11,6 +11,22 @@ It should capture what changed, not what should be built next.
 
 ### Added
 
+#### Sparse reuse into 3D eigen and reduction workflows
+
+- switched `solve_modal_3d`, `solve_buckling_3d`, `solve_harmonic_3d`, `guyan_reduce_3d`, and `craig_bampton_3d` from dense `n×n` assembly to sparse assembly plus dense `K_ff` conversion
+- eliminated full dense `n×n` stiffness allocation in those workflows while leaving mass matrices, geometric stiffness, and eigensolver internals unchanged
+- added sparse shell gate coverage for these reuse paths (`321` tests reported green)
+
+#### Sparse assembly profiling and next bottleneck
+
+- profiled `assemble_sparse_3d` and found CSC construction dominates sparse assembly wall time
+- identified `CscMatrix::from_triplets` / duplicate compaction as the current hot spot rather than element stiffness computation
+- established that some workflows still overbuild `k_full` even when they only need `k_ff`
+- reframed the next performance step around:
+  - fixing duplicate compaction / CSC construction cost
+  - adding `k_ff`-only sparse assembly where possible
+  - then re-measuring before more parallelization work
+
 #### Measured sparse vs dense runtime gains
 
 - added dense vs sparse benchmarks for all three shell families: MITC4, Quad9, and curved shell
@@ -45,7 +61,7 @@ It should capture what changed, not what should be built next.
 - wired parallel path into `solve_3d()` as the default sparse assembly call
 - added parity tests: flat-plate (4×4) and mixed frame+slab (4 columns + 16 quads + nodal + pressure loads)
 - added criterion benchmarks: flat-plate up to 50×50 (2500 quads, ~15k DOFs) and mixed frame+slab up to 8-storey 8×8
-- measured 2-6% speedup on MITC4 flat plates (lightweight per-element cost); stronger scaling expected on quad9/curved-shell models
+- measured 2-6% speedup on MITC4 flat plates (lightweight per-element cost); later profiling showed CSC construction, not element math, is the real sparse-assembly bottleneck
 - made `inclined_rotation_matrix` and `apply_inclined_transform_triplets` public for reuse
 - fixed pre-existing `transform_force` scope issue in the 2D parallel path
 

@@ -26,6 +26,7 @@ Latest reported status:
 - sparse wins on all three shell families (MITC4, Quad9, curved) above ~500 DOFs; fill ratio grows from 2.6× to 7.0× with mesh size
 - deterministic assembly and DOF numbering (sorted HashMap iterations, merged support constraints)
 - parallel element assembly (rayon) wired into the 3D sparse solver path
+- sparse assembly is now reused in 3D modal, buckling, harmonic, and reduction workflows, eliminating full dense `n×n` assembly there
 - residual-based sparse vs dense parity testing and benchmark gate coverage
 - strong benchmark, acceptance-model, integration, and differential/parity coverage
 
@@ -57,7 +58,7 @@ That same solver surface can support multiple user layers:
 The biggest remaining gaps are no longer basic solver categories. They are:
 
 - sparse-path reuse and scale
-  runtime gains are now measured (22-89× factorization speedup, 22× end-to-end at 30×30); the next step is extending the sparse path into modal, buckling, harmonic, and reduction solvers, and addressing the growing fill ratio (2.6×→7.0× with mesh size)
+  runtime gains are now measured (22-89× factorization speedup, 22× end-to-end at 30×30), and sparse reuse is partly done in modal/buckling/harmonic/reduction; the next bottleneck is sparse assembly runtime itself, especially CSC construction / duplicate compaction and building `k_full` in workflows that only need `k_ff`
 - shell-family hardening
   MITC4, MITC9, SHB8-ANS, and curved shells are all implemented; remaining work is shell-family guidance, workflow maturity, and broader shell-adjacent behavior rather than missing core shell breadth
 - product-layer shell-family defaults
@@ -80,10 +81,10 @@ The biggest remaining gaps are no longer basic solver categories. They are:
 
 ## Next Priorities
 
-1. broader sparse-path reuse — modal, buckling, harmonic, reduction, and other solvers should benefit from the now-healthy sparse path
-2. fill-ratio investigation — fill grows from 2.6× to 7.0× with mesh size; AMD ordering may help (currently using RCM)
+1. sparse assembly runtime overhead — `assemble_sparse_3d` is still 5-25× slower than dense assembly/extraction on MITC4 plate meshes because CSC construction is dominated by duplicate-compaction memmoves and some workflows still overbuild `k_full`
+2. fill-ratio investigation — fill grows from 2.6× to 7.0× with mesh size; AMD ordering should now be compared directly against RCM
 3. verification hardening around the new sparse path — determinism, residual-based parity, fill-ratio gates, no-fallback gates
-4. long-tail nonlinear hardening — now that the linear/shell sparse base is healthier, mixed nonlinear cases become more worth attacking
+4. broader sparse-path reuse and deeper sparse eigensolver integration — modal/buckling/harmonic/reduction now sparse-assemble, but still convert `K_ff` back to dense internally
 5. product surfacing — deterministic diagnostics and solve timings become much more valuable in the app now
 
 Within `performance and scale`, the completed and remaining order is:
@@ -91,10 +92,11 @@ Within `performance and scale`, the completed and remaining order is:
 1. ~~eliminate dense LU fallback on representative shell models~~ — DONE (direct left-looking symbolic Cholesky, two-tier pivot perturbation)
 2. ~~improve ordering and reduce fill~~ — DONE (RCM ordering, fill ratio 673× → 2.6-7.0× depending on mesh size)
 3. ~~measure real full-model runtime gains~~ — DONE (22-89× factorization speedup, 22× end-to-end at 30×30 MITC4, all three shell families measured)
-4. extend sparse path into modal, buckling, harmonic, and reduction solvers
-5. investigate AMD ordering to control fill-ratio growth at larger mesh sizes
-6. fix the Lanczos tridiagonal eigensolver debt
-7. iterative refinement and Krylov solvers
+4. ~~extend sparse path into modal, buckling, harmonic, and reduction solvers~~ — PARTLY DONE (sparse assembly now reused there; next is deeper sparse eigensolver integration)
+5. cut sparse assembly overhead (`from_triplets` / duplicate compaction, `k_ff`-only assembly where possible)
+6. investigate AMD ordering to control fill-ratio growth at larger mesh sizes
+7. fix the Lanczos tridiagonal eigensolver debt
+8. iterative refinement and Krylov solvers
 
 ## Working Description
 
