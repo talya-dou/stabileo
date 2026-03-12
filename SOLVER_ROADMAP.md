@@ -30,7 +30,7 @@ Historical progress belongs in [`CHANGELOG.md`](/Users/unbalancedparen/projects/
 
 ## Current Frontier
 
-The sparse shell solve viability blocker is resolved and runtime gains are now measured. Dense LU fallback has been eliminated on representative shell models. Sparse Cholesky delivers 22-89× factorization speedup over dense LU (22× end-to-end at 30×30 MITC4), with 0 perturbations across all tested sizes and families. Fill ratio grows from 2.6× to 7.0× with mesh size under RCM ordering. Assembly and DOF numbering are deterministic. Residual-based parity testing is in place.
+The sparse shell solve viability blocker is resolved and runtime gains are now measured. Dense LU fallback has been eliminated on representative shell models. Sparse Cholesky delivers 22-89× factorization speedup over dense LU (22× end-to-end at 30×30 MITC4), with 0 perturbations across all tested sizes and families. Fill ratio grows from 2.6× to 7.0× with mesh size, and AMD now beats RCM on fill for larger shell meshes. Assembly and DOF numbering are deterministic. Residual-based parity testing is in place.
 
 Measured runtime data (Criterion, factorization only):
 
@@ -51,13 +51,13 @@ Measured runtime data (Criterion, factorization only):
 Key observations:
 - sparse wins on all families above ~500 DOFs
 - dense still wins at curved 8×8 (~450 DOFs) — sparse overhead dominates at small sizes
-- fill ratio grows with mesh size (not constant); AMD vs RCM is now the measured optimization question
+- fill ratio grows with mesh size (not constant); AMD is now the measured fill winner on larger shell meshes
 - 0 perturbations everywhere — Cholesky is clean
 - at 30×30 MITC4 (5644 DOFs), sparse assembly + solve takes 0.56s vs 12.3s dense — 22× end-to-end
 
 The main remaining work is:
 
-- deeper sparse eigensolver integration after the now-partly-done sparse reuse into modal/buckling/harmonic/reduction
+- deeper sparse eigensolver integration after the now-partly-done sparse reuse into modal/buckling/harmonic/reduction, with modal and buckling already on sparse eigensolver paths in the common unconstrained case
 - runtime and memory measurement on the newly sparse modal/buckling/harmonic/reduction workflows
 - fill-ratio and ordering investigation (AMD vs RCM and beyond)
 - verification hardening around the new sparse path (determinism, parity gates, fill-ratio gates)
@@ -73,7 +73,7 @@ The main remaining work is:
 Based on the comparison against projects like OpenSees, Code_Aster, and Kratos, the remaining gaps are not “missing the basics.” They are:
 
 1. `Performance / scale maturity`
-   Sparse Cholesky runtime gains are measured: 22-89× factorization speedup, 22× end-to-end, 0 perturbations. Sparse-path reuse is now partly done across modal/buckling/harmonic/reduction. The next steps are cutting sparse assembly overhead, choosing better ordering/fill behavior, then pushing sparse deeper into eigensolver internals and broader solver families.
+   Sparse Cholesky runtime gains are measured: 22-89× factorization speedup, 22× end-to-end, 0 perturbations. Sparse-path reuse is now partly done across modal/buckling/harmonic/reduction, and modal plus buckling already have sparse eigensolver paths in the common unconstrained case. The next steps are runtime measurement on the newly sparse workflows, deeper sparse eigensolver integration, and eigensolver cleanup.
 
 2. `Long-tail nonlinear maturity`
    More years of hardened edge cases are still needed in mixed nonlinear workflows:
@@ -103,10 +103,10 @@ If the goal is `best open structural solver`, the current priority order is:
    Measured across MITC4, Quad9, and curved shell families: 22-89× factorization speedup over dense LU, 22× end-to-end at 30×30 MITC4, 0 perturbations. Sparse wins above ~500 DOFs on all families. Fill ratio grows 2.6-7.0× with mesh size.
 
 2. `Deeper sparse eigensolver integration`
-   Sparse assembly/runtime bottlenecks from duplicate compaction and unconditional `k_full` builds are fixed. Modal 3D now has a sparse eigensolver path in the common unconstrained case. The next step is to push sparse deeper into buckling, harmonic, and reduction internals.
+   Sparse assembly/runtime bottlenecks from duplicate compaction and unconditional `k_full` builds are fixed. Modal 3D and buckling 3D now have sparse eigensolver paths in the common unconstrained case, so this program is partly done. The next step is to push sparse deeper into harmonic and reduction internals and reduce remaining dense eigensolver dependencies.
 
-3. `Fill-ratio investigation`
-   Fill ratio grows from 2.6× to 7.0× with mesh size under current ordering. AMD vs RCM is now the measured ordering decision that matters for scale.
+3. `Runtime measurement on newly sparse workflows`
+   Modal is now measured, and buckling has the sparse eigensolver path but still needs the same runtime/memory treatment. The next concrete measurement step is harmonic, Guyan, and Craig-Bampton, so the next scale work stays data-driven.
 
 4. `Verification hardening around the new sparse path`
    The sparse path is now live and deterministic. Lock it in with:
@@ -118,7 +118,7 @@ If the goal is `best open structural solver`, the current priority order is:
    - broader invariant, property-based, and fuzzing coverage around sparse/shell paths
 
 5. `Broader sparse-path reuse`
-   Sparse reuse is now partly done in 3D modal, buckling, harmonic, Guyan, and Craig-Bampton flows. The next step is to measure those paths, extend sparse reuse where still missing, and push sparse deeper than `assemble_sparse_3d() + to_dense_symmetric()`.
+   Sparse reuse is now partly done in 3D modal, buckling, harmonic, Guyan, and Craig-Bampton flows. The next step is to extend sparse reuse where still missing and push sparse deeper than `assemble_sparse_3d() + to_dense_symmetric()`.
 
 6. `Long-tail nonlinear hardening`
    Now that the linear/shell sparse base is healthier, mixed nonlinear cases become more worth attacking:
@@ -167,10 +167,10 @@ The current near-term sequence is:
    Measured: 22-89× factorization speedup, 22× end-to-end at 30×30 MITC4, 0 perturbations across all families/sizes. Sparse wins above ~500 DOFs. Dense still wins at curved 8×8 (~450 DOFs).
 
 2. `Deeper sparse eigensolver integration`
-   Modal 3D now has a sparse eigensolver path for the common unconstrained case. The next step is to extend that depth into buckling, harmonic, and reduction workflows and reduce remaining dense eigensolver dependencies.
+   Modal 3D and buckling 3D now have sparse eigensolver paths for the common unconstrained case. This is partly done; the next step is to extend that depth into harmonic and reduction workflows and reduce remaining dense eigensolver dependencies.
 
-3. `Fill-ratio investigation`
-   Compare AMD vs RCM directly across mesh sizes and element families, then choose the default ordering policy from measured fill/runtime behavior.
+3. `Runtime measurement on the newly sparse workflows`
+   Modal is now measured. Buckling should be measured next to match its new sparse path, followed by harmonic, Guyan, and Craig-Bampton.
 
 4. `Verification hardening around the new sparse path`
    Lock in the sparse path with:
@@ -181,7 +181,7 @@ The current near-term sequence is:
    - invariant, property-based, and fuzzing coverage around sparse/shell paths
 
 5. `Broader sparse-path reuse`
-   Modal, buckling, harmonic, Guyan, and Craig-Bampton 3D now sparse-assemble and then convert `K_ff` back to dense. The next step is to measure those workflows and push sparse deeper into eigensolver and reduction internals.
+   Modal, buckling, harmonic, Guyan, and Craig-Bampton 3D now sparse-assemble and then convert `K_ff` back to dense, with modal and buckling already taking a sparse eigensolver step further. The next step is to push sparse deeper into harmonic and reduction internals.
 
 6. `Long-tail nonlinear hardening`
    Focus on the hardest mixed cases:
