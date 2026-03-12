@@ -1,12 +1,13 @@
 //! Benchmark gate tests: ensure sparse Cholesky survives shell matrices,
 //! fill ratio stays bounded, and sparse/dense results match.
 
-use dedaliano_engine::solver::linear;
+use dedaliano_engine::solver::{linear, modal};
 use dedaliano_engine::solver::assembly::{assemble_sparse_3d, assemble_3d};
 use dedaliano_engine::solver::dof::DofNumbering;
 use dedaliano_engine::linalg::{symbolic_cholesky, symbolic_cholesky_with, numeric_cholesky, CholOrdering, cholesky_solve, extract_submatrix, extract_subvec, lu_solve, mat_vec_rect};
 use dedaliano_engine::types::*;
 use std::collections::HashMap;
+use std::time::Instant;
 
 /// Build an nx×ny simply-supported MITC4 plate with uniform pressure.
 fn make_ss_plate(nx: usize, ny: usize) -> SolverInput3D {
@@ -430,4 +431,135 @@ fn diagnose_shell_pivots() {
         }
     }
     println!("Sparse K[i,j] vs Dense K[j,i] asymmetry: count={}, max={:.6e}", asym_count, max_asym);
+}
+
+/// Gate 5a: Sparse assembly is faster than dense assembly + extraction for 20×20 plate.
+#[test]
+fn sparse_faster_than_dense() {
+    let input = make_ss_plate(20, 20);
+    let dof_num = DofNumbering::build_3d(&input);
+    let nf = dof_num.n_free;
+    let n = dof_num.n_total;
+
+    // Warmup
+    let _ = assemble_sparse_3d(&input, &dof_num, false);
+    let _ = assemble_3d(&input, &dof_num);
+
+    // Dense path: assemble n×n K + extract nf×nf k_ff
+    let t0 = Instant::now();
+    let asm = assemble_3d(&input, &dof_num);
+    let free_idx: Vec<usize> = (0..nf).collect();
+    let _k_ff_d = extract_submatrix(&asm.k, n, &free_idx, &free_idx);
+    let dense_us = t0.elapsed().as_micros();
+
+    // Sparse path: assemble_sparse_3d (builds CSC k_ff directly)
+    let t0 = Instant::now();
+    let _sasm = assemble_sparse_3d(&input, &dof_num, false);
+    let sparse_us = t0.elapsed().as_micros();
+
+    println!("20x20: sparse={}us, dense={}us, ratio={:.2}",
+        sparse_us, dense_us, dense_us as f64 / sparse_us.max(1) as f64);
+
+    assert!(
+        sparse_us <= dense_us,
+        "Sparse assembly ({}us) should be faster than dense ({} us) at 20×20",
+        sparse_us, dense_us
+    );
+}
+
+/// Gate 5b: Deterministic sparse assembly — same model twice produces bitwise-equal CSC.
+#[test]
+fn deterministic_sparse_assembly() {
+    let input = make_ss_plate(10, 10);
+    let dof_num = DofNumbering::build_3d(&input);
+
+    let s1 = assemble_sparse_3d(&input, &dof_num, false);
+    let s2 = assemble_sparse_3d(&input, &dof_num, false);
+
+    assert_eq!(s1.k_ff.col_ptr, s2.k_ff.col_ptr, "col_ptr mismatch");
+    assert_eq!(s1.k_ff.row_idx, s2.k_ff.row_idx, "row_idx mismatch");
+    assert_eq!(s1.k_ff.values.len(), s2.k_ff.values.len(), "nnz mismatch");
+    for i in 0..s1.k_ff.values.len() {
+        assert!(
+            (s1.k_ff.values[i] - s2.k_ff.values[i]).abs() < 1e-15,
+            "Value mismatch at {}: {} vs {}", i, s1.k_ff.values[i], s2.k_ff.values[i]
+        );
+    }
+}
+
+/// Gate 5c: Fill ratio stays bounded for known mesh sizes with RCM ordering.
+#[test]
+fn fill_ratio_regression() {
+    for &(nx, ny, bound) in &[(10, 10, 4.0), (30, 30, 10.0)] {
+        let input = make_ss_plate(nx, ny);
+        let dof_num = DofNumbering::build_3d(&input);
+        let nf = dof_num.n_free;
+        let asm = assemble_sparse_3d(&input, &dof_num, false);
+
+        let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Rcm);
+        let nnz_kff = asm.k_ff.col_ptr[nf];
+        let fill = sym.l_nnz as f64 / nnz_kff as f64;
+        println!("{}x{}: fill_ratio={:.2}, bound={:.1}", nx, ny, fill, bound);
+
+        assert!(
+            fill < bound,
+            "{}x{} fill ratio {:.2} exceeds bound {:.1}",
+            nx, ny, fill, bound
+        );
+    }
+}
+
+/// Gate 5d: Sparse modal eigenvalues match dense Lanczos eigenvalues.
+#[test]
+fn sparse_modal_parity() {
+    let input = make_ss_plate(8, 8);
+    let num_modes = 5;
+
+    // Both paths need densities
+    let mut densities = HashMap::new();
+    densities.insert("1".to_string(), 7850.0); // steel density in kg/m³
+
+    // Sparse path (current default for no-constraint models)
+    let result_sparse = modal::solve_modal_3d(&input, &densities, num_modes)
+        .expect("Sparse modal solve failed");
+
+    // Dense path: manually build dense K_ff and use dense Lanczos
+    let dof_num = DofNumbering::build_3d(&input);
+    let nf = dof_num.n_free;
+    let n = dof_num.n_total;
+    let sasm = assemble_sparse_3d(&input, &dof_num, false);
+    let k_ff_dense = sasm.k_ff.to_dense_symmetric();
+    let m_full = dedaliano_engine::solver::mass_matrix::assemble_mass_matrix_3d(&input, &dof_num, &densities);
+    let free_idx: Vec<usize> = (0..nf).collect();
+    let m_ff = extract_submatrix(&m_full, n, &free_idx, &free_idx);
+    let dense_eigen = dedaliano_engine::linalg::lanczos_generalized_eigen(
+        &k_ff_dense, &m_ff, nf, num_modes, 0.0
+    ).expect("Dense Lanczos failed");
+
+    // Compare frequencies from sparse modal result vs dense eigenvalues.
+    // Filter out near-zero modes (rigid body modes / numerical noise).
+    let min_freq = 0.1; // Hz — only compare physical structural modes
+    let sparse_freqs: Vec<f64> = result_sparse.modes.iter()
+        .map(|m| m.frequency)
+        .filter(|&f| f > min_freq)
+        .collect();
+    let dense_freqs: Vec<f64> = dense_eigen.values.iter()
+        .filter(|&&v| v > 1e-10)
+        .map(|&v| v.sqrt() / (2.0 * std::f64::consts::PI))
+        .filter(|&f| f > min_freq)
+        .take(num_modes)
+        .collect();
+
+    let n_compare = sparse_freqs.len().min(dense_freqs.len());
+    assert!(n_compare > 0, "No modes above {} Hz to compare", min_freq);
+    for i in 0..n_compare {
+        let rel_err = (sparse_freqs[i] - dense_freqs[i]).abs() / dense_freqs[i].max(1e-20);
+        println!("Mode {}: sparse={:.6} Hz, dense={:.6} Hz, rel_err={:.2e}",
+            i, sparse_freqs[i], dense_freqs[i], rel_err);
+        assert!(
+            rel_err < 1e-2,
+            "Mode {} frequency mismatch: sparse={:.6}, dense={:.6}, rel_err={:.2e}",
+            i, sparse_freqs[i], dense_freqs[i], rel_err
+        );
+    }
 }

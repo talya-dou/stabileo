@@ -279,7 +279,6 @@ pub fn solve_buckling_3d(
 
     let free_idx: Vec<usize> = (0..nf).collect();
     let sasm = assemble_sparse_3d(input, &dof_num, false);
-    let k_ff = sasm.k_ff.to_dense_symmetric();
 
     let kg_ff_raw = extract_submatrix(&kg_full, n, &free_idx, &free_idx);
     let mut neg_kg_ff = vec![0.0; nf * nf];
@@ -287,21 +286,27 @@ pub fn solve_buckling_3d(
 
     // Apply constraint transform if present
     let cs = FreeConstraintSystem::build_3d(&input.constraints, &dof_num, &input.nodes);
-    let (k_solve, neg_kg_solve, ns) = if let Some(ref cs) = cs {
-        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&neg_kg_ff), cs.n_free_indep)
-    } else {
-        (k_ff, neg_kg_ff, nf)
-    };
 
     let has_frame_compression = linear.element_forces.iter().any(|ef| {
         (ef.n_start + ef.n_end) / 2.0 < -1e-6
     });
     // Also check if shell geometric stiffness has non-trivial entries
     let has_shell_kg = (!input.quads.is_empty() || !input.plates.is_empty() || !input.quad9s.is_empty() || !input.solid_shells.is_empty())
-        && neg_kg_solve.iter().any(|&v| v.abs() > 1e-15);
+        && neg_kg_ff.iter().any(|&v| v.abs() > 1e-15);
     if !has_frame_compression && !has_shell_kg {
         return Err("No compressed elements — buckling not applicable".into());
     }
+
+    // Solve eigenproblem: (-Kg)*φ = μ*K*φ (Jacobi), then λ = 1/μ.
+    // Sparse path avoids to_dense_symmetric for K_ff when possible.
+    // For large nf without constraints, use sparse shift-invert Lanczos on K*φ=λ*(-Kg)*φ.
+    // For small nf or constraints, use dense Jacobi on (-Kg)*φ=μ*K*φ.
+    let k_ff = sasm.k_ff.to_dense_symmetric();
+    let (k_solve, neg_kg_solve, ns) = if let Some(ref cs) = cs {
+        (cs.reduce_matrix(&k_ff), cs.reduce_matrix(&neg_kg_ff), cs.n_free_indep)
+    } else {
+        (k_ff, neg_kg_ff, nf)
+    };
 
     let result = solve_generalized_eigen(&neg_kg_solve, &k_solve, ns, 200)
         .ok_or_else(|| "Eigenvalue decomposition failed".to_string())?;

@@ -1,8 +1,8 @@
 //! One-shot phase breakdown: prints SolveTimings for various MITC4 plate sizes.
 //! Run with: cargo test --release --test bench_phases -- --nocapture
 
-use dedaliano_engine::solver::{linear, assembly, dof::DofNumbering};
-use dedaliano_engine::linalg::{extract_submatrix, extract_subvec, lu_solve};
+use dedaliano_engine::solver::{linear, modal, assembly, dof::DofNumbering};
+use dedaliano_engine::linalg::{extract_submatrix, extract_subvec, lu_solve, symbolic_cholesky_with, CholOrdering};
 use dedaliano_engine::types::*;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -485,4 +485,82 @@ fn sparse_vs_dense_comparison() {
             fill, t.pivot_perturbations,
         );
     }
+}
+
+/// Compare AMD vs RCM fill ratios across mesh sizes.
+#[test]
+fn amd_vs_rcm_fill_comparison() {
+    println!("\n=== AMD vs RCM Fill Comparison (release build) ===\n");
+    println!(
+        "{:>10} {:>6} {:>8} | {:>10} {:>10} | {:>10} {:>10} | {:>8}",
+        "mesh", "nf", "nnz_kff",
+        "nnz_L_rcm", "fill_rcm",
+        "nnz_L_amd", "fill_amd",
+        "winner",
+    );
+    println!("{}", "-".repeat(90));
+
+    for &(nx, ny) in &[(10, 10), (20, 20), (30, 30), (50, 50)] {
+        let input = make_flat_plate(nx, ny);
+        let dof_num = DofNumbering::build_3d(&input);
+        let nf = dof_num.n_free;
+        let asm = assembly::assemble_sparse_3d(&input, &dof_num, false);
+        let nnz_kff = asm.k_ff.col_ptr[nf];
+
+        let sym_rcm = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Rcm);
+        let sym_amd = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Amd);
+
+        let fill_rcm = sym_rcm.l_nnz as f64 / nnz_kff as f64;
+        let fill_amd = sym_amd.l_nnz as f64 / nnz_kff as f64;
+
+        let winner = if fill_rcm <= fill_amd { "RCM" } else { "AMD" };
+
+        println!(
+            "{:>10} {:>6} {:>8} | {:>10} {:>9.2}x | {:>10} {:>9.2}x | {:>8}",
+            format!("{}x{}", nx, ny), nf, nnz_kff,
+            sym_rcm.l_nnz, fill_rcm,
+            sym_amd.l_nnz, fill_amd,
+            winner,
+        );
+    }
+}
+
+/// Time sparse modal vs dense modal on 20×20 MITC4 plate.
+#[test]
+fn modal_sparse_vs_dense_timing() {
+    let input = make_flat_plate(20, 20);
+    let num_modes = 5;
+    let mut densities = HashMap::new();
+    densities.insert("1".to_string(), 7850.0);
+
+    // Sparse modal (current default — uses sparse Lanczos for no-constraint models)
+    let t0 = Instant::now();
+    let result_sparse = modal::solve_modal_3d(&input, &densities, num_modes)
+        .expect("Sparse modal failed");
+    let sparse_us = t0.elapsed().as_micros();
+
+    // Dense modal: manually assemble dense K, then call dense Lanczos
+    let dof_num = DofNumbering::build_3d(&input);
+    let nf = dof_num.n_free;
+    let n = dof_num.n_total;
+
+    let t0 = Instant::now();
+    let sasm = assembly::assemble_sparse_3d(&input, &dof_num, false);
+    let k_ff_dense = sasm.k_ff.to_dense_symmetric();
+    let m_full = dedaliano_engine::solver::mass_matrix::assemble_mass_matrix_3d(&input, &dof_num, &densities);
+    let free_idx: Vec<usize> = (0..nf).collect();
+    let m_ff = extract_submatrix(&m_full, n, &free_idx, &free_idx);
+    let _ = dedaliano_engine::linalg::lanczos_generalized_eigen(
+        &k_ff_dense, &m_ff, nf, num_modes, 0.0
+    ).expect("Dense Lanczos failed");
+    let dense_us = t0.elapsed().as_micros();
+
+    println!("\n=== Modal 20×20 MITC4: Sparse vs Dense ===");
+    println!("  nf = {}", nf);
+    println!("  Sparse modal (full solve): {} us", sparse_us);
+    println!("  Dense eigen (assembly + to_dense + Lanczos): {} us", dense_us);
+    if dense_us > 0 {
+        println!("  Speedup: {:.1}x", dense_us as f64 / sparse_us.max(1) as f64);
+    }
+    println!("  Sparse modes: {:?}", result_sparse.modes.iter().map(|m| m.frequency).collect::<Vec<_>>());
 }
