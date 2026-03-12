@@ -26,7 +26,7 @@ The benchmark ledger below is curated. It is narrower than the full automated te
 
 Current measured inventory:
 
-- latest reported full-suite status: `5906` passing tests, `0` failures
+- latest reported full-suite status: `5908` passing tests, `0` failures
 - `25` integration test files (`182` integration test functions)
 - dedicated property / differential fuzz coverage (`90` passing tests)
 - explicit benchmark-gate suites for constraints, contact, shells, reduction, sparse / conditioning paths, sparse 3D parity, and sparse modal / buckling / harmonic behavior
@@ -83,6 +83,7 @@ At a high level, the current engine already has:
 - broad 2D and 3D structural analysis coverage
 - second-order, buckling, modal, spectrum, time history, and harmonic workflows
 - nonlinear frame, fiber, contact, SSI, staged, prestress, imperfections, and creep/shrinkage support
+- modified Newton-Raphson in corotational and fiber nonlinear solvers, with measured caveats: useful where factorization cost dominates and material nonlinearity is moderate, but not a universal default
 - triangular plates plus MITC4, MITC9, SHB8-ANS, and curved-shell families
 - constraint systems, reduction/substructuring, and broad postprocessing/design modules
 - benchmark gates, acceptance models, integration tests, property/differential fuzz coverage, and a large validation surface
@@ -239,10 +240,11 @@ Status definitions used here:
 | 2D time history | Good | `solver/time_integration.rs`, `validation_time_history.rs`, `validation_dynamic_mdof.rs` | Stronger nonlinear coupling, more integrators/controls |
 | 3D time history | Good | `solver/time_integration.rs`, `integration_time_history_3d.rs` | Needs broader benchmark depth and stronger nonlinear/damping coverage |
 | Harmonic response (2D/3D) | Good | `solver/harmonic.rs`, `integration_harmonic.rs` | Needs broader benchmark depth, damping depth, and larger-model coverage |
-| 2D geometric nonlinear (corotational) | Good | `solver/corotational.rs`, `validation_corotational*.rs` | Arc-length, limit points, stronger benchmark parity |
-| 3D geometric nonlinear | Good | `solver/corotational.rs`, `integration_corotational_3d.rs` | Needs broader benchmark depth, stronger controls, tougher convergence cases |
+| 2D geometric nonlinear (corotational) | Good | `solver/corotational.rs`, `validation_corotational*.rs`, modified-Newton parity coverage | Arc-length, limit points, stronger benchmark parity; full NR remains more robust than modified NR on geometric-nonlinear cases |
+| 3D geometric nonlinear | Good | `solver/corotational.rs`, `integration_corotational_3d.rs`, modified-Newton parity coverage | Needs broader benchmark depth, stronger controls, tougher convergence cases; modified NR is not the default for geometric nonlinearity |
 | 2D material nonlinear | Good | `solver/material_nonlinear.rs`, benchmark/capability tests | Elastic-plastic capability exists, but the deepest spread-plasticity work now lives in the separate fiber solver |
 | 3D material nonlinear | Good | `solver/material_nonlinear.rs`, `integration_material_nonlinear_3d.rs` | Real implementation exists, but still needs broader validation and tougher benchmark parity |
+| Fiber nonlinear (2D/3D) | Good | `solver/fiber_nonlinear.rs`, `validation/domains/solver/fiber_nonlinear.rs`, modified-Newton parity and measurement coverage | Stronger large-model benchmarks, clearer default strategy between full NR and modified NR, and broader mixed-workflow validation |
 | Plastic collapse / hinge sequencing | Good | `solver/plastic.rs`, `validation_plastic_*`, `integration_plastic_3d.rs` | Not a full general nonlinear plasticity framework |
 | Moving loads / influence workflows (2D/3D) | Good | `solver/moving_loads.rs`, `validation_moving_loads.rs`, `integration_moving_loads_3d.rs`, `postprocess/influence.rs` | Needs deeper bridge/special-vehicle benchmark coverage |
 | Multi-case load solving / envelopes (2D/3D) | Good | `solver/load_cases.rs`, `postprocess/combinations.rs`, `validation_load_combination_envelope.rs` | Needs larger workflow coverage and richer product-facing load management |
@@ -346,17 +348,17 @@ This is the solver-core ordering to use when the goal is technical leadership ra
 #### Ranked Order
 
 1. ~~`Measure real runtime gains`~~ — DONE (22-89× factorization speedup, 22× end-to-end)
-2. `Broader sparse-path reuse`
-3. `Fill-ratio investigation` (AMD ordering, grows 2.6-7.0× with mesh size)
-4. `Verification hardening around the new sparse path`
-5. `Long-tail nonlinear hardening`
-6. `Product surfacing`
-7. `Solver-path consistency`
-8. `Constraint-system maturity`
-9. `Advanced contact maturity`
-10. `Shell-family workflow maturity`
-11. `Reference benchmark expansion`
-12. `Reduction, staged/PT coupling, and other second-tier depth`
+2. `Broader sparse-path reuse and reduction-depth cleanup`
+3. `Verification hardening around the new sparse path`
+4. `Long-tail nonlinear hardening`
+5. `Product surfacing`
+6. `Solver-path consistency`
+7. `Constraint-system maturity`
+8. `Advanced contact maturity`
+9. `Shell-family workflow maturity`
+10. `Reference benchmark expansion`
+11. `Reduction, staged/PT coupling, and other second-tier depth`
+12. `RC-unblocking design-grade result extraction`
 
 #### Time-Bucketed View
 

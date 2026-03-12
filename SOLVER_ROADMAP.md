@@ -60,8 +60,8 @@ The main remaining work is:
 
 - deeper sparse eigensolver integration after the now-partly-done sparse reuse into modal/buckling/harmonic/reduction, with modal and buckling already on sparse eigensolver paths in the common unconstrained case
 - runtime and memory measurement on the newly sparse modal/buckling/harmonic/reduction workflows
-- fill-ratio and ordering investigation (AMD vs RCM and beyond)
 - verification hardening around the new sparse path (determinism, parity gates, fill-ratio gates)
+- RC-unblocking design-grade result extraction (beam stations, governing combinations, deterministic design outputs)
 - long-tail nonlinear hardening (mixed nonlinear cases)
 - product surfacing (deterministic diagnostics and solve timings in the app)
 - shell-family workflow maturity and selection guidance
@@ -262,7 +262,7 @@ The current near-term sequence is:
 15. Expand sparse/dense residual-parity coverage on harder shell and mixed models
 16. Harden mixed shell + nonlinear workflows
 17. Harden contact + nonlinear + staging workflows
-18. ~~Add `Modified Newton`~~ — DONE (corotational 2D/3D + fiber 2D/3D; caches Cholesky from iter 0; diverges for geometric nonlinearity, suited for material nonlinearity)
+18. ~~Add `Modified Newton`~~ — DONE (corotational 2D/3D + fiber 2D/3D; caches Cholesky from iter 0; not a universal default, useful where factorization cost dominates and material nonlinearity is moderate; full NR remains more robust in geometric nonlinearity and deep plasticity)
 19. Add iterative refinement before any remaining expensive fallback path
 20. Add `PCG` with `Jacobi` preconditioning
 21. Add stronger preconditioners like `IC(0)` / `SSOR` if justified by measurements
@@ -357,7 +357,7 @@ Focus:
 
 Current status:
 - **sparse shell solve viability is done**: direct left-looking symbolic Cholesky with two-tier pivot perturbation eliminates dense LU fallback on all shell families (MITC4, MITC9, curved shell)
-- **fill ratio fixed**: RCM ordering reduced fill from 673× (naive AMD) to 1.8× on representative shell meshes
+- **ordering policy is now measured**: early RCM work fixed catastrophic fill on representative shell meshes, and AMD is now the preferred default direction on the larger shell meshes that matter most
 - **dense fallback eliminated**: wall-time share dropped from 87% to 0% on a 50×50 MITC4 plate (~15k DOFs)
 - **assembly is deterministic**: all HashMap element iterations sorted by ID across dense, sparse, and parallel paths
 - **DOF numbering is deterministic**: multiple supports targeting the same node merge constraint flags with OR
@@ -392,13 +392,13 @@ MITC4 element stiffness is lightweight (~200 ops), so the parallel overhead near
 Updated numerical-methods order:
 
 1. ~~sparse shell solve viability~~ — DONE
-2. ~~fill-reducing ordering quality~~ — DONE (RCM, 1.8× fill on representative shell meshes)
+2. ~~fill-reducing ordering quality~~ — DONE (ordering quality is measured, and AMD is now the preferred default direction on larger shell meshes)
 3. ~~measure real full-model runtime gains~~ — DONE
 4. deepen sparse eigensolver integration in reduction workflows
 5. measure buckling runtime and any remaining harmonic/reduction bottlenecks
 6. sparse shift-invert eigensolver path
 7. iterative refinement and Krylov solvers
-8. modified Newton
+8. ~~modified Newton~~ — DONE (implemented for corotational and fiber nonlinear solvers; not a universal default)
 9. quasi-Newton variants
 
 See [`research/numerical_methods_gap_analysis.md`](/Users/unbalancedparen/projects/dedaliano/research/numerical_methods_gap_analysis.md).
