@@ -1319,7 +1319,7 @@ pub struct SparseAssemblyResult {
 /// Sparse 3D assembly result with full-K for reactions and inclined support data.
 pub struct SparseAssemblyResult3D {
     pub k_ff: CscMatrix,
-    pub k_full: CscMatrix,
+    pub k_full: Option<CscMatrix>,
     pub f: Vec<f64>,
     pub max_diag_k: f64,
     pub artificial_dofs: Vec<usize>,
@@ -1575,9 +1575,9 @@ pub fn apply_inclined_transform_triplets(
     }
 }
 
-/// Assemble sparse full-K for 3D. Returns CSC of Kff and full K, plus force vector.
+/// Assemble sparse K for 3D. Returns CSC of Kff (always) and full K (if `build_k_full` is true).
 /// Collects all triplets for the full n×n K, then filters for Kff at the end.
-pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> SparseAssemblyResult3D {
+pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering, build_k_full: bool) -> SparseAssemblyResult3D {
     let n = dof_num.n_total;
     let nf = dof_num.n_free;
     let mut f_global = vec![0.0; n];
@@ -2218,9 +2218,14 @@ pub fn assemble_sparse_3d(input: &SolverInput3D, dof_num: &DofNumbering) -> Spar
         }
     }
 
-    // Build full-K CSC from all triplets, then filter for Kff
-    let k_full = CscMatrix::from_triplets(n, &trip_rows, &trip_cols, &trip_vals);
+    // Build full-K CSC only if requested (linear solve needs it for reactions)
+    let k_full = if build_k_full {
+        Some(CscMatrix::from_triplets(n, &trip_rows, &trip_cols, &trip_vals))
+    } else {
+        None
+    };
 
+    // Filter triplets for Kff (free-free block)
     let mut ff_rows = Vec::new();
     let mut ff_cols = Vec::new();
     let mut ff_vals = Vec::new();

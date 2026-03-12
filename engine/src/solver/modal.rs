@@ -266,7 +266,7 @@ pub fn solve_modal_3d(
         return Err("No mass assigned — set material densities".into());
     }
 
-    let sasm = assemble_sparse_3d(input, &dof_num);
+    let sasm = assemble_sparse_3d(input, &dof_num, false);
     let k_ff = sasm.k_ff.to_dense_symmetric();
     let m_full = assemble_mass_matrix_3d(input, &dof_num, densities);
 

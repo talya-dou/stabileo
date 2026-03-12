@@ -171,7 +171,7 @@ pub fn solve_harmonic_3d(input: &HarmonicInput3D) -> Result<HarmonicResult, Stri
         return Err("Target DOF is restrained".into());
     }
 
-    let sasm = assemble_sparse_3d(&input.solver, &dof_num);
+    let sasm = assemble_sparse_3d(&input.solver, &dof_num, false);
     let k_ff = sasm.k_ff.to_dense_symmetric();
     let f_ff: Vec<f64> = sasm.f[..nf].to_vec();
     let m_full = assemble_mass_matrix_3d(&input.solver, &dof_num, &input.densities);

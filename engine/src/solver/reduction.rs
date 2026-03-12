@@ -562,7 +562,7 @@ pub fn guyan_reduce_3d(input: &GuyanInput3D) -> Result<GuyanResult, String> {
 
     if nf == 0 { return Err("No free DOFs".into()); }
 
-    let sasm = assembly::assemble_sparse_3d(&input.solver, &dof_num);
+    let sasm = assembly::assemble_sparse_3d(&input.solver, &dof_num, false);
     let k_ff_raw = sasm.k_ff.to_dense_symmetric();
     let f_f_raw: Vec<f64> = sasm.f[..nf].to_vec();
 
@@ -707,7 +707,7 @@ pub fn craig_bampton_3d(input: &CraigBamptonInput3D) -> Result<CraigBamptonResul
 
     if nf == 0 { return Err("No free DOFs".into()); }
 
-    let sasm = assembly::assemble_sparse_3d(&input.solver, &dof_num);
+    let sasm = assembly::assemble_sparse_3d(&input.solver, &dof_num, false);
     let k_ff_raw = sasm.k_ff.to_dense_symmetric();
     let m_full = super::mass_matrix::assemble_mass_matrix_3d(&input.solver, &dof_num, &input.densities);
 

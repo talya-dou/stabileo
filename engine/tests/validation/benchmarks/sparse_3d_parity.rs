@@ -155,7 +155,7 @@ fn assert_parity(input: &SolverInput3D, label: &str) {
 
     // ── Assembly-level parity ──
     let dense = assembly::assemble_3d(input, &dof_num);
-    let sparse = assembly::assemble_sparse_3d(input, &dof_num);
+    let sparse = assembly::assemble_sparse_3d(input, &dof_num, true);
 
     // Force vectors must match
     let mut max_f_err = 0.0f64;
@@ -261,7 +261,7 @@ fn assert_parity(input: &SolverInput3D, label: &str) {
         if has_prescribed {
             let k_fr = extract_submatrix(&dense.k, n, &free_idx, &rest_idx);
             let kfr_ur_dense = mat_vec_rect(&k_fr, &u_r, nf, nr);
-            let kfr_ur_sparse = sparse.k_full.sparse_cross_block_matvec(&u_r, nf);
+            let kfr_ur_sparse = sparse.k_full.as_ref().unwrap().sparse_cross_block_matvec(&u_r, nf);
             let mut max_kfr_err = 0.0f64;
             for i in 0..nf {
                 let diff = (kfr_ur_dense[i] - kfr_ur_sparse[i]).abs();

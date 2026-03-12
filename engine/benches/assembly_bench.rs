@@ -497,7 +497,7 @@ fn bench_assembly_3d_shell(c: &mut Criterion) {
             BenchmarkId::new("sparse_3d_assembly", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn, false));
             },
         );
     }
@@ -542,7 +542,7 @@ fn bench_solve_3d_shell(c: &mut Criterion) {
             BenchmarkId::new("sparse_cholesky_3d", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                let sasm = assembly::assemble_sparse_3d(inp, dn);
+                let sasm = assembly::assemble_sparse_3d(inp, dn, false);
                 let f_f: Vec<f64> = sasm.f[..nf].to_vec();
                 b.iter(|| {
                     sparse_cholesky_solve_full(&sasm.k_ff, &f_f)
@@ -571,7 +571,7 @@ fn bench_assembly_3d_large(c: &mut Criterion) {
             BenchmarkId::new("serial_3d", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn, false));
             },
         );
 
@@ -579,7 +579,7 @@ fn bench_assembly_3d_large(c: &mut Criterion) {
             BenchmarkId::new("parallel_3d", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn, false));
             },
         );
     }
@@ -605,7 +605,7 @@ fn bench_assembly_3d_mixed(c: &mut Criterion) {
             BenchmarkId::new("serial_mixed", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn, false));
             },
         );
 
@@ -613,7 +613,7 @@ fn bench_assembly_3d_mixed(c: &mut Criterion) {
             BenchmarkId::new("parallel_mixed", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn, false));
             },
         );
     }
@@ -873,7 +873,7 @@ fn bench_assembly_3d_quad9(c: &mut Criterion) {
             BenchmarkId::new("serial_quad9", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn, false));
             },
         );
 
@@ -881,7 +881,7 @@ fn bench_assembly_3d_quad9(c: &mut Criterion) {
             BenchmarkId::new("parallel_quad9", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn, false));
             },
         );
     }
@@ -906,7 +906,7 @@ fn bench_assembly_3d_curved_shell(c: &mut Criterion) {
             BenchmarkId::new("serial_curved", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| assembly::assemble_sparse_3d(inp, dn));
+                b.iter(|| assembly::assemble_sparse_3d(inp, dn, false));
             },
         );
 
@@ -914,7 +914,7 @@ fn bench_assembly_3d_curved_shell(c: &mut Criterion) {
             BenchmarkId::new("parallel_curved", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn, false));
             },
         );
     }
@@ -964,12 +964,12 @@ fn bench_solve_phases(c: &mut Criterion) {
             BenchmarkId::new("assembly", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn));
+                b.iter(|| sparse_assembly::assemble_sparse_3d_parallel(inp, dn, false));
             },
         );
 
         // Factor phases: build assembly once, then benchmark symbolic + numeric + solve
-        let asm = sparse_assembly::assemble_sparse_3d_parallel(&input, &dof_num);
+        let asm = sparse_assembly::assemble_sparse_3d_parallel(&input, &dof_num, false);
         let f_f: Vec<f64> = asm.f[..nf].to_vec();
 
         group.bench_with_input(
@@ -1039,7 +1039,7 @@ fn bench_solve_3d_quad9(c: &mut Criterion) {
             BenchmarkId::new("sparse_cholesky_quad9", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                let sasm = assembly::assemble_sparse_3d(inp, dn);
+                let sasm = assembly::assemble_sparse_3d(inp, dn, false);
                 let f_f: Vec<f64> = sasm.f[..nf].to_vec();
                 b.iter(|| {
                     sparse_cholesky_solve_full(&sasm.k_ff, &f_f)
@@ -1088,7 +1088,7 @@ fn bench_solve_3d_curved(c: &mut Criterion) {
             BenchmarkId::new("sparse_cholesky_curved", &label),
             &(&input, &dof_num),
             |b, (inp, dn)| {
-                let sasm = assembly::assemble_sparse_3d(inp, dn);
+                let sasm = assembly::assemble_sparse_3d(inp, dn, false);
                 let f_f: Vec<f64> = sasm.f[..nf].to_vec();
                 b.iter(|| {
                     sparse_cholesky_solve_full(&sasm.k_ff, &f_f)

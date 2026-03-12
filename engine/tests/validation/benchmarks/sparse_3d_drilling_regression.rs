@@ -142,7 +142,7 @@ fn regression_drilling_regularization_thermal_gradient() {
         .expect("Dense LU solve failed");
 
     // ── Sparse assembly: verify Kff has near-zero entries dropped ──
-    let sparse_asm = assembly::assemble_sparse_3d(&input, &dof_num);
+    let sparse_asm = assembly::assemble_sparse_3d(&input, &dof_num, false);
 
     // Verify that no entry in sparse Kff is below 1e-30 (the threshold)
     let kff_vals = &sparse_asm.k_ff.values;

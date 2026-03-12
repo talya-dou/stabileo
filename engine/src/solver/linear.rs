@@ -189,7 +189,7 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
         let t_total = Instant::now();
 
         let t0 = Instant::now();
-        let asm = super::sparse_assembly::assemble_sparse_3d_parallel(input, &dof_num);
+        let asm = super::sparse_assembly::assemble_sparse_3d_parallel(input, &dof_num, true);
         let assembly_us = t0.elapsed().as_micros() as u64;
 
         let mut solver_diags: Vec<SolverDiagnostic> = Vec::new();
@@ -217,7 +217,7 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
         let mut f_f: Vec<f64> = asm.f[..nf].to_vec();
         let has_prescribed = u_r.iter().any(|v| v.abs() > 1e-15);
         if has_prescribed {
-            let kfr_ur = asm.k_full.sparse_cross_block_matvec(&u_r, nf);
+            let kfr_ur = asm.k_full.as_ref().unwrap().sparse_cross_block_matvec(&u_r, nf);
             for i in 0..nf { f_f[i] -= kfr_ur[i]; }
         }
 
@@ -312,7 +312,7 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
                     let mut u_full = vec![0.0; n];
                     u_full[..nf].copy_from_slice(&u_fb);
                     for i in 0..nr { u_full[nf + i] = u_r[i]; }
-                    let ku_full = asm.k_full.sym_mat_vec(&u_full);
+                    let ku_full = asm.k_full.as_ref().unwrap().sym_mat_vec(&u_full);
                     let mut reactions_vec = vec![0.0; nr];
                     let f_r: Vec<f64> = asm.f[nf..].to_vec();
                     for i in 0..nr { reactions_vec[i] = ku_full[nf + i] - f_r[i]; }
@@ -406,7 +406,7 @@ pub fn solve_3d(input: &SolverInput3D) -> Result<AnalysisResults3D, String> {
 
         // Reactions via full-K sym_mat_vec: R[i] = (K*u)[i] - F[i] for restrained DOFs
         let t0 = Instant::now();
-        let ku = asm.k_full.sym_mat_vec(&u_full);
+        let ku = asm.k_full.as_ref().unwrap().sym_mat_vec(&u_full);
         let mut reactions_vec = vec![0.0; nr];
         let f_r: Vec<f64> = asm.f[nf..].to_vec();
         for i in 0..nr {

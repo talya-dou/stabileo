@@ -591,7 +591,7 @@ fn scatter_triplets(
 /// After the parallel phase, nodal loads / springs / inclined transforms /
 /// diagnostics are processed sequentially.
 #[cfg(feature = "parallel")]
-pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering) -> SparseAssemblyResult3D {
+pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering, build_k_full: bool) -> SparseAssemblyResult3D {
     use rayon::prelude::*;
     use crate::element;
     use crate::element::compute_local_axes_3d;
@@ -1290,9 +1290,14 @@ pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering
         trip_vals.truncate(w);
     }
 
-    // Build full-K CSC from all triplets, then filter for Kff
-    let k_full = CscMatrix::from_triplets(n, &trip_rows, &trip_cols, &trip_vals);
+    // Build full-K CSC only if requested
+    let k_full = if build_k_full {
+        Some(CscMatrix::from_triplets(n, &trip_rows, &trip_cols, &trip_vals))
+    } else {
+        None
+    };
 
+    // Filter triplets for Kff (free-free block)
     let ff_cap = trip_rows.len(); // upper bound
     let mut ff_rows = Vec::with_capacity(ff_cap);
     let mut ff_cols = Vec::with_capacity(ff_cap);
@@ -1313,8 +1318,8 @@ pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering
 
 /// Non-parallel fallback for `assemble_sparse_3d_parallel`.
 #[cfg(not(feature = "parallel"))]
-pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering) -> SparseAssemblyResult3D {
-    super::assembly::assemble_sparse_3d(input, dof_num)
+pub fn assemble_sparse_3d_parallel(input: &SolverInput3D, dof_num: &DofNumbering, build_k_full: bool) -> SparseAssemblyResult3D {
+    super::assembly::assemble_sparse_3d(input, dof_num, build_k_full)
 }
 
 /// Coordinate helpers for the parallel path (avoid name collision with assembly.rs).
@@ -1593,8 +1598,8 @@ mod tests {
 
         let input = make_flat_plate_3d_4x4();
         let dof_num = DofNumbering::build_3d(&input);
-        let serial = assembly::assemble_sparse_3d(&input, &dof_num);
-        let parallel = assemble_sparse_3d_parallel(&input, &dof_num);
+        let serial = assembly::assemble_sparse_3d(&input, &dof_num, false);
+        let parallel = assemble_sparse_3d_parallel(&input, &dof_num, false);
 
         // Compare Kff
         let dense_s = serial.k_ff.to_dense_symmetric();
@@ -1745,8 +1750,8 @@ mod tests {
         let input = make_mixed_frame_slab_3d();
         let dof_num = DofNumbering::build_3d(&input);
 
-        let serial = assembly::assemble_sparse_3d(&input, &dof_num);
-        let parallel = assemble_sparse_3d_parallel(&input, &dof_num);
+        let serial = assembly::assemble_sparse_3d(&input, &dof_num, false);
+        let parallel = assemble_sparse_3d_parallel(&input, &dof_num, false);
 
         // Compare Kff
         let dense_s = serial.k_ff.to_dense_symmetric();

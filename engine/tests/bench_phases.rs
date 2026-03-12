@@ -202,7 +202,7 @@ fn assembly_extraction_dense_vs_sparse() {
 
         // --- Sparse path ---
         let t0 = Instant::now();
-        let sasm = assembly::assemble_sparse_3d(&input, &dof_num);
+        let sasm = assembly::assemble_sparse_3d(&input, &dof_num, false);
         let sparse_asm_us = t0.elapsed().as_micros() as u64;
 
         let t1 = Instant::now();
@@ -268,15 +268,16 @@ fn assembly_overhead_breakdown() {
 
         // Sparse path: full assembly (includes element stiffness + triplet scatter + CSC)
         let t0 = Instant::now();
-        let _sasm = assembly::assemble_sparse_3d(&input, &dof_num);
+        let _sasm = assembly::assemble_sparse_3d(&input, &dof_num, true);
         let _sparse_total_us = t0.elapsed().as_micros() as u64;
 
         // Isolate CSC construction: build synthetic triplets mimicking the assembly
         // (use the actual assembly to generate real triplets, then time just from_triplets)
         // We can approximate: sparse_total - elem_time ≈ CSC overhead
         // But to directly measure, let's re-assemble and capture triplet count
-        let sasm = assembly::assemble_sparse_3d(&input, &dof_num);
-        let nnz_full = sasm.k_full.values.len();
+        let sasm = assembly::assemble_sparse_3d(&input, &dof_num, true);
+        let k_full = sasm.k_full.as_ref().unwrap();
+        let nnz_full = k_full.values.len();
         let nnz_ff = sasm.k_ff.values.len();
 
         // Build random triplets matching the nnz count, then time from_triplets
@@ -285,10 +286,10 @@ fn assembly_overhead_breakdown() {
         let mut trip_v = Vec::with_capacity(nnz_full * 2);
         // Expand CSC back to triplets for k_full
         for j in 0..n {
-            for k in sasm.k_full.col_ptr[j]..sasm.k_full.col_ptr[j + 1] {
-                trip_r.push(sasm.k_full.row_idx[k]);
+            for k in k_full.col_ptr[j]..k_full.col_ptr[j + 1] {
+                trip_r.push(k_full.row_idx[k]);
                 trip_c.push(j);
-                trip_v.push(sasm.k_full.values[k]);
+                trip_v.push(k_full.values[k]);
             }
         }
         let n_trip = trip_r.len();
@@ -344,14 +345,14 @@ fn profile_sparse_asm() {
 
     // Warmup
     for _ in 0..3 {
-        let _ = assembly::assemble_sparse_3d(&input, &dof_num);
+        let _ = assembly::assemble_sparse_3d(&input, &dof_num, true);
     }
 
     println!("Profiling loop started — attach `sample` now");
     let t0 = Instant::now();
     let mut iters = 0u64;
     while t0.elapsed().as_secs() < 10 {
-        let _ = assembly::assemble_sparse_3d(&input, &dof_num);
+        let _ = assembly::assemble_sparse_3d(&input, &dof_num, true);
         iters += 1;
     }
     let elapsed = t0.elapsed();

@@ -144,7 +144,7 @@ fn fill_ratio_below_threshold() {
     let input = make_ss_plate(50, 50);
     let dof_num = DofNumbering::build_3d(&input);
     let nf = dof_num.n_free;
-    let asm = assemble_sparse_3d(&input, &dof_num);
+    let asm = assemble_sparse_3d(&input, &dof_num, false);
 
     let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Rcm);
     let nnz_kff = asm.k_ff.col_ptr[nf];
@@ -195,7 +195,7 @@ fn sparse_vs_dense_parity() {
     };
 
     // Direct sparse solve quality check: factorize sparse K_ff and solve
-    let asm_s = assemble_sparse_3d(&input, &dof_num);
+    let asm_s = assemble_sparse_3d(&input, &dof_num, false);
     let sym = symbolic_cholesky(&asm_s.k_ff);
     let num = numeric_cholesky(&sym, &asm_s.k_ff).expect("Sparse Cholesky should succeed");
     let f_s = asm_s.f[..nf].to_vec();
@@ -264,7 +264,7 @@ fn diagnose_shell_pivots() {
     let input = make_ss_plate(5, 5);
     let dof_num = DofNumbering::build_3d(&input);
     let nf = dof_num.n_free;
-    let asm = assemble_sparse_3d(&input, &dof_num);
+    let asm = assemble_sparse_3d(&input, &dof_num, false);
 
     // Check diagonal entries of K_ff
     let mut min_diag = f64::MAX;
