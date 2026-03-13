@@ -5,32 +5,22 @@ Educational tool with step-by-step solver visualization for civil/structural eng
 
 ## URLs
 
-- **Producción**: https://dedaliano.com (y https://dedaliano.pages.dev — mismo deploy)
+- **Producción**: https://dedaliano.com
 - **Dev local**: http://localhost:4000 (`npm run dev`)
 - **Repo**: https://github.com/Batuis/dedaliano (privado)
 
 ## Deploy & Hosting
 
-- **Hosting**: Cloudflare Pages (plan gratuito)
+- **Hosting**: GitHub Pages
 - **CI/CD**: GitHub Actions — cada push a `main` dispara build + deploy automático
-- **Workflow**: `.github/workflows/deploy.yml` usa `cloudflare/wrangler-action@v3`
-- **Secrets requeridos en GitHub**: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-- **Límite**: 500 deploys/mes (plan gratuito, se renueva el día 1 de cada mes)
-
-### Tracking de deploys
-
-| Mes | Deploys usados | Deploys restantes | Notas |
-|-----|---------------|-------------------|-------|
-| Feb 2026 | 3 | 497 | Migración inicial desde GitHub Pages |
+- **Workflow**: `.github/workflows/deploy-gh-pages.yml`
 
 ### Política de deploy
 
 - **NO pushear a main sin permiso explícito del usuario**. Solo pushear cuando él lo indique.
 - Si hay cambios acumulados importantes o algo roto en producción, pedir permiso antes de pushear.
 - Usar `localhost:4000` para desarrollo y previsualización de cambios. (Puerto 3000 reservado para otra app)
-- Cada push a `main` = 1 deploy consumido. Agrupar cambios para minimizar deploys innecesarios.
-- Antes de pushear, considerar: ¿vale la pena gastar un deploy por este cambio, o conviene acumular más?
-- Recomendar al usuario si conviene pushear o esperar según la magnitud de los cambios.
+- Agrupar cambios razonablemente cuando convenga, pero sin depender de un límite de deploys de Cloudflare Pages.
 
 ## Tech Stack
 
