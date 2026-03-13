@@ -811,6 +811,26 @@ pub fn extract_beam_stations_3d(json: &str) -> Result<String, JsValue> {
         .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
 }
 
+/// Extract 2D beam stations grouped by member with member-level governing summaries. JSON: BeamStationInput
+#[wasm_bindgen]
+pub fn extract_beam_stations_grouped(json: &str) -> Result<String, JsValue> {
+    let input: postprocess::beam_stations::BeamStationInput = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let result = postprocess::beam_stations::extract_beam_stations_grouped(&input);
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
+/// Extract 3D beam stations grouped by member with member-level governing summaries. JSON: BeamStationInput3D
+#[wasm_bindgen]
+pub fn extract_beam_stations_grouped_3d(json: &str) -> Result<String, JsValue> {
+    let input: postprocess::beam_stations::BeamStationInput3D = serde_json::from_str(json)
+        .map_err(|e| JsValue::from_str(&format!("Parse error: {}", e)))?;
+    let result = postprocess::beam_stations::extract_beam_stations_grouped_3d(&input);
+    serde_json::to_string(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialize error: {}", e)))
+}
+
 // ==================== Imperfections ====================
 
 /// Apply imperfections to a 2D model and solve. JSON in → JSON out.

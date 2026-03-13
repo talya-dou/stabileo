@@ -61,7 +61,7 @@ The main remaining work is:
 - deeper sparse eigensolver integration after the now-partly-done sparse reuse into modal/buckling/harmonic/reduction, with modal and buckling already on sparse eigensolver paths in the common unconstrained case
 - runtime and memory measurement on the newly sparse modal/buckling/harmonic/reduction workflows
 - verification hardening around the new sparse path (determinism, parity gates, fill-ratio gates)
-- RC-unblocking design-grade result extraction — beam station extraction is done; remaining: sign-convention docs, additional provenance fields, 3D integration test depth
+- RC-unblocking design-grade result extraction — beam station extraction is done with sign-convention metadata, grouped-by-member convenience layer with member-level governing summaries, and optional governing entries; remaining: 3D integration test depth, design-ready metadata for cover assumptions once RC design integration begins
 - long-tail nonlinear hardening (mixed nonlinear cases)
 - product surfacing (deterministic diagnostics and solve timings in the app)
 - shell-family workflow maturity and selection guidance
@@ -156,9 +156,7 @@ If the goal is `best open structural solver`, the current priority order is:
    - signal-driven benchmark growth: add tests that improve proof, regression protection, performance confidence, or edge-case coverage
 
 4. `Design-grade result extraction for downstream RC workflows`
-   Beam station extraction is now implemented (`extract_beam_stations` / `extract_beam_stations_3d`): configurable stations per member, per-combo forces via diagram evaluation, governing pos/neg tracking with combo provenance, section/material metadata, WASM-exported, snapshot-tested. Remaining work:
-   - explicit sign-convention and local-axis documentation for product consumers
-   - review whether additional provenance fields are needed (cover assumptions, bar schedules)
+   Beam station extraction is now implemented with full API safety: `extract_beam_stations` / `extract_beam_stations_3d` (flat), `extract_beam_stations_grouped` / `extract_beam_stations_grouped_3d` (grouped-by-member with member-level governing summaries). Features: configurable stations per member, per-combo forces via diagram evaluation, governing pos/neg tracking with combo provenance (Optional — no phantom infinities), combo_name propagation, sign-convention metadata embedded in output, section/material metadata, WASM-exported, snapshot-tested. Remaining work:
    - 3D integration test coverage (currently 2D-only in integration tests)
    - design-ready metadata for cover assumptions once RC design integration begins
 
@@ -215,11 +213,9 @@ The current near-term sequence is:
    Keep eliminating the remaining measured bottlenecks in harmonic, reduction, and sparse eigensolver/reduction internals.
 
 2. `Design-grade RC extraction`
-   Build the solver outputs that let the product/design layer start immediately:
-   - beam station-force extraction and envelopes
-   - governing-combination selection
-   - deterministic sign conventions and result provenance
-   - design-oriented regression fixtures for RC-ready outputs
+   Beam station extraction, grouped-by-member convenience layer, sign-convention metadata, and governing summaries are done. Remaining:
+   - 3D integration test depth
+   - design-ready metadata for cover assumptions and bar schedules once RC design integration begins
 
 3. `Verification moat`
    Keep turning major solver gains into release-gated, benchmarked, acceptance-covered proof.
@@ -248,10 +244,10 @@ The current near-term sequence is:
 2. Measure Guyan runtime after factorization reuse
 3. Measure Craig-Bampton runtime after factorization reuse and interior-mode fix
 4. Optimize the harmonic frequency sweep path further if modal-response still leaves big wins on the table
-5. Add deterministic beam station-force extraction for RC design
-6. Add governing-combination extraction for beam design checks and schedules
-7. Add design-grade result metadata and provenance for downstream RC workflows
-8. Add regression/parity fixtures for RC-ready beam envelopes and sign conventions
+5. ~~Add deterministic beam station-force extraction for RC design~~ — DONE
+6. ~~Add governing-combination extraction for beam design checks and schedules~~ — DONE (grouped-by-member layer with member-level governing summaries)
+7. ~~Add design-grade result metadata and provenance for downstream RC workflows~~ — DONE (sign-convention metadata, combo_name propagation, Optional governing entries)
+8. ~~Add regression/parity fixtures for RC-ready beam envelopes and sign conventions~~ — DONE (snapshot test, integration tests, 21 total tests)
 9. Deepen sparse eigensolver integration in reduction workflows
 10. Fix the Lanczos tridiagonal eigensolver properly everywhere it still falls back
 11. Add broader sparse shift-invert support

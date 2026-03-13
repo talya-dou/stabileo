@@ -443,6 +443,243 @@ pub fn extract_beam_stations_3d(input: &BeamStationInput3D) -> BeamStationResult
     }
 }
 
+// ==================== Grouped-by-Member Convenience Layer ====================
+
+/// Per-member governing summary: the worst pos/neg across ALL stations for
+/// that member. Saves the frontend from scanning station arrays.
+/// Each entry also carries `station_index` so the product layer knows
+/// exactly which station produced the governing value.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberGoverningEntry {
+    pub pos_combo: usize,
+    pub pos_value: f64,
+    pub pos_station_index: usize,
+    pub neg_combo: usize,
+    pub neg_value: f64,
+    pub neg_station_index: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberGoverning {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moment: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shear: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub axial: Option<MemberGoverningEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberGoverning3D {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub axial: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shear_y: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shear_z: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moment_y: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moment_z: Option<MemberGoverningEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub torsion: Option<MemberGoverningEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberStationGroup {
+    pub member_id: usize,
+    pub section_id: usize,
+    pub material_id: usize,
+    pub length: f64,
+    pub stations: Vec<BeamStation>,
+    pub member_governing: MemberGoverning,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupedBeamStationResult {
+    pub members: Vec<MemberStationGroup>,
+    pub num_combinations: usize,
+    pub num_stations_per_member: usize,
+    pub sign_convention: SignConvention2D,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemberStationGroup3D {
+    pub member_id: usize,
+    pub section_id: usize,
+    pub material_id: usize,
+    pub length: f64,
+    pub stations: Vec<BeamStation3D>,
+    pub member_governing: MemberGoverning3D,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupedBeamStationResult3D {
+    pub members: Vec<MemberStationGroup3D>,
+    pub num_combinations: usize,
+    pub num_stations_per_member: usize,
+    pub sign_convention: SignConvention3D,
+}
+
+struct MemberGovBuilder {
+    pos_combo: usize,
+    pos_value: f64,
+    pos_station: usize,
+    neg_combo: usize,
+    neg_value: f64,
+    neg_station: usize,
+    has_data: bool,
+}
+
+impl MemberGovBuilder {
+    fn new() -> Self {
+        Self {
+            pos_combo: 0, pos_value: f64::NEG_INFINITY, pos_station: 0,
+            neg_combo: 0, neg_value: f64::INFINITY, neg_station: 0,
+            has_data: false,
+        }
+    }
+
+    fn feed(&mut self, entry: &GoverningEntry, station_index: usize) {
+        self.has_data = true;
+        if entry.pos_value > self.pos_value {
+            self.pos_value = entry.pos_value;
+            self.pos_combo = entry.pos_combo;
+            self.pos_station = station_index;
+        }
+        if entry.neg_value < self.neg_value {
+            self.neg_value = entry.neg_value;
+            self.neg_combo = entry.neg_combo;
+            self.neg_station = station_index;
+        }
+    }
+
+    fn finish(self) -> Option<MemberGoverningEntry> {
+        if self.has_data {
+            Some(MemberGoverningEntry {
+                pos_combo: self.pos_combo,
+                pos_value: self.pos_value,
+                pos_station_index: self.pos_station,
+                neg_combo: self.neg_combo,
+                neg_value: self.neg_value,
+                neg_station_index: self.neg_station,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+/// Group a flat station result by member, computing member-level governing summaries.
+pub fn group_by_member(flat: &BeamStationResult, members: &[BeamMemberInfo]) -> GroupedBeamStationResult {
+    let mut groups = Vec::with_capacity(members.len());
+
+    for member in members {
+        let member_stations: Vec<&BeamStation> = flat.stations.iter()
+            .filter(|s| s.member_id == member.element_id)
+            .collect();
+
+        let mut gov_m = MemberGovBuilder::new();
+        let mut gov_v = MemberGovBuilder::new();
+        let mut gov_n = MemberGovBuilder::new();
+
+        for s in &member_stations {
+            if let Some(ref e) = s.governing.moment { gov_m.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.shear { gov_v.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.axial { gov_n.feed(e, s.station_index); }
+        }
+
+        groups.push(MemberStationGroup {
+            member_id: member.element_id,
+            section_id: member.section_id,
+            material_id: member.material_id,
+            length: member.length,
+            stations: member_stations.into_iter().cloned().collect(),
+            member_governing: MemberGoverning {
+                moment: gov_m.finish(),
+                shear: gov_v.finish(),
+                axial: gov_n.finish(),
+            },
+        });
+    }
+
+    GroupedBeamStationResult {
+        members: groups,
+        num_combinations: flat.num_combinations,
+        num_stations_per_member: flat.num_stations_per_member,
+        sign_convention: sign_convention_2d(),
+    }
+}
+
+/// Group a flat 3D station result by member, computing member-level governing summaries.
+pub fn group_by_member_3d(flat: &BeamStationResult3D, members: &[BeamMemberInfo]) -> GroupedBeamStationResult3D {
+    let mut groups = Vec::with_capacity(members.len());
+
+    for member in members {
+        let member_stations: Vec<&BeamStation3D> = flat.stations.iter()
+            .filter(|s| s.member_id == member.element_id)
+            .collect();
+
+        let mut gov_axial = MemberGovBuilder::new();
+        let mut gov_vy = MemberGovBuilder::new();
+        let mut gov_vz = MemberGovBuilder::new();
+        let mut gov_my = MemberGovBuilder::new();
+        let mut gov_mz = MemberGovBuilder::new();
+        let mut gov_tor = MemberGovBuilder::new();
+
+        for s in &member_stations {
+            if let Some(ref e) = s.governing.axial { gov_axial.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.shear_y { gov_vy.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.shear_z { gov_vz.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.moment_y { gov_my.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.moment_z { gov_mz.feed(e, s.station_index); }
+            if let Some(ref e) = s.governing.torsion { gov_tor.feed(e, s.station_index); }
+        }
+
+        groups.push(MemberStationGroup3D {
+            member_id: member.element_id,
+            section_id: member.section_id,
+            material_id: member.material_id,
+            length: member.length,
+            stations: member_stations.into_iter().cloned().collect(),
+            member_governing: MemberGoverning3D {
+                axial: gov_axial.finish(),
+                shear_y: gov_vy.finish(),
+                shear_z: gov_vz.finish(),
+                moment_y: gov_my.finish(),
+                moment_z: gov_mz.finish(),
+                torsion: gov_tor.finish(),
+            },
+        });
+    }
+
+    GroupedBeamStationResult3D {
+        members: groups,
+        num_combinations: flat.num_combinations,
+        num_stations_per_member: flat.num_stations_per_member,
+        sign_convention: sign_convention_3d(),
+    }
+}
+
+/// One-shot: extract + group in a single call.
+pub fn extract_beam_stations_grouped(input: &BeamStationInput) -> GroupedBeamStationResult {
+    let flat = extract_beam_stations(input);
+    group_by_member(&flat, &input.members)
+}
+
+/// One-shot 3D: extract + group in a single call.
+pub fn extract_beam_stations_grouped_3d(input: &BeamStationInput3D) -> GroupedBeamStationResult3D {
+    let flat = extract_beam_stations_3d(input);
+    group_by_member_3d(&flat, &input.members)
+}
+
 // ==================== Tests ====================
 
 #[cfg(test)]
@@ -812,5 +1049,200 @@ mod tests {
         assert!((gov_m1.pos_value - 150.0).abs() < 1e-10);
         assert_eq!(gov_m1.neg_combo, 2);
         assert!((gov_m1.neg_value - (-120.0)).abs() < 1e-10);
+    }
+
+    // ==================== Grouped-by-Member Tests ====================
+
+    #[test]
+    fn grouped_basic_shape() {
+        let ef1 = make_ss_udl_ef(1);
+        let ef2 = make_ss_udl_ef(2);
+        let input = BeamStationInput {
+            members: vec![make_member(1, 6.0), make_member(2, 6.0)],
+            combinations: vec![LabeledResults {
+                combo_id: 1, combo_name: Some("DL".into()),
+                results: make_results(vec![ef1, ef2]),
+            }],
+            num_stations: Some(5),
+        };
+
+        let grouped = extract_beam_stations_grouped(&input);
+        assert_eq!(grouped.members.len(), 2);
+        assert_eq!(grouped.num_stations_per_member, 5);
+
+        let g1 = &grouped.members[0];
+        assert_eq!(g1.member_id, 1);
+        assert_eq!(g1.section_id, 1);
+        assert_eq!(g1.length, 6.0);
+        assert_eq!(g1.stations.len(), 5);
+
+        let g2 = &grouped.members[1];
+        assert_eq!(g2.member_id, 2);
+        assert_eq!(g2.stations.len(), 5);
+    }
+
+    #[test]
+    fn grouped_member_governing_picks_worst_station() {
+        // Cantilever-like: m_start=50, v_start=-25 → m grows along span
+        // At t=0: m=50, at t=1: m=50-(-25)*4=150
+        let ef = ElementForces {
+            element_id: 1, length: 4.0,
+            n_start: 5.0, n_end: 5.0,
+            v_start: -25.0, v_end: 25.0,
+            m_start: 50.0, m_end: 150.0,
+            q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+
+        let input = BeamStationInput {
+            members: vec![make_member(1, 4.0)],
+            combinations: vec![LabeledResults {
+                combo_id: 1, combo_name: None,
+                results: make_results(vec![ef]),
+            }],
+            num_stations: Some(3), // t=0.0, 0.5, 1.0
+        };
+
+        let grouped = extract_beam_stations_grouped(&input);
+        let g = &grouped.members[0];
+        let gov_m = g.member_governing.moment.as_ref().unwrap();
+
+        // Max positive moment is at t=1 (station_index=2), value=150
+        assert_eq!(gov_m.pos_station_index, 2);
+        assert!((gov_m.pos_value - 150.0).abs() < 1e-10);
+        assert_eq!(gov_m.pos_combo, 1);
+
+        // Min moment is at t=0 (station_index=0), value=50 (still positive, but smallest)
+        assert_eq!(gov_m.neg_station_index, 0);
+        assert!((gov_m.neg_value - 50.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn grouped_no_data_member_governing_none() {
+        let ef_other = ElementForces {
+            element_id: 99, length: 6.0,
+            n_start: 0.0, n_end: 0.0, v_start: 0.0, v_end: 0.0,
+            m_start: 0.0, m_end: 0.0, q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+
+        let input = BeamStationInput {
+            members: vec![make_member(1, 6.0)],
+            combinations: vec![
+                LabeledResults { combo_id: 1, combo_name: None, results: make_results(vec![ef_other]) },
+            ],
+            num_stations: Some(3),
+        };
+
+        let grouped = extract_beam_stations_grouped(&input);
+        let g = &grouped.members[0];
+        assert!(g.member_governing.moment.is_none());
+        assert!(g.member_governing.shear.is_none());
+        assert!(g.member_governing.axial.is_none());
+    }
+
+    #[test]
+    fn grouped_multi_combo_governing_cross_member() {
+        // 2 members, 2 combos: combo 1 has large positive M on member 1, combo 2 has large V on member 2
+        // m(t) = m_start - v_start * t * L, so m(0)=200, m(1)=200 - 5*4=180 → both positive
+        let ef1_c1 = ElementForces {
+            element_id: 1, length: 4.0,
+            n_start: 0.0, n_end: 0.0,
+            v_start: 5.0, v_end: -5.0,
+            m_start: 200.0, m_end: 180.0,
+            q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+        let ef2_c1 = ElementForces {
+            element_id: 2, length: 4.0,
+            n_start: 0.0, n_end: 0.0,
+            v_start: 3.0, v_end: -3.0,
+            m_start: -10.0, m_end: 10.0,
+            q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+        let ef1_c2 = ElementForces {
+            element_id: 1, length: 4.0,
+            n_start: 0.0, n_end: 0.0,
+            v_start: 2.0, v_end: -2.0,
+            m_start: -5.0, m_end: 5.0,
+            q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+        let ef2_c2 = ElementForces {
+            element_id: 2, length: 4.0,
+            n_start: 0.0, n_end: 0.0,
+            v_start: 300.0, v_end: -300.0,
+            m_start: -20.0, m_end: 20.0,
+            q_i: 0.0, q_j: 0.0,
+            point_loads: vec![], distributed_loads: vec![],
+            hinge_start: false, hinge_end: false,
+        };
+
+        let input = BeamStationInput {
+            members: vec![make_member(1, 4.0), make_member(2, 4.0)],
+            combinations: vec![
+                LabeledResults { combo_id: 1, combo_name: None, results: make_results(vec![ef1_c1, ef2_c1]) },
+                LabeledResults { combo_id: 2, combo_name: None, results: make_results(vec![ef1_c2, ef2_c2]) },
+            ],
+            num_stations: Some(2),
+        };
+
+        let grouped = extract_beam_stations_grouped(&input);
+
+        // Member 1: governing moment from combo 1
+        let g1 = &grouped.members[0];
+        let gov_m1 = g1.member_governing.moment.as_ref().unwrap();
+        assert_eq!(gov_m1.pos_combo, 1);
+
+        // Member 2: governing shear from combo 2
+        let g2 = &grouped.members[1];
+        let gov_v2 = g2.member_governing.shear.as_ref().unwrap();
+        assert_eq!(gov_v2.pos_combo, 2);
+        assert!((gov_v2.pos_value - 300.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn grouped_json_schema() {
+        let ef = make_ss_udl_ef(1);
+        let input = BeamStationInput {
+            members: vec![make_member(1, 6.0)],
+            combinations: vec![LabeledResults {
+                combo_id: 1, combo_name: None,
+                results: make_results(vec![ef]),
+            }],
+            num_stations: Some(3),
+        };
+
+        let grouped = extract_beam_stations_grouped(&input);
+        let json = serde_json::to_string(&grouped).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Top-level
+        assert!(v.get("members").is_some());
+        assert!(v.get("numCombinations").is_some());
+        assert!(v.get("numStationsPerMember").is_some());
+        assert!(v.get("signConvention").is_some());
+
+        // Member group
+        let m = &v["members"][0];
+        for key in &["memberId", "sectionId", "materialId", "length", "stations", "memberGoverning"] {
+            assert!(m.get(*key).is_some(), "Missing key: {}", key);
+        }
+
+        // Member governing
+        let mg = &m["memberGoverning"];
+        for key in &["moment", "shear", "axial"] {
+            assert!(mg.get(*key).is_some(), "Missing memberGoverning.{}", key);
+            let e = &mg[*key];
+            for ekey in &["posCombo", "posValue", "posStationIndex", "negCombo", "negValue", "negStationIndex"] {
+                assert!(e.get(*ekey).is_some(), "Missing {}.{}", key, ekey);
+            }
+        }
     }
 }

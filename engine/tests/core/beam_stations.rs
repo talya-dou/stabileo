@@ -268,3 +268,83 @@ fn test_no_data_governing_absent_in_json() {
     assert!(gov.get("shear").is_none(), "shear should be absent");
     assert!(gov.get("axial").is_none(), "axial should be absent");
 }
+
+// ==================== Grouped-by-Member Integration Tests ====================
+
+/// Full solve → grouped extraction. Verifies member-level governing
+/// summaries point to the correct station and combo across a multi-span
+/// beam with two load combinations.
+#[test]
+fn test_grouped_full_solve() {
+    // 2-span continuous beam
+    let input_d = make_input(
+        vec![(1, 0.0, 0.0), (2, 6.0, 0.0), (3, 12.0, 0.0)],
+        vec![(1, 200000.0, 0.3)],
+        vec![(1, 0.15, 0.003125)],
+        vec![
+            (1, "frame", 1, 2, 1, 1, false, false),
+            (2, "frame", 2, 3, 1, 1, false, false),
+        ],
+        vec![(1, 1, "pinned"), (2, 2, "rollerX"), (3, 3, "rollerX")],
+        vec![SolverLoad::Distributed(SolverDistributedLoad {
+            element_id: 1, q_i: -10.0, q_j: -10.0, a: None, b: None,
+        })],
+    );
+    let results_d = solve_2d(&input_d).unwrap();
+
+    let input_l = make_input(
+        vec![(1, 0.0, 0.0), (2, 6.0, 0.0), (3, 12.0, 0.0)],
+        vec![(1, 200000.0, 0.3)],
+        vec![(1, 0.15, 0.003125)],
+        vec![
+            (1, "frame", 1, 2, 1, 1, false, false),
+            (2, "frame", 2, 3, 1, 1, false, false),
+        ],
+        vec![(1, 1, "pinned"), (2, 2, "rollerX"), (3, 3, "rollerX")],
+        vec![SolverLoad::Distributed(SolverDistributedLoad {
+            element_id: 1, q_i: -20.0, q_j: -20.0, a: None, b: None,
+        })],
+    );
+    let results_l = solve_2d(&input_l).unwrap();
+
+    let station_input = BeamStationInput {
+        members: vec![
+            BeamMemberInfo { element_id: 1, section_id: 1, material_id: 1, length: 6.0 },
+            BeamMemberInfo { element_id: 2, section_id: 1, material_id: 1, length: 6.0 },
+        ],
+        combinations: vec![
+            LabeledResults { combo_id: 1, combo_name: Some("D".into()), results: results_d },
+            LabeledResults { combo_id: 2, combo_name: Some("D+L".into()), results: results_l },
+        ],
+        num_stations: Some(11),
+    };
+
+    let grouped = extract_beam_stations_grouped(&station_input);
+
+    // Structure
+    assert_eq!(grouped.members.len(), 2);
+    assert_eq!(grouped.num_stations_per_member, 11);
+
+    // Member 1: load on span 1 → member_governing moment from combo 2 (heavier)
+    let g1 = &grouped.members[0];
+    assert_eq!(g1.member_id, 1);
+    assert_eq!(g1.stations.len(), 11);
+    let gov_m = g1.member_governing.moment.as_ref().expect("member 1 should have governing moment");
+    // Combo 2 has double the load, so it should govern the most extreme moment
+    // (both combos produce negative midspan moment; combo 2's is more negative)
+    assert_eq!(gov_m.neg_combo, 2, "Heavier combo should govern neg moment");
+
+    // Member 2: no load on span 2, but continuous beam still has forces
+    // from span 1 load. Both combos should produce forces.
+    let g2 = &grouped.members[1];
+    assert_eq!(g2.member_id, 2);
+    assert!(g2.member_governing.moment.is_some(), "member 2 should have governing data");
+
+    // JSON round-trip
+    let json = serde_json::to_string(&grouped).unwrap();
+    let parsed: GroupedBeamStationResult = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed.members.len(), 2);
+    assert!(json.contains("memberGoverning"));
+    assert!(json.contains("posStationIndex"));
+    assert!(json.contains("signConvention"));
+}

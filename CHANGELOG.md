@@ -20,6 +20,10 @@ It should capture what changed, not what should be built next.
 - 8 unit tests (endpoint parity, midspan UDL, governing combo split, configurable count, missing element skip, determinism, 3D endpoint parity, envelope cross-check)
 - 3 integration tests (full solve→station extraction with multi-span continuous beam and two combos, JSON round-trip with camelCase verification, snapshot stability test for product-team contract)
 - unblocks RC design tables, reinforcement schedules, and downstream BBS generation
+- `Option<GoverningEntry>` pattern prevents phantom infinities / sentinel combo_id=0 when no combo data exists
+- `combo_name` propagated into per-station combo force entries — frontend never needs a separate join
+- `SignConvention2D` / `SignConvention3D` metadata embedded in every result payload
+- grouped-by-member convenience layer: `extract_beam_stations_grouped()` / `extract_beam_stations_grouped_3d()` with member-level governing summaries (`MemberGoverning` / `MemberGoverningEntry` including station index), WASM bindings, 5 unit tests, 1 integration test
 
 #### Modified Newton-Raphson for nonlinear solvers
 
