@@ -43,8 +43,8 @@ fn test_full_solve_to_station_extraction() {
 
     let station_input = BeamStationInput {
         members: vec![
-            BeamMemberInfo { element_id: 1, section_id: 1, material_id: 1, length: 6.0 },
-            BeamMemberInfo { element_id: 2, section_id: 1, material_id: 1, length: 6.0 },
+            BeamMemberInfo { element_id: 1, section_id: 1, material_id: 1, length: 6.0, label: None },
+            BeamMemberInfo { element_id: 2, section_id: 1, material_id: 1, length: 6.0, label: None },
         ],
         combinations: vec![
             LabeledResults {
@@ -119,7 +119,7 @@ fn test_json_round_trip() {
 
     let station_input = BeamStationInput {
         members: vec![BeamMemberInfo {
-            element_id: 1, section_id: 1, material_id: 1, length: 4.0,
+            element_id: 1, section_id: 1, material_id: 1, length: 4.0, label: None,
         }],
         combinations: vec![LabeledResults {
             combo_id: 1, combo_name: Some("ULS".to_string()), results,
@@ -165,7 +165,7 @@ fn test_snapshot_stable_output() {
 
     let station_input = BeamStationInput {
         members: vec![BeamMemberInfo {
-            element_id: 1, section_id: 1, material_id: 1, length: 4.0,
+            element_id: 1, section_id: 1, material_id: 1, length: 4.0, label: None,
         }],
         combinations: vec![LabeledResults {
             combo_id: 1, combo_name: None, results,
@@ -242,7 +242,7 @@ fn test_no_data_governing_absent_in_json() {
     // Member 99 doesn't exist in the results
     let station_input = BeamStationInput {
         members: vec![BeamMemberInfo {
-            element_id: 99, section_id: 1, material_id: 1, length: 4.0,
+            element_id: 99, section_id: 1, material_id: 1, length: 4.0, label: None,
         }],
         combinations: vec![LabeledResults {
             combo_id: 1, combo_name: None, results,
@@ -309,8 +309,8 @@ fn test_grouped_full_solve() {
 
     let station_input = BeamStationInput {
         members: vec![
-            BeamMemberInfo { element_id: 1, section_id: 1, material_id: 1, length: 6.0 },
-            BeamMemberInfo { element_id: 2, section_id: 1, material_id: 1, length: 6.0 },
+            BeamMemberInfo { element_id: 1, section_id: 1, material_id: 1, length: 6.0, label: None },
+            BeamMemberInfo { element_id: 2, section_id: 1, material_id: 1, length: 6.0, label: None },
         ],
         combinations: vec![
             LabeledResults { combo_id: 1, combo_name: Some("D".into()), results: results_d },

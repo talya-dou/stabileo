@@ -192,6 +192,7 @@ export interface BeamMemberInfo {
   sectionId: number;
   materialId: number;
   length: number;
+  label?: string;
 }
 
 export interface LabeledResults {
@@ -229,6 +230,7 @@ export interface GoverningInfo {
 
 export interface BeamStation {
   memberId: number;
+  label?: string;
   stationIndex: number;
   t: number;
   stationX: number;
@@ -271,6 +273,7 @@ export interface MemberGoverning {
 
 export interface MemberStationGroup {
   memberId: number;
+  label?: string;
   sectionId: number;
   materialId: number;
   length: number;

@@ -265,6 +265,7 @@ export interface GoverningInfo3D {
 
 export interface BeamStation3D {
   memberId: number;
+  label?: string;
   stationIndex: number;
   t: number;
   stationX: number;
@@ -305,6 +306,7 @@ export interface MemberGoverning3D {
 
 export interface MemberStationGroup3D {
   memberId: number;
+  label?: string;
   sectionId: number;
   materialId: number;
   length: number;

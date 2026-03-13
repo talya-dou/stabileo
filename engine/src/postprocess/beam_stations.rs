@@ -67,6 +67,8 @@ pub struct BeamMemberInfo {
     pub section_id: usize,
     pub material_id: usize,
     pub length: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +172,8 @@ pub struct GoverningInfo {
 #[serde(rename_all = "camelCase")]
 pub struct BeamStation {
     pub member_id: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub station_index: usize,
     pub t: f64,
     pub station_x: f64,
@@ -226,6 +230,8 @@ pub struct GoverningInfo3D {
 #[serde(rename_all = "camelCase")]
 pub struct BeamStation3D {
     pub member_id: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub station_index: usize,
     pub t: f64,
     pub station_x: f64,
@@ -323,6 +329,7 @@ pub fn extract_beam_stations(input: &BeamStationInput) -> BeamStationResult {
 
             stations.push(BeamStation {
                 member_id: member.element_id,
+                label: member.label.clone(),
                 station_index: s_idx,
                 t,
                 station_x,
@@ -416,6 +423,7 @@ pub fn extract_beam_stations_3d(input: &BeamStationInput3D) -> BeamStationResult
 
             stations.push(BeamStation3D {
                 member_id: member.element_id,
+                label: member.label.clone(),
                 station_index: s_idx,
                 t,
                 station_x,
@@ -492,6 +500,8 @@ pub struct MemberGoverning3D {
 #[serde(rename_all = "camelCase")]
 pub struct MemberStationGroup {
     pub member_id: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub section_id: usize,
     pub material_id: usize,
     pub length: f64,
@@ -512,6 +522,8 @@ pub struct GroupedBeamStationResult {
 #[serde(rename_all = "camelCase")]
 pub struct MemberStationGroup3D {
     pub member_id: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     pub section_id: usize,
     pub material_id: usize,
     pub length: f64,
@@ -598,6 +610,7 @@ pub fn group_by_member(flat: &BeamStationResult, members: &[BeamMemberInfo]) -> 
 
         groups.push(MemberStationGroup {
             member_id: member.element_id,
+            label: member.label.clone(),
             section_id: member.section_id,
             material_id: member.material_id,
             length: member.length,
@@ -645,6 +658,7 @@ pub fn group_by_member_3d(flat: &BeamStationResult3D, members: &[BeamMemberInfo]
 
         groups.push(MemberStationGroup3D {
             member_id: member.element_id,
+            label: member.label.clone(),
             section_id: member.section_id,
             material_id: member.material_id,
             length: member.length,
@@ -700,7 +714,7 @@ mod tests {
     }
 
     fn make_member(element_id: usize, length: f64) -> BeamMemberInfo {
-        BeamMemberInfo { element_id, section_id: 1, material_id: 1, length }
+        BeamMemberInfo { element_id, section_id: 1, material_id: 1, length, label: None }
     }
 
     fn make_results(efs: Vec<ElementForces>) -> AnalysisResults {
