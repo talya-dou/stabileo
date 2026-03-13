@@ -140,7 +140,7 @@ fn no_dense_fallback_on_shell() {
     );
 }
 
-/// Gate 2: Fill ratio stays bounded with RCM ordering.
+/// Gate 2: Fill ratio stays bounded with AMD ordering (the default).
 #[test]
 fn fill_ratio_below_threshold() {
     let input = make_ss_plate(50, 50);
@@ -148,14 +148,14 @@ fn fill_ratio_below_threshold() {
     let nf = dof_num.n_free;
     let asm = assemble_sparse_3d(&input, &dof_num, false);
 
-    let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Rcm);
+    let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Amd);
     let nnz_kff = asm.k_ff.col_ptr[nf];
     let nnz_l = sym.l_nnz;
     let fill_ratio = nnz_l as f64 / nnz_kff as f64;
 
     assert!(
-        fill_ratio < 200.0,
-        "Fill ratio {:.1}× exceeds 200× threshold (nnz_L={}, nnz_Kff={})",
+        fill_ratio < 50.0,
+        "Fill ratio {:.1}× exceeds 50× threshold (nnz_L={}, nnz_Kff={})",
         fill_ratio, nnz_l, nnz_kff
     );
 }
@@ -488,16 +488,16 @@ fn deterministic_sparse_assembly() {
     }
 }
 
-/// Gate 5c: Fill ratio stays bounded for known mesh sizes with RCM ordering.
+/// Gate 5c: Fill ratio stays bounded for known mesh sizes with AMD ordering (the default).
 #[test]
 fn fill_ratio_regression() {
-    for &(nx, ny, bound) in &[(10, 10, 4.0), (30, 30, 10.0)] {
+    for &(nx, ny, bound) in &[(10, 10, 3.5), (30, 30, 6.5)] {
         let input = make_ss_plate(nx, ny);
         let dof_num = DofNumbering::build_3d(&input);
         let nf = dof_num.n_free;
         let asm = assemble_sparse_3d(&input, &dof_num, false);
 
-        let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Rcm);
+        let sym = symbolic_cholesky_with(&asm.k_ff, CholOrdering::Amd);
         let nnz_kff = asm.k_ff.col_ptr[nf];
         let fill = sym.l_nnz as f64 / nnz_kff as f64;
         println!("{}x{}: fill_ratio={:.2}, bound={:.1}", nx, ny, fill, bound);
